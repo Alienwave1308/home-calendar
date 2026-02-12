@@ -1,0 +1,45 @@
+name: CI Tests
+
+# Когда запускать: при push и pull request в main
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Шаг 1: Скачать код из репозитория
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    # Шаг 2: Установить Node.js
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    # Шаг 3: Установить зависимости
+    - name: Install dependencies
+      run: npm install
+    
+    # Шаг 4: Запустить Jest тесты (API)
+    - name: Run Jest tests
+      run: npm test
+    
+    # Шаг 5: Запустить сервер в фоне
+    - name: Start server
+      run: node backend/server.js &
+      
+    # Шаг 6: Подождать, пока сервер запустится
+    - name: Wait for server
+      run: npx wait-on http://localhost:3000 --timeout 30000
+    
+    # Шаг 7: Запустить Cypress e2e тесты
+    - name: Run Cypress tests
+      run: npm run cypress:run
+
+
