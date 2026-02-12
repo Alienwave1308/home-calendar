@@ -6,7 +6,7 @@ const path = require('path');  // ← Добавь эту строку
 const app = express();
 
 // Порт на котором будет работать сервер
-const PORT = 4000;
+const PORT = 3000;
 
 // Middleware для работы с JSON
 // (позволяет серверу понимать JSON данные от клиента)
