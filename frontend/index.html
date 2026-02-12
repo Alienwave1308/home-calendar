@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Домашний Календарь</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📅 Домашний Календарь</h1>
+      <p>Управляй своими задачами</p>
+    </header>
+
+    <!-- Форма для добавления задачи -->
+    <section class="add-task">
+      <h2>Добавить новую задачу</h2>
+      <form id="taskForm">
+        <div class="form-group">
+          <label for="taskTitle">Задача:</label>
+          <input type="text" id="taskTitle" placeholder="Что нужно сделать?" required>
+        </div>
+        <div class="form-group">
+          <label for="taskDate">Дата:</label>
+          <input type="date" id="taskDate" required>
+        </div>
+        <button type="submit" class="btn-primary">Добавить задачу</button>
+      </form>
+    </section>
+
+    <!-- Список задач -->
+    <section class="tasks-list">
+      <h2>Мои задачи</h2>
+      <div id="tasksContainer">
+        <p class="loading">Загрузка задач...</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

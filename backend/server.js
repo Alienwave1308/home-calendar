@@ -11,6 +11,9 @@ const PORT = 3000;
 // (позволяет серверу понимать JSON данные от клиента)
 app.use(express.json());
 
+// Подключаем статические файлы (HTML, CSS, JS) из папки frontend
+app.use(express.static('../frontend'));
+
 // Подключаем роуты для задач
 const tasksRouter = require('./routes/tasks');
 app.use('/api/tasks', tasksRouter);
