@@ -11,6 +11,10 @@ const PORT = 3000;
 // (позволяет серверу понимать JSON данные от клиента)
 app.use(express.json());
 
+// Подключаем роуты для задач
+const tasksRouter = require('./routes/tasks');
+app.use('/api/tasks', tasksRouter);
+
 // Базовый роут (маршрут) - главная страница
 // GET запрос на адрес http://localhost:3000/
 app.get('/', (req, res) => {
