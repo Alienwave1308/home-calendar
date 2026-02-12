@@ -1,5 +1,6 @@
 // Импортируем Express - это библиотека для создания веб-сервера
 const express = require('express');
+const path = require('path');  // ← Добавь эту строку
 
 // Создаём приложение Express
 const app = express();
@@ -12,17 +13,11 @@ const PORT = 3000;
 app.use(express.json());
 
 // Подключаем статические файлы (HTML, CSS, JS) из папки frontend
-app.use(express.static('../frontend'));
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Подключаем роуты для задач
 const tasksRouter = require('./routes/tasks');
 app.use('/api/tasks', tasksRouter);
-
-// Базовый роут (маршрут) - главная страница
-// GET запрос на адрес http://localhost:3000/
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Home Calendar API!' });
-});
 
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {

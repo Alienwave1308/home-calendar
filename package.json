@@ -4,8 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
-  },
+  "test": "jest",
+  "cypress:open": "cypress open",
+  "cypress:run": "cypress run"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -14,6 +16,7 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "cypress": "^15.10.0",
     "jest": "^30.2.0",
     "supertest": "^7.2.2"
   }
