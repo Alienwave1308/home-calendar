@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build output
+dist/
+build/
+*.min.js
+*.min.css
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+.cache/
