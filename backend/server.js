@@ -1,0 +1,29 @@
+// Импортируем Express - это библиотека для создания веб-сервера
+const express = require('express');
+
+// Создаём приложение Express
+const app = express();
+
+// Порт на котором будет работать сервер
+const PORT = 3000;
+
+// Middleware для работы с JSON
+// (позволяет серверу понимать JSON данные от клиента)
+app.use(express.json());
+
+// Базовый роут (маршрут) - главная страница
+// GET запрос на адрес http://localhost:3000/
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to Home Calendar API!' });
+});
+
+// Роут для проверки здоровья сервера
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date() });
+});
+
+// Запускаем сервер
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
+
