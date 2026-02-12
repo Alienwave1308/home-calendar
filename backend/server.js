@@ -27,7 +27,13 @@ app.get('/health', (req, res) => {
 });
 
 // Запускаем сервер
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+// Запускаем сервер только если файл запущен напрямую
+// (не при импорте в тестах)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
 
+// Экспортируем app для тестов
+module.exports = app;
