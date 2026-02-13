@@ -1,68 +1,112 @@
 describe('Home Calendar - E2E Tests', () => {
-  
-  // Этот код выполняется перед каждым тестом
+  const testUser = 'cypressuser';
+  const testPass = 'cypress123';
+
+  before(() => {
+    // Регистрируем тестового пользователя один раз (через API)
+    cy.register(testUser, testPass);
+  });
+
   beforeEach(() => {
-    cy.visit('http://localhost:3000')
-  })
+    // Чистим localStorage чтобы начать с экрана логина
+    cy.clearLocalStorage();
+    cy.visit('http://localhost:3000');
+  });
 
-  // Тест 1: Загрузка главной страницы
-  it('should load the homepage', () => {
-    cy.contains('Домашний Календарь')
-    cy.contains('Управляй своими задачами')
-  })
+  // Тест 1: Загрузка страницы авторизации
+  it('should load the auth screen', () => {
+    cy.contains('Домашний Календарь');
+    cy.contains('Войдите или зарегистрируйтесь');
+    cy.get('#loginForm').should('be.visible');
+  });
 
-  // Тест 2: Добавление новой задачи
+  // Тест 2: Переключение между вкладками вход/регистрация
+  it('should switch between login and register tabs', () => {
+    cy.get('#loginForm').should('be.visible');
+    cy.get('#registerForm').should('not.be.visible');
+
+    cy.contains('Регистрация').click();
+    cy.get('#registerForm').should('be.visible');
+    cy.get('#loginForm').should('not.be.visible');
+
+    cy.contains('Вход').click();
+    cy.get('#loginForm').should('be.visible');
+  });
+
+  // Тест 3: Успешный вход
+  it('should login successfully', () => {
+    cy.login(testUser, testPass);
+    cy.get('#appScreen').should('be.visible');
+    cy.contains(testUser);
+  });
+
+  // Тест 4: Добавление новой задачи
   it('should add a new task', () => {
-    // Заполняем форму
-    cy.get('#taskTitle').type('Купить молоко')
-    cy.get('#taskDate').type('2026-02-15')
-    
-    // Отправляем форму
-    cy.get('#taskForm').submit()
-    
-    // Проверяем, что задача появилась в списке
-    cy.contains('Купить молоко')
-    cy.contains('15 февраля 2026')
-  })
+    cy.login(testUser, testPass);
 
-  // Тест 3: Отметка задачи как выполненной
-  it('should mark task as completed', () => {
-    // Сначала добавляем задачу
-    cy.get('#taskTitle').type('Помыть посуду')
-    cy.get('#taskDate').type('2026-02-16')
-    cy.get('#taskForm').submit()
-    
-    // Ждём появления задачи и кликаем "Выполнено"
-    cy.contains('Помыть посуду').parent().parent()
-      .find('.btn-complete').click()
-    
-    // Проверяем, что задача отмечена как выполненная
-    cy.contains('Помыть посуду').parent().parent()
-      .should('have.class', 'completed')
-    
-    // Проверяем, что кнопка изменилась на "Вернуть"
-    cy.contains('↩️ Вернуть')
-  })
+    cy.get('#taskTitle').type('Купить молоко');
+    cy.get('#taskDate').type('2026-02-15');
+    cy.get('#taskForm').submit();
 
-  // Тест 4: Удаление задачи
-  it('should delete a task', () => {
+    cy.contains('Купить молоко');
+    cy.contains('15 февраля 2026');
+  });
+
+  // Тест 5: Переключение статуса задачи
+  it('should cycle task status', () => {
+    cy.login(testUser, testPass);
+
     // Добавляем задачу
-    cy.get('#taskTitle').type('Задача для удаления')
-    cy.get('#taskDate').type('2026-02-17')
-    cy.get('#taskForm').submit()
-    
-    // Проверяем, что задача появилась
-    cy.contains('Задача для удаления')
-    
-    // Автоматически подтверждаем удаление (без клика на OK)
-    cy.on('window:confirm', () => true)
-    
-    // Кликаем кнопку удаления
-    cy.contains('Задача для удаления').parent().parent()
-      .find('.btn-delete').click()
-    
-    // Проверяем, что задачи больше нет
-    cy.contains('Задача для удаления').should('not.exist')
-  })
-})
+    cy.get('#taskTitle').type('Тестовая задача');
+    cy.get('#taskDate').type('2026-02-16');
+    cy.get('#taskForm').submit();
 
+    // Ждём задачу и кликаем кнопку смены статуса (Запланировано -> В работе)
+    cy.contains('Тестовая задача')
+      .parents('.task-item')
+      .find('.btn-status')
+      .click();
+
+    // Проверяем что статус изменился
+    cy.contains('Тестовая задача')
+      .parents('.task-item')
+      .contains('В работе');
+  });
+
+  // Тест 6: Удаление задачи
+  it('should delete a task', () => {
+    cy.login(testUser, testPass);
+
+    cy.get('#taskTitle').type('Задача для удаления');
+    cy.get('#taskDate').type('2026-02-17');
+    cy.get('#taskForm').submit();
+
+    cy.contains('Задача для удаления');
+
+    // Подтверждаем confirm-диалог автоматически
+    cy.on('window:confirm', () => true);
+
+    cy.contains('Задача для удаления')
+      .parents('.task-item')
+      .find('.btn-delete')
+      .click();
+
+    cy.contains('Задача для удаления').should('not.exist');
+  });
+
+  // Тест 7: Выход из аккаунта
+  it('should logout', () => {
+    cy.login(testUser, testPass);
+    cy.contains('Выйти').click();
+    cy.get('#authScreen').should('be.visible');
+    cy.get('#appScreen').should('not.be.visible');
+  });
+
+  // Тест 8: Секция семьи видна после логина
+  it('should show family section after login', () => {
+    cy.login(testUser, testPass);
+    cy.get('#familySection').should('be.visible');
+    cy.contains('Семья');
+    cy.contains('Создайте семью или присоединитесь');
+  });
+});
