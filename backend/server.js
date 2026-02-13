@@ -1,3 +1,6 @@
+// Загружаем переменные окружения из .env файла
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+
 // Импортируем Express - это библиотека для создания веб-сервера
 const express = require('express');
 const path = require('path');  // ← Добавь эту строку
@@ -6,7 +9,7 @@ const path = require('path');  // ← Добавь эту строку
 const app = express();
 
 // Порт на котором будет работать сервер
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware для работы с JSON
 // (позволяет серверу понимать JSON данные от клиента)
