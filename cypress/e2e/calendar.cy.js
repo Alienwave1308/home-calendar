@@ -10,7 +10,7 @@ describe('Home Calendar - E2E Tests', () => {
   beforeEach(() => {
     // Чистим localStorage чтобы начать с экрана логина
     cy.clearLocalStorage();
-    cy.visit('http://localhost:3000');
+    cy.visit('/');
   });
 
   // Тест 1: Загрузка страницы авторизации
