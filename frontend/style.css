@@ -655,34 +655,100 @@ header p {
 
 /* Адаптивность для мобильных */
 @media (max-width: 600px) {
+  body {
+    padding: 0;
+  }
+
   .container {
-    padding: 20px;
+    border-radius: 0;
+    padding: 15px;
+    box-shadow: none;
+    min-height: 100vh;
   }
-  
+
+  header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+  }
+
   header h1 {
-    font-size: 2em;
+    font-size: 1.6em;
   }
-  
-  .task-item {
-    flex-direction: column;
-    align-items: flex-start;
+
+  header p {
+    font-size: 0.95em;
   }
-  
-  .task-actions {
-    margin-top: 10px;
+
+  /* Auth */
+  .auth-section {
+    padding: 15px;
+  }
+
+  .auth-tab {
+    padding: 12px 8px;
+    font-size: 0.95em;
+    min-height: 44px;
+  }
+
+  .form-group input {
+    padding: 14px 15px;
+    font-size: 1em;
+  }
+
+  .btn-primary {
     width: 100%;
+    padding: 14px;
+    min-height: 44px;
   }
-  
-  .btn-small {
-    flex: 1;
+
+  /* Family */
+  .family-section {
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+
+  .family-actions {
+    flex-direction: column;
+  }
+
+  .family-create,
+  .family-join {
+    min-width: 100%;
+  }
+
+  .family-create .btn-small,
+  .family-join .btn-small {
+    min-height: 44px;
+  }
+
+  /* Calendar */
+  .calendar-header h2 {
+    font-size: 1.1em;
+  }
+
+  .btn-nav {
+    width: 40px;
+    height: 40px;
+  }
+
+  .btn-today {
+    padding: 6px 10px;
+    font-size: 0.8em;
+  }
+
+  .calendar-weekdays {
+    font-size: 0.8em;
+    padding: 6px 0;
   }
 
   .calendar-day {
+    aspect-ratio: auto;
+    min-height: 48px;
     padding: 4px 1px;
   }
 
   .calendar-day .day-number {
-    font-size: 0.8em;
+    font-size: 0.85em;
   }
 
   .task-dot {
@@ -690,13 +756,114 @@ header p {
     height: 5px;
   }
 
-  .calendar-header h2 {
-    font-size: 1.1em;
+  /* Add task form */
+  .add-task {
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+
+  .add-task h2 {
+    font-size: 1.2em;
+    margin-bottom: 15px;
+  }
+
+  /* Task list */
+  .task-item {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 15px;
+  }
+
+  .task-actions {
+    margin-top: 10px;
+    width: 100%;
+  }
+
+  .btn-small {
+    flex: 1;
+    min-height: 44px;
+    font-size: 0.9em;
+  }
+
+  .tasks-tab {
+    min-height: 44px;
+    font-size: 0.9em;
+  }
+
+  /* Modal — fullscreen on mobile */
+  .modal-overlay {
+    padding: 0;
+    align-items: stretch;
   }
 
   .modal {
+    border-radius: 0;
+    max-width: 100%;
+    max-height: 100%;
+    height: 100%;
     padding: 20px;
-    max-height: 90vh;
+  }
+
+  .modal-header .btn-nav {
+    width: 40px;
+    height: 40px;
+  }
+
+  .modal-task .task-actions {
+    margin-top: 0;
+    width: auto;
+  }
+
+  .modal-task .task-actions .btn-small {
+    min-height: 36px;
+    flex: none;
+    padding: 6px 12px;
+  }
+
+  .modal-add input {
+    padding: 12px 14px;
+    font-size: 1em;
+  }
+
+  .modal-add .btn-small {
+    min-height: 44px;
+  }
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 400px) {
+  .container {
+    padding: 10px;
+  }
+
+  header h1 {
+    font-size: 1.4em;
+  }
+
+  .calendar-title-group {
+    gap: 6px;
+  }
+
+  .calendar-header h2 {
+    font-size: 1em;
+  }
+
+  .btn-nav {
+    width: 36px;
+    height: 36px;
+  }
+
+  .calendar-day {
+    min-height: 42px;
+  }
+
+  .family-section h2 {
+    font-size: 1.1em;
+  }
+
+  .user-bar {
+    flex-direction: column;
+    gap: 8px;
   }
 }
 
