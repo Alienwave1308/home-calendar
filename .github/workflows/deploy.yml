@@ -1,15 +1,16 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Деплоим только после прохождения всех CI проверок
-    needs: []
-    # Запускаем только если CI workflow прошёл (проверяется branch protection)
+    # Деплоим только если CI прошёл успешно
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
     - name: Deploy to VPS
       env:
