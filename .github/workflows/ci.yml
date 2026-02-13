@@ -1,6 +1,5 @@
-name: CI Tests
+name: CI
 
-# Когда запускать: при push и pull request в main
 on:
   push:
     branches: [ main ]
@@ -8,10 +7,20 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  # Job 1: Линтер (быстрый, без БД)
+  lint:
     runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - run: npm install
+    - run: npm run lint
 
-    # PostgreSQL сервис для тестов
+  # Job 2: Backend тесты (Jest + PostgreSQL)
+  backend-tests:
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
@@ -26,43 +35,47 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       DATABASE_URL: postgresql://calendar:calendar123@localhost:5432/home_calendar
       JWT_SECRET: test-secret-for-ci-only
       NODE_ENV: test
-
     steps:
-    # Шаг 1: Скачать код из репозитория
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    # Шаг 2: Установить Node.js
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
       with:
         node-version: '20'
+    - run: npm install
+    - run: npm test
 
-    # Шаг 3: Установить зависимости
-    - name: Install dependencies
-      run: npm install
-
-    # Шаг 4: Запустить линтер
-    - name: Run ESLint
-      run: npm run lint
-
-    # Шаг 5: Запустить Jest тесты (API)
-    - name: Run Jest tests
-      run: npm test
-
-    # Шаг 6: Запустить сервер в фоне
+  # Job 3: E2E тесты (Cypress + сервер + PostgreSQL)
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: calendar
+          POSTGRES_PASSWORD: calendar123
+          POSTGRES_DB: home_calendar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U calendar"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://calendar:calendar123@localhost:5432/home_calendar
+      JWT_SECRET: test-secret-for-ci-only
+      NODE_ENV: test
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - run: npm install
     - name: Start server
       run: node backend/server.js &
-
-    # Шаг 7: Подождать, пока сервер запустится
     - name: Wait for server
       run: npx wait-on http://localhost:3000 --timeout 30000
-
-    # Шаг 8: Запустить Cypress e2e тесты
-    - name: Run Cypress tests
-      run: npm run cypress:run
+    - run: npm run cypress:run
