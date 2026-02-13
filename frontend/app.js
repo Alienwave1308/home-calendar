@@ -117,6 +117,7 @@ taskForm.addEventListener('submit', async (e) => {
 });
 
 // Функция для переключения статуса задачи (выполнено/не выполнено)
+// eslint-disable-next-line no-unused-vars
 async function toggleTask(id, currentStatus) {
   try {
     // PUT запрос для обновления задачи
@@ -139,8 +140,8 @@ async function toggleTask(id, currentStatus) {
     alert('❌ Ошибка при обновлении задачи');
   }
 }
-
 // Функция для удаления задачи
+// eslint-disable-next-line no-unused-vars
 async function deleteTask(id) {
   // Подтверждение удаления
   if (!confirm('🗑️ Вы уверены, что хотите удалить эту задачу?')) {

@@ -51,7 +51,7 @@ describe('Tasks API', () => {
         .send(newTask)
         .expect('Content-Type', /json/)
         .expect(201);
-      
+
       expect(response.body).toHaveProperty('id');
       expect(response.body.title).toBe('Test Task');
       expect(response.body.completed).toBe(false);
@@ -80,7 +80,7 @@ describe('Tasks API', () => {
     });
     
     it('should return 404 for non-existent task', async () => {
-      const response = await request(app)
+      await request(app)
         .put('/api/tasks/9999')
         .send({ completed: true })
         .expect(404);
