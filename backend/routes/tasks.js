@@ -1,9 +1,10 @@
-// Роуты для работы с задачами
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 
-// GET /api/tasks - получить все задачи
+const VALID_STATUSES = ['planned', 'in_progress', 'done'];
+
+// GET /api/tasks - get all tasks
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM tasks ORDER BY id');
@@ -14,7 +15,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/tasks/:id - получить одну задачу по ID
+// GET /api/tasks/:id - get single task
 router.get('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -31,18 +32,23 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/tasks - создать новую задачу
+// POST /api/tasks - create task
 router.post('/', async (req, res) => {
   try {
-    const { title, date } = req.body;
+    const { title, date, status } = req.body;
 
     if (!title || !date) {
       return res.status(400).json({ error: 'Title and date are required' });
     }
 
+    const taskStatus = status || 'planned';
+    if (!VALID_STATUSES.includes(taskStatus)) {
+      return res.status(400).json({ error: 'Invalid status. Must be: planned, in_progress, or done' });
+    }
+
     const result = await pool.query(
-      'INSERT INTO tasks (title, date, completed) VALUES ($1, $2, false) RETURNING *',
-      [title, date]
+      'INSERT INTO tasks (title, date, status) VALUES ($1, $2, $3) RETURNING *',
+      [title, date, taskStatus]
     );
 
     res.status(201).json(result.rows[0]);
@@ -52,27 +58,29 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/tasks/:id - обновить задачу
+// PUT /api/tasks/:id - update task
 router.put('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, date, completed } = req.body;
+    const { title, date, status } = req.body;
 
-    // Сначала проверяем, существует ли задача
+    if (status !== undefined && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be: planned, in_progress, or done' });
+    }
+
     const existing = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    // Обновляем только те поля, которые пришли
     const current = existing.rows[0];
     const newTitle = title !== undefined ? title : current.title;
     const newDate = date !== undefined ? date : current.date;
-    const newCompleted = completed !== undefined ? completed : current.completed;
+    const newStatus = status !== undefined ? status : current.status;
 
     const result = await pool.query(
-      'UPDATE tasks SET title = $1, date = $2, completed = $3 WHERE id = $4 RETURNING *',
-      [newTitle, newDate, newCompleted, id]
+      'UPDATE tasks SET title = $1, date = $2, status = $3 WHERE id = $4 RETURNING *',
+      [newTitle, newDate, newStatus, id]
     );
 
     res.json(result.rows[0]);
@@ -82,7 +90,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/tasks/:id - удалить задачу
+// DELETE /api/tasks/:id - delete task
 router.delete('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);

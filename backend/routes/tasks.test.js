@@ -1,9 +1,7 @@
-// Тесты для API задач
 const request = require('supertest');
 const app = require('../server');
 const { pool } = require('../db');
 
-// Мокаем (подделываем) модуль базы данных
 jest.mock('../db', () => ({
   pool: { query: jest.fn() },
   initDB: jest.fn()
@@ -11,18 +9,16 @@ jest.mock('../db', () => ({
 
 describe('Tasks API', () => {
 
-  // Очищаем моки перед каждым тестом
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  // Тест: Получить все задачи
+  // GET all tasks
   describe('GET /api/tasks', () => {
     it('should return all tasks', async () => {
-      // Настраиваем мок: pool.query вернёт эти данные
       pool.query.mockResolvedValue({
         rows: [
-          { id: 1, title: 'Test Task', date: '2026-02-15', completed: false }
+          { id: 1, title: 'Test Task', date: '2026-02-15', status: 'planned' }
         ]
       });
 
@@ -33,14 +29,15 @@ describe('Tasks API', () => {
 
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeGreaterThan(0);
+      expect(response.body[0].status).toBe('planned');
     });
   });
 
-  // Тест: Получить одну задачу по ID
+  // GET single task
   describe('GET /api/tasks/:id', () => {
     it('should return a task by id', async () => {
       pool.query.mockResolvedValue({
-        rows: [{ id: 1, title: 'Test Task', date: '2026-02-15', completed: false }]
+        rows: [{ id: 1, title: 'Test Task', date: '2026-02-15', status: 'planned' }]
       });
 
       const response = await request(app)
@@ -49,7 +46,7 @@ describe('Tasks API', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('id', 1);
-      expect(response.body).toHaveProperty('title');
+      expect(response.body).toHaveProperty('status', 'planned');
     });
 
     it('should return 404 for non-existent task', async () => {
@@ -63,11 +60,11 @@ describe('Tasks API', () => {
     });
   });
 
-  // Тест: Создать новую задачу
+  // POST create task
   describe('POST /api/tasks', () => {
-    it('should create a new task', async () => {
+    it('should create a task with default status planned', async () => {
       pool.query.mockResolvedValue({
-        rows: [{ id: 1, title: 'Test Task', date: '2026-02-20', completed: false }]
+        rows: [{ id: 1, title: 'Test Task', date: '2026-02-20', status: 'planned' }]
       });
 
       const response = await request(app)
@@ -78,7 +75,20 @@ describe('Tasks API', () => {
 
       expect(response.body).toHaveProperty('id');
       expect(response.body.title).toBe('Test Task');
-      expect(response.body.completed).toBe(false);
+      expect(response.body.status).toBe('planned');
+    });
+
+    it('should create a task with explicit status', async () => {
+      pool.query.mockResolvedValue({
+        rows: [{ id: 2, title: 'Urgent', date: '2026-02-20', status: 'in_progress' }]
+      });
+
+      const response = await request(app)
+        .post('/api/tasks')
+        .send({ title: 'Urgent', date: '2026-02-20', status: 'in_progress' })
+        .expect(201);
+
+      expect(response.body.status).toBe('in_progress');
     });
 
     it('should return 400 if title is missing', async () => {
@@ -89,28 +99,42 @@ describe('Tasks API', () => {
 
       expect(response.body).toHaveProperty('error');
     });
+
+    it('should return 400 for invalid status', async () => {
+      const response = await request(app)
+        .post('/api/tasks')
+        .send({ title: 'Test', date: '2026-02-20', status: 'invalid' })
+        .expect(400);
+
+      expect(response.body.error).toMatch(/Invalid status/);
+    });
   });
 
-  // Тест: Обновить задачу
+  // PUT update task
   describe('PUT /api/tasks/:id', () => {
-    it('should update a task', async () => {
-      // Первый вызов - SELECT (проверка существования)
-      // Второй вызов - UPDATE
+    it('should update task status', async () => {
       pool.query
         .mockResolvedValueOnce({
-          rows: [{ id: 1, title: 'Old Task', date: '2026-02-15', completed: false }]
+          rows: [{ id: 1, title: 'Task', date: '2026-02-15', status: 'planned' }]
         })
         .mockResolvedValueOnce({
-          rows: [{ id: 1, title: 'Old Task', date: '2026-02-15', completed: true }]
+          rows: [{ id: 1, title: 'Task', date: '2026-02-15', status: 'done' }]
         });
 
       const response = await request(app)
         .put('/api/tasks/1')
-        .send({ completed: true })
+        .send({ status: 'done' })
         .expect('Content-Type', /json/)
         .expect(200);
 
-      expect(response.body.completed).toBe(true);
+      expect(response.body.status).toBe('done');
+    });
+
+    it('should return 400 for invalid status', async () => {
+      await request(app)
+        .put('/api/tasks/1')
+        .send({ status: 'bad_status' })
+        .expect(400);
     });
 
     it('should return 404 for non-existent task', async () => {
@@ -118,16 +142,16 @@ describe('Tasks API', () => {
 
       await request(app)
         .put('/api/tasks/9999')
-        .send({ completed: true })
+        .send({ status: 'done' })
         .expect(404);
     });
   });
 
-  // Тест: Удалить задачу
+  // DELETE task
   describe('DELETE /api/tasks/:id', () => {
     it('should delete a task', async () => {
       pool.query.mockResolvedValue({
-        rows: [{ id: 1, title: 'Test', date: '2026-02-15', completed: false }]
+        rows: [{ id: 1, title: 'Test', date: '2026-02-15', status: 'planned' }]
       });
 
       await request(app)
