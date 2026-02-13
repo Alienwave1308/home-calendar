@@ -1,10 +1,15 @@
 // API URLs
 const API_URL = '/api/tasks';
 const AUTH_URL = '/api/auth';
+const FAMILY_URL = '/api/families';
 
 // Auth state
 let authToken = localStorage.getItem('authToken');
 let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+
+// Family state
+let currentFamily = null;
+let currentTasksView = 'my'; // 'my' or 'family'
 
 // Helper: add auth header to fetch requests
 function authHeaders() {
@@ -27,6 +32,7 @@ function checkAuth() {
     authScreen.style.display = 'none';
     appScreen.style.display = 'block';
     document.getElementById('currentUser').textContent = currentUser.username;
+    loadFamily();
     loadTasks();
   } else {
     authScreen.style.display = 'block';
@@ -115,10 +121,186 @@ registerForm.addEventListener('submit', async (e) => {
 function logout() {
   authToken = null;
   currentUser = null;
+  currentFamily = null;
   localStorage.removeItem('authToken');
   localStorage.removeItem('currentUser');
   checkAuth();
 }
+
+// === FAMILY LOGIC ===
+
+async function loadFamily() {
+  try {
+    const response = await fetch(FAMILY_URL, { headers: authHeaders() });
+    if (response.status === 401 || response.status === 403) { logout(); return; }
+    const data = await response.json();
+    currentFamily = data.family;
+    renderFamily();
+  } catch (error) {
+    console.error('Ошибка загрузки семьи:', error);
+  }
+}
+
+function renderFamily() {
+  const noFamily = document.getElementById('noFamily');
+  const hasFamily = document.getElementById('hasFamily');
+  const tasksTabs = document.getElementById('tasksTabs');
+
+  if (currentFamily) {
+    noFamily.style.display = 'none';
+    hasFamily.style.display = 'block';
+    tasksTabs.style.display = 'flex';
+
+    document.getElementById('familyTitle').textContent = currentFamily.name;
+    document.getElementById('familyCode').textContent = currentFamily.invite_code;
+
+    const membersHTML = currentFamily.members.map(m => {
+      const roleLabel = m.role === 'owner' ? 'владелец' : 'участник';
+      const kickBtn = currentFamily.role === 'owner' && m.id !== currentUser.id
+        ? `<button class="btn-small btn-delete" onclick="kickMember(${m.id})">Убрать</button>`
+        : '';
+      return `
+        <div class="family-member">
+          <span>${m.username} <small>(${roleLabel})</small></span>
+          ${kickBtn}
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('familyMembers').innerHTML = membersHTML;
+  } else {
+    noFamily.style.display = 'block';
+    hasFamily.style.display = 'none';
+    tasksTabs.style.display = 'none';
+    // Reset to my tasks view
+    currentTasksView = 'my';
+    document.getElementById('tasksTitle').textContent = 'Мои задачи';
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function createFamily() {
+  const nameInput = document.getElementById('familyName');
+  const errorEl = document.getElementById('familyError');
+  errorEl.textContent = '';
+
+  const name = nameInput.value.trim();
+  if (name.length < 2) {
+    errorEl.textContent = 'Название семьи — минимум 2 символа';
+    return;
+  }
+
+  try {
+    const response = await fetch(FAMILY_URL, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ name })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      errorEl.textContent = data.error || 'Ошибка создания семьи';
+      return;
+    }
+
+    currentFamily = data.family;
+    nameInput.value = '';
+    renderFamily();
+  } catch {
+    errorEl.textContent = 'Ошибка соединения с сервером';
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function joinFamily() {
+  const codeInput = document.getElementById('inviteCodeInput');
+  const errorEl = document.getElementById('familyError');
+  errorEl.textContent = '';
+
+  const code = codeInput.value.trim();
+  if (!code) {
+    errorEl.textContent = 'Введите код приглашения';
+    return;
+  }
+
+  try {
+    const response = await fetch(`${FAMILY_URL}/join`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ invite_code: code })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      errorEl.textContent = data.error || 'Ошибка присоединения';
+      return;
+    }
+
+    currentFamily = data.family;
+    codeInput.value = '';
+    renderFamily();
+  } catch {
+    errorEl.textContent = 'Ошибка соединения с сервером';
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function leaveFamily() {
+  const action = currentFamily.role === 'owner'
+    ? 'Вы владелец. Семья будет удалена для всех. Продолжить?'
+    : 'Вы уверены, что хотите покинуть семью?';
+
+  if (!confirm(action)) return;
+
+  try {
+    const response = await fetch(`${FAMILY_URL}/leave`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+
+    if (response.ok) {
+      currentFamily = null;
+      currentTasksView = 'my';
+      renderFamily();
+      loadTasks();
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function kickMember(userId) {
+  if (!confirm('Убрать этого участника из семьи?')) return;
+
+  try {
+    const response = await fetch(`${FAMILY_URL}/members/${userId}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+
+    if (response.ok) {
+      loadFamily();
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+function switchTasksView(view, el) {
+  currentTasksView = view;
+  const tabs = document.querySelectorAll('.tasks-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+
+  document.getElementById('tasksTitle').textContent =
+    view === 'my' ? 'Мои задачи' : 'Задачи семьи';
+
+  loadTasks();
+}
+
+// === TASKS LOGIC ===
 
 // DOM elements for tasks
 const taskForm = document.getElementById('taskForm');
@@ -136,8 +318,13 @@ const STATUS_LABELS = {
 // Load all tasks from API
 async function loadTasks() {
   try {
-    const response = await fetch(API_URL, { headers: authHeaders() });
+    const url = currentTasksView === 'family' ? `${API_URL}/family` : API_URL;
+    const response = await fetch(url, { headers: authHeaders() });
     if (response.status === 401 || response.status === 403) { logout(); return; }
+    if (response.status === 404 && currentTasksView === 'family') {
+      tasksContainer.innerHTML = '<p class="no-tasks">Вы не состоите в семье</p>';
+      return;
+    }
     const tasks = await response.json();
     displayTasks(tasks);
   } catch (error) {
@@ -153,19 +340,27 @@ function displayTasks(tasks) {
     return;
   }
 
+  const isFamilyView = currentTasksView === 'family';
+
   const tasksHTML = tasks.map(task => {
     const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
     const doneClass = task.status === 'done' ? 'completed' : '';
+    const ownerLabel = isFamilyView && task.username
+      ? `<span class="task-owner">${task.username}</span>`
+      : '';
+    const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
 
     return `
       <div class="task-item ${doneClass}" data-status="${task.status}">
         <div class="task-info">
           <div class="task-title">${task.title}</div>
           <div class="task-meta">
+            ${ownerLabel}
             <span class="task-date">${formatDate(task.date)}</span>
             <span class="task-status status-${task.status}">${statusInfo.icon} ${statusInfo.text}</span>
           </div>
         </div>
+        ${isOwnTask ? `
         <div class="task-actions">
           <button class="btn-small btn-status" onclick="cycleStatus(${task.id}, '${task.status}')">
             ${STATUS_LABELS[statusInfo.next].icon} ${STATUS_LABELS[statusInfo.next].text}
@@ -174,6 +369,7 @@ function displayTasks(tasks) {
             Удалить
           </button>
         </div>
+        ` : ''}
       </div>
     `;
   }).join('');

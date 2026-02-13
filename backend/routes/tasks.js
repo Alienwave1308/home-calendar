@@ -22,6 +22,39 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/tasks/family — get all family members' tasks
+router.get('/family', async (req, res) => {
+  try {
+    // Find user's family
+    const membership = await pool.query(
+      'SELECT family_id FROM family_members WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (membership.rows.length === 0) {
+      return res.status(404).json({ error: 'You are not in a family' });
+    }
+
+    const familyId = membership.rows[0].family_id;
+
+    // Get all tasks from all family members
+    const result = await pool.query(
+      `SELECT t.*, u.username
+       FROM tasks t
+       JOIN family_members fm ON fm.user_id = t.user_id
+       JOIN users u ON u.id = t.user_id
+       WHERE fm.family_id = $1
+       ORDER BY t.date, t.id`,
+      [familyId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error getting family tasks:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/tasks/:id - get single task
 router.get('/:id', async (req, res) => {
   try {

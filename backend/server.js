@@ -26,6 +26,10 @@ app.use('/api/auth', authRouter);
 const tasksRouter = require('./routes/tasks');
 app.use('/api/tasks', tasksRouter);
 
+// Подключаем роуты для семей (требуют авторизации)
+const familiesRouter = require('./routes/families');
+app.use('/api/families', familiesRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });

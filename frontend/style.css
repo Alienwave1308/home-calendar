@@ -255,6 +255,139 @@ header p {
   background: #757575;
 }
 
+/* Секция семьи */
+.family-section {
+  background: #f0f4ff;
+  padding: 20px 25px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+  border: 2px solid #d0d8ff;
+}
+
+.family-section h2 {
+  color: #667eea;
+  margin-bottom: 10px;
+  font-size: 1.3em;
+}
+
+.family-hint {
+  color: #888;
+  font-size: 0.95em;
+  margin-bottom: 15px;
+}
+
+.family-actions {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.family-create,
+.family-join {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.family-create input,
+.family-join input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #d0d8ff;
+  border-radius: 6px;
+  font-size: 0.95em;
+}
+
+.family-create input:focus,
+.family-join input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.family-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.family-info {
+  margin-bottom: 15px;
+}
+
+.invite-code {
+  background: #e8edff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.95em;
+  color: #555;
+}
+
+.invite-code strong {
+  color: #667eea;
+  font-family: monospace;
+  font-size: 1.1em;
+  letter-spacing: 1px;
+}
+
+.family-members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.family-member {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.family-member small {
+  color: #999;
+}
+
+/* Табы задач (мои / семейные) */
+.tasks-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.tasks-tab {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid #667eea;
+  background: white;
+  color: #667eea;
+  border-radius: 8px;
+  font-size: 0.95em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.tasks-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Метка автора задачи */
+.task-owner {
+  background: #e8edff;
+  color: #667eea;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
 /* Адаптивность для мобильных */
 @media (max-width: 600px) {
   .container {

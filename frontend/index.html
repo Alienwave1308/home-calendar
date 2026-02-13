@@ -58,6 +58,37 @@
       </div>
     </header>
 
+    <!-- Секция семьи -->
+    <section class="family-section" id="familySection">
+      <!-- Если нет семьи -->
+      <div id="noFamily">
+        <h2>Семья</h2>
+        <p class="family-hint">Создайте семью или присоединитесь по коду приглашения</p>
+        <div class="family-actions">
+          <div class="family-create">
+            <input type="text" id="familyName" placeholder="Название семьи" minlength="2">
+            <button class="btn-primary btn-small" onclick="createFamily()">Создать</button>
+          </div>
+          <div class="family-join">
+            <input type="text" id="inviteCodeInput" placeholder="Код приглашения" maxlength="8">
+            <button class="btn-primary btn-small" onclick="joinFamily()">Присоединиться</button>
+          </div>
+        </div>
+        <div id="familyError" class="auth-error"></div>
+      </div>
+      <!-- Если есть семья -->
+      <div id="hasFamily" style="display: none;">
+        <div class="family-header">
+          <h2 id="familyTitle"></h2>
+          <button class="btn-small btn-logout" onclick="leaveFamily()">Покинуть</button>
+        </div>
+        <div class="family-info">
+          <span class="invite-code">Код: <strong id="familyCode"></strong></span>
+        </div>
+        <div class="family-members" id="familyMembers"></div>
+      </div>
+    </section>
+
     <!-- Форма для добавления задачи -->
     <section class="add-task">
       <h2>Добавить новую задачу</h2>
@@ -74,9 +105,13 @@
       </form>
     </section>
 
-    <!-- Список задач -->
+    <!-- Переключатель: мои / семейные задачи -->
     <section class="tasks-list">
-      <h2>Мои задачи</h2>
+      <div class="tasks-tabs" id="tasksTabs" style="display: none;">
+        <button class="tasks-tab active" onclick="switchTasksView('my', this)">Мои задачи</button>
+        <button class="tasks-tab" onclick="switchTasksView('family', this)">Задачи семьи</button>
+      </div>
+      <h2 id="tasksTitle">Мои задачи</h2>
       <div id="tasksContainer">
         <p class="loading">Загрузка задач...</p>
       </div>
