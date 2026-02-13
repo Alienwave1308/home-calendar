@@ -27,12 +27,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-// Запускаем сервер
+// Подключаем базу данных
+const { initDB } = require('./db');
+
 // Запускаем сервер только если файл запущен напрямую
 // (не при импорте в тестах)
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+  initDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+    });
   });
 }
 

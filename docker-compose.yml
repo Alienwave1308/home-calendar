@@ -1,6 +1,19 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: home-calendar-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=calendar
+      - POSTGRES_PASSWORD=calendar123
+      - POSTGRES_DB=home_calendar
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   app:
     build: .
     container_name: home-calendar
@@ -9,4 +22,10 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://calendar:calendar123@db:5432/home_calendar
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
 
