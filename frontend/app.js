@@ -1,6 +1,126 @@
-// API URL - relative path (works in both dev and production)
+// API URLs
 const API_URL = '/api/tasks';
+const AUTH_URL = '/api/auth';
 
+// Auth state
+let authToken = localStorage.getItem('authToken');
+let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+
+// Helper: add auth header to fetch requests
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken}`
+  };
+}
+
+// === AUTH LOGIC ===
+
+const authScreen = document.getElementById('authScreen');
+const appScreen = document.getElementById('appScreen');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+
+// Show correct screen on load
+function checkAuth() {
+  if (authToken && currentUser) {
+    authScreen.style.display = 'none';
+    appScreen.style.display = 'block';
+    document.getElementById('currentUser').textContent = currentUser.username;
+    loadTasks();
+  } else {
+    authScreen.style.display = 'block';
+    appScreen.style.display = 'none';
+  }
+}
+
+// Switch between login/register tabs
+// eslint-disable-next-line no-unused-vars
+function showAuthTab(tab, el) {
+  const tabs = document.querySelectorAll('.auth-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+
+  if (tab === 'login') {
+    loginForm.style.display = 'block';
+    registerForm.style.display = 'none';
+  } else {
+    loginForm.style.display = 'none';
+    registerForm.style.display = 'block';
+  }
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('loginError');
+  errorEl.textContent = '';
+
+  try {
+    const response = await fetch(`${AUTH_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('loginUsername').value.trim(),
+        password: document.getElementById('loginPassword').value
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      errorEl.textContent = data.error || 'Ошибка входа';
+      return;
+    }
+
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('authToken', authToken);
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    checkAuth();
+  } catch {
+    errorEl.textContent = 'Ошибка соединения с сервером';
+  }
+});
+
+registerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('registerError');
+  errorEl.textContent = '';
+
+  try {
+    const response = await fetch(`${AUTH_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('regUsername').value.trim(),
+        password: document.getElementById('regPassword').value
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      errorEl.textContent = data.error || 'Ошибка регистрации';
+      return;
+    }
+
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('authToken', authToken);
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    checkAuth();
+  } catch {
+    errorEl.textContent = 'Ошибка соединения с сервером';
+  }
+});
+
+function logout() {
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('currentUser');
+  checkAuth();
+}
+
+// DOM elements for tasks
 const taskForm = document.getElementById('taskForm');
 const taskTitle = document.getElementById('taskTitle');
 const taskDate = document.getElementById('taskDate');
@@ -16,7 +136,8 @@ const STATUS_LABELS = {
 // Load all tasks from API
 async function loadTasks() {
   try {
-    const response = await fetch(API_URL);
+    const response = await fetch(API_URL, { headers: authHeaders() });
+    if (response.status === 401 || response.status === 403) { logout(); return; }
     const tasks = await response.json();
     displayTasks(tasks);
   } catch (error) {
@@ -93,7 +214,7 @@ taskForm.addEventListener('submit', async (e) => {
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(newTask)
     });
 
@@ -119,7 +240,7 @@ async function cycleStatus(id, currentStatus) {
   try {
     const response = await fetch(`${API_URL}/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ status: nextStatus })
     });
 
@@ -143,7 +264,8 @@ async function deleteTask(id) {
 
   try {
     const response = await fetch(`${API_URL}/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: authHeaders()
     });
 
     if (response.ok) {
@@ -157,5 +279,5 @@ async function deleteTask(id) {
   }
 }
 
-// Load tasks on page load
-loadTasks();
+// Check auth and load tasks on page load
+checkAuth();

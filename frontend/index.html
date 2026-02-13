@@ -7,10 +7,55 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
+  <!-- Экран авторизации -->
+  <div class="container" id="authScreen">
     <header>
       <h1>📅 Домашний Календарь</h1>
-      <p>Управляй своими задачами</p>
+      <p>Войдите или зарегистрируйтесь</p>
+    </header>
+
+    <section class="auth-section">
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="showAuthTab('login', this)">Вход</button>
+        <button class="auth-tab" onclick="showAuthTab('register', this)">Регистрация</button>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <div class="form-group">
+          <label for="loginUsername">Имя пользователя:</label>
+          <input type="text" id="loginUsername" placeholder="Введите логин" required minlength="3">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Пароль:</label>
+          <input type="password" id="loginPassword" placeholder="Введите пароль" required minlength="6">
+        </div>
+        <div id="loginError" class="auth-error"></div>
+        <button type="submit" class="btn-primary">Войти</button>
+      </form>
+
+      <form id="registerForm" class="auth-form" style="display: none;">
+        <div class="form-group">
+          <label for="regUsername">Имя пользователя:</label>
+          <input type="text" id="regUsername" placeholder="Придумайте логин" required minlength="3">
+        </div>
+        <div class="form-group">
+          <label for="regPassword">Пароль:</label>
+          <input type="password" id="regPassword" placeholder="Минимум 6 символов" required minlength="6">
+        </div>
+        <div id="registerError" class="auth-error"></div>
+        <button type="submit" class="btn-primary">Зарегистрироваться</button>
+      </form>
+    </section>
+  </div>
+
+  <!-- Основной экран (скрыт до авторизации) -->
+  <div class="container" id="appScreen" style="display: none;">
+    <header>
+      <h1>📅 Домашний Календарь</h1>
+      <div class="user-bar">
+        <span id="currentUser"></span>
+        <button class="btn-small btn-logout" onclick="logout()">Выйти</button>
+      </div>
     </header>
 
     <!-- Форма для добавления задачи -->

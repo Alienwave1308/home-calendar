@@ -23,6 +23,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://calendar:calendar123@db:5432/home_calendar
+      - JWT_SECRET=change-this-to-a-secure-random-string
     depends_on:
       - db
 

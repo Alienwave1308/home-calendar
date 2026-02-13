@@ -1,16 +1,27 @@
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../server');
 const { pool } = require('../db');
+const { JWT_SECRET } = require('../middleware/auth');
 
 jest.mock('../db', () => ({
   pool: { query: jest.fn() },
   initDB: jest.fn()
 }));
 
+// Helper: generate valid token for test user
+const testUser = { id: 1, username: 'testuser' };
+const authToken = jwt.sign(testUser, JWT_SECRET, { expiresIn: '1h' });
+const authHeader = `Bearer ${authToken}`;
+
 describe('Tasks API', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('should return 401 without token', async () => {
+    await request(app).get('/api/tasks').expect(401);
   });
 
   // GET all tasks
@@ -24,6 +35,7 @@ describe('Tasks API', () => {
 
       const response = await request(app)
         .get('/api/tasks')
+        .set('Authorization', authHeader)
         .expect('Content-Type', /json/)
         .expect(200);
 
@@ -42,6 +54,7 @@ describe('Tasks API', () => {
 
       const response = await request(app)
         .get('/api/tasks/1')
+        .set('Authorization', authHeader)
         .expect('Content-Type', /json/)
         .expect(200);
 
@@ -54,6 +67,7 @@ describe('Tasks API', () => {
 
       const response = await request(app)
         .get('/api/tasks/9999')
+        .set('Authorization', authHeader)
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
@@ -69,6 +83,7 @@ describe('Tasks API', () => {
 
       const response = await request(app)
         .post('/api/tasks')
+        .set('Authorization', authHeader)
         .send({ title: 'Test Task', date: '2026-02-20' })
         .expect('Content-Type', /json/)
         .expect(201);
@@ -85,6 +100,7 @@ describe('Tasks API', () => {
 
       const response = await request(app)
         .post('/api/tasks')
+        .set('Authorization', authHeader)
         .send({ title: 'Urgent', date: '2026-02-20', status: 'in_progress' })
         .expect(201);
 
@@ -94,6 +110,7 @@ describe('Tasks API', () => {
     it('should return 400 if title is missing', async () => {
       const response = await request(app)
         .post('/api/tasks')
+        .set('Authorization', authHeader)
         .send({ date: '2026-02-20' })
         .expect(400);
 
@@ -103,6 +120,7 @@ describe('Tasks API', () => {
     it('should return 400 for invalid status', async () => {
       const response = await request(app)
         .post('/api/tasks')
+        .set('Authorization', authHeader)
         .send({ title: 'Test', date: '2026-02-20', status: 'invalid' })
         .expect(400);
 
@@ -123,6 +141,7 @@ describe('Tasks API', () => {
 
       const response = await request(app)
         .put('/api/tasks/1')
+        .set('Authorization', authHeader)
         .send({ status: 'done' })
         .expect('Content-Type', /json/)
         .expect(200);
@@ -133,6 +152,7 @@ describe('Tasks API', () => {
     it('should return 400 for invalid status', async () => {
       await request(app)
         .put('/api/tasks/1')
+        .set('Authorization', authHeader)
         .send({ status: 'bad_status' })
         .expect(400);
     });
@@ -142,6 +162,7 @@ describe('Tasks API', () => {
 
       await request(app)
         .put('/api/tasks/9999')
+        .set('Authorization', authHeader)
         .send({ status: 'done' })
         .expect(404);
     });
@@ -156,6 +177,7 @@ describe('Tasks API', () => {
 
       await request(app)
         .delete('/api/tasks/1')
+        .set('Authorization', authHeader)
         .expect(204);
     });
 
@@ -164,6 +186,7 @@ describe('Tasks API', () => {
 
       await request(app)
         .delete('/api/tasks/9999')
+        .set('Authorization', authHeader)
         .expect(404);
     });
   });

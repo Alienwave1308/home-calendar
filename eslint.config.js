@@ -22,6 +22,8 @@ module.exports = [
         window: "readonly",
         alert: "readonly",
         confirm: "readonly",
+        localStorage: "readonly",
+        event: "readonly",
       },
     },
     rules: {

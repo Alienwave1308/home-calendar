@@ -18,7 +18,11 @@ app.use(express.json());
 // Подключаем статические файлы (HTML, CSS, JS) из папки frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Подключаем роуты для задач
+// Подключаем роуты авторизации
+const authRouter = require('./routes/auth');
+app.use('/api/auth', authRouter);
+
+// Подключаем роуты для задач (требуют авторизации)
 const tasksRouter = require('./routes/tasks');
 app.use('/api/tasks', tasksRouter);
 

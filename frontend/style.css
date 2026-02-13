@@ -199,6 +199,62 @@ header p {
   font-size: 1.1em;
 }
 
+/* Авторизация */
+.auth-section {
+  padding: 25px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #667eea;
+  background: white;
+  color: #667eea;
+  border-radius: 8px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.auth-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.auth-error {
+  color: #f44336;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+  min-height: 1.2em;
+}
+
+.user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 5px;
+  color: #666;
+}
+
+.btn-logout {
+  background: #9e9e9e;
+  color: white;
+  font-size: 0.85em;
+  padding: 6px 12px;
+}
+
+.btn-logout:hover {
+  background: #757575;
+}
+
 /* Адаптивность для мобильных */
 @media (max-width: 600px) {
   .container {
