@@ -121,13 +121,14 @@ describe('Home Calendar - E2E Tests', () => {
   // Тест 10: Навигация по месяцам
   it('should navigate between months', () => {
     cy.login(testUser, testPass);
-    cy.get('#calendarTitle').invoke('text').then(initialTitle => {
+    // Ждём пока календарь отрендерится
+    cy.get('#calendarTitle').should('not.have.text', '').invoke('text').then(initialTitle => {
       // Клик вперёд
       cy.get('.calendar-header .btn-nav').last().click();
-      cy.get('#calendarTitle').invoke('text').should('not.eq', initialTitle);
+      cy.get('#calendarTitle').should('not.have.text', initialTitle);
       // Клик назад
       cy.get('.calendar-header .btn-nav').first().click();
-      cy.get('#calendarTitle').invoke('text').should('eq', initialTitle);
+      cy.get('#calendarTitle').should('have.text', initialTitle);
     });
   });
 

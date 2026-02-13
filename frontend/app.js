@@ -571,14 +571,12 @@ function renderDots(tasks) {
   return `<div class="task-dots">${dots}</div>`;
 }
 
-// eslint-disable-next-line no-unused-vars
 function prevMonth() {
   calendarMonth--;
   if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
   renderCalendar();
 }
 
-// eslint-disable-next-line no-unused-vars
 function nextMonth() {
   calendarMonth++;
   if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
@@ -605,7 +603,6 @@ function openDayModal(dateStr) {
   modal.style.display = 'flex';
 }
 
-// eslint-disable-next-line no-unused-vars
 function closeDayModal(event) {
   // If called from overlay click, only close if clicking overlay itself
   if (event && event.target !== event.currentTarget) return;
@@ -710,6 +707,33 @@ async function deleteTaskModal(id) {
     console.error('Ошибка:', error);
   }
 }
+
+// === SWIPE GESTURES FOR CALENDAR ===
+
+let touchStartX = 0;
+
+document.addEventListener('touchstart', (e) => {
+  if (e.target.closest('.calendar-section')) {
+    touchStartX = e.touches[0].clientX;
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!e.target.closest('.calendar-section')) return;
+  const touchEndX = e.changedTouches[0].clientX;
+  const diff = touchStartX - touchEndX;
+  if (Math.abs(diff) > 50) {
+    if (diff > 0) nextMonth(); else prevMonth();
+  }
+}, { passive: true });
+
+// === KEYBOARD: Escape closes modal ===
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modalDate) {
+    closeDayModal();
+  }
+});
 
 // Check auth and load tasks on page load
 checkAuth();
