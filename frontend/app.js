@@ -11,6 +11,12 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let currentFamily = null;
 let currentTasksView = 'my'; // 'my' or 'family'
 
+// Calendar state
+let calendarMonth = new Date().getMonth();
+let calendarYear = new Date().getFullYear();
+let allTasks = []; // cached tasks for calendar rendering
+let modalDate = null; // currently open day in modal
+
 // Helper: add auth header to fetch requests
 function authHeaders() {
   return {
@@ -326,7 +332,9 @@ async function loadTasks() {
       return;
     }
     const tasks = await response.json();
+    allTasks = tasks;
     displayTasks(tasks);
+    renderCalendar();
   } catch (error) {
     console.error('Ошибка при загрузке задач:', error);
     tasksContainer.innerHTML = '<p class="no-tasks">Ошибка при загрузке задач</p>';
@@ -472,6 +480,234 @@ async function deleteTask(id) {
   } catch (error) {
     console.error('Ошибка:', error);
     alert('Ошибка при удалении задачи');
+  }
+}
+
+// === CALENDAR LOGIC ===
+
+const MONTH_NAMES = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+
+function renderCalendar() {
+  const titleEl = document.getElementById('calendarTitle');
+  const gridEl = document.getElementById('calendarGrid');
+
+  titleEl.textContent = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
+
+  // First day of month (0=Sun, convert to Mon=0)
+  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+  const mondayOffset = (firstDay === 0 ? 6 : firstDay - 1);
+
+  // Days in month
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+
+  // Days in previous month
+  const daysInPrevMonth = new Date(calendarYear, calendarMonth, 0).getDate();
+
+  // Today
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // Group tasks by date
+  const tasksByDate = {};
+  allTasks.forEach(task => {
+    if (!tasksByDate[task.date]) tasksByDate[task.date] = [];
+    tasksByDate[task.date].push(task);
+  });
+
+  let html = '';
+
+  // Previous month days
+  for (let i = mondayOffset - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    const m = calendarMonth === 0 ? 12 : calendarMonth;
+    const y = calendarMonth === 0 ? calendarYear - 1 : calendarYear;
+    const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dots = renderDots(tasksByDate[dateStr]);
+    html += `<div class="calendar-day other-month" onclick="openDayModal('${dateStr}')">
+      <span class="day-number">${day}</span>${dots}
+    </div>`;
+  }
+
+  // Current month days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
+    const dayOfWeek = new Date(calendarYear, calendarMonth, day).getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const classes = ['calendar-day'];
+    if (isToday) classes.push('today');
+    if (isWeekend) classes.push('weekend');
+    const dots = renderDots(tasksByDate[dateStr]);
+    html += `<div class="${classes.join(' ')}" onclick="openDayModal('${dateStr}')">
+      <span class="day-number">${day}</span>${dots}
+    </div>`;
+  }
+
+  // Next month days (fill remaining cells)
+  const totalCells = mondayOffset + daysInMonth;
+  const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let day = 1; day <= remaining; day++) {
+    const m = calendarMonth === 11 ? 1 : calendarMonth + 2;
+    const y = calendarMonth === 11 ? calendarYear + 1 : calendarYear;
+    const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dots = renderDots(tasksByDate[dateStr]);
+    html += `<div class="calendar-day other-month" onclick="openDayModal('${dateStr}')">
+      <span class="day-number">${day}</span>${dots}
+    </div>`;
+  }
+
+  gridEl.innerHTML = html;
+}
+
+function renderDots(tasks) {
+  if (!tasks || tasks.length === 0) return '';
+  const maxDots = 4;
+  const dots = tasks.slice(0, maxDots).map(t =>
+    `<span class="task-dot ${t.status}"></span>`
+  ).join('');
+  return `<div class="task-dots">${dots}</div>`;
+}
+
+// eslint-disable-next-line no-unused-vars
+function prevMonth() {
+  calendarMonth--;
+  if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+  renderCalendar();
+}
+
+// eslint-disable-next-line no-unused-vars
+function nextMonth() {
+  calendarMonth++;
+  if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+  renderCalendar();
+}
+
+// eslint-disable-next-line no-unused-vars
+function goToday() {
+  const now = new Date();
+  calendarMonth = now.getMonth();
+  calendarYear = now.getFullYear();
+  renderCalendar();
+}
+
+// === DAY MODAL ===
+
+// eslint-disable-next-line no-unused-vars
+function openDayModal(dateStr) {
+  modalDate = dateStr;
+  const modal = document.getElementById('dayModal');
+  document.getElementById('modalDate').textContent = formatDate(dateStr);
+  document.getElementById('modalTaskTitle').value = '';
+  renderModalTasks();
+  modal.style.display = 'flex';
+}
+
+// eslint-disable-next-line no-unused-vars
+function closeDayModal(event) {
+  // If called from overlay click, only close if clicking overlay itself
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('dayModal').style.display = 'none';
+  modalDate = null;
+}
+
+function renderModalTasks() {
+  const container = document.getElementById('modalTasks');
+  const dayTasks = allTasks.filter(t => t.date === modalDate);
+
+  if (dayTasks.length === 0) {
+    container.innerHTML = '<p class="modal-no-tasks">Нет задач на этот день</p>';
+    return;
+  }
+
+  const isFamilyView = currentTasksView === 'family';
+
+  container.innerHTML = dayTasks.map(task => {
+    const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
+    const doneClass = task.status === 'done' ? 'completed' : '';
+    const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
+    const ownerLabel = isFamilyView && task.username
+      ? `<span class="task-owner">${task.username}</span> `
+      : '';
+
+    return `
+      <div class="modal-task ${doneClass}">
+        <div>
+          <div class="task-title">${ownerLabel}${task.title}</div>
+          <span class="task-status status-${task.status}">${statusInfo.icon} ${statusInfo.text}</span>
+        </div>
+        ${isOwnTask ? `
+        <div class="task-actions">
+          <button class="btn-small btn-status" onclick="cycleStatusModal(${task.id}, '${task.status}')">
+            ${STATUS_LABELS[statusInfo.next].icon}
+          </button>
+          <button class="btn-small btn-delete" onclick="deleteTaskModal(${task.id})">
+            &times;
+          </button>
+        </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// eslint-disable-next-line no-unused-vars
+async function addTaskFromModal() {
+  const input = document.getElementById('modalTaskTitle');
+  const title = input.value.trim();
+  if (!title || !modalDate) return;
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ title, date: modalDate, status: 'planned' })
+    });
+
+    if (response.ok) {
+      input.value = '';
+      await loadTasks();
+      renderModalTasks();
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function cycleStatusModal(id, currentStatus) {
+  const nextStatus = STATUS_LABELS[currentStatus].next;
+  try {
+    const response = await fetch(`${API_URL}/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ status: nextStatus })
+    });
+    if (response.ok) {
+      await loadTasks();
+      renderModalTasks();
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function deleteTaskModal(id) {
+  if (!confirm('Удалить задачу?')) return;
+  try {
+    const response = await fetch(`${API_URL}/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (response.ok) {
+      await loadTasks();
+      renderModalTasks();
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
   }
 }
 

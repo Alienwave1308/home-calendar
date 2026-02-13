@@ -109,4 +109,46 @@ describe('Home Calendar - E2E Tests', () => {
     cy.contains('Семья');
     cy.contains('Создайте семью или присоединитесь');
   });
+
+  // Тест 9: Календарь отображается после логина
+  it('should display calendar with month navigation', () => {
+    cy.login(testUser, testPass);
+    cy.get('.calendar-section').should('be.visible');
+    cy.get('#calendarTitle').should('not.be.empty');
+    cy.get('.calendar-grid .calendar-day').should('have.length.greaterThan', 27);
+  });
+
+  // Тест 10: Навигация по месяцам
+  it('should navigate between months', () => {
+    cy.login(testUser, testPass);
+    cy.get('#calendarTitle').invoke('text').then(initialTitle => {
+      // Клик вперёд
+      cy.get('.calendar-header .btn-nav').last().click();
+      cy.get('#calendarTitle').invoke('text').should('not.eq', initialTitle);
+      // Клик назад
+      cy.get('.calendar-header .btn-nav').first().click();
+      cy.get('#calendarTitle').invoke('text').should('eq', initialTitle);
+    });
+  });
+
+  // Тест 11: Открытие модального окна дня
+  it('should open day modal on click', () => {
+    cy.login(testUser, testPass);
+    // Кликаем на любой день текущего месяца (не other-month)
+    cy.get('.calendar-day:not(.other-month)').first().click();
+    cy.get('#dayModal').should('be.visible');
+    cy.get('#modalDate').should('not.be.empty');
+    // Закрываем
+    cy.get('.modal-header .btn-nav').click();
+    cy.get('#dayModal').should('not.be.visible');
+  });
+
+  // Тест 12: Добавление задачи через модал
+  it('should add task from day modal', () => {
+    cy.login(testUser, testPass);
+    cy.get('.calendar-day:not(.other-month)').first().click();
+    cy.get('#modalTaskTitle').type('Задача из модала');
+    cy.get('.modal-add .btn-primary').click();
+    cy.get('.modal-task').should('contain', 'Задача из модала');
+  });
 });
