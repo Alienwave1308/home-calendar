@@ -310,6 +310,35 @@ header p {
   font-size: 1.5em;
 }
 
+.tasks-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tasks-filters select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d7ddf7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tasks-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+#tasksSelectedCount {
+  font-size: 0.9em;
+  color: #555;
+  margin-right: 6px;
+}
+
 #tasksContainer {
   min-height: 100px;
 }
@@ -351,6 +380,10 @@ header p {
 
 .task-info {
   flex: 1;
+}
+
+.task-select {
+  margin-right: 10px;
 }
 
 .task-title {
@@ -409,6 +442,19 @@ header p {
   color: #999;
   padding: 40px;
   font-size: 1.1em;
+}
+
+.tasks-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#tasksPageInfo {
+  font-size: 0.9em;
+  color: #555;
 }
 
 /* Авторизация */
@@ -1182,6 +1228,10 @@ header p {
   .tasks-tab {
     min-height: 44px;
     font-size: 0.9em;
+  }
+
+  .tasks-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   /* Modal — fullscreen on mobile */

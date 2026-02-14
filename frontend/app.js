@@ -13,6 +13,20 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let currentFamily = null;
 let currentTasksView = 'my'; // 'my' or 'family'
 let pendingTaskFocusId = null;
+let selectedTaskIds = new Set();
+let tasksPage = 1;
+let tasksPages = 1;
+let tasksTotal = 0;
+const tasksQuery = {
+  status: '',
+  assignee: '',
+  tag: '',
+  list: '',
+  sort: 'due_at',
+  order: 'asc',
+  page: 1,
+  limit: 20
+};
 
 // Calendar state
 let calendarMonth = new Date().getMonth();
@@ -121,6 +135,7 @@ function handleRoute() {
   } else if (route === 'calendar') {
     renderCalendar();
   } else if (route === 'tasks') {
+    loadTaskFilterOptions();
     loadTasks();
   } else if (route === 'family') {
     loadFamily();
@@ -520,6 +535,17 @@ function switchTasksView(view, el) {
   document.getElementById('tasksTitle').textContent =
     view === 'my' ? 'Мои задачи' : 'Задачи семьи';
 
+  selectedTaskIds = new Set();
+  tasksPage = 1;
+
+  const filters = document.getElementById('tasksFilters');
+  const bulk = document.getElementById('tasksBulkActions');
+  const pagination = document.getElementById('tasksPagination');
+  const showAdvanced = view === 'my';
+  if (filters) filters.style.display = showAdvanced ? 'grid' : 'none';
+  if (bulk) bulk.style.display = showAdvanced ? 'flex' : 'none';
+  if (pagination) pagination.style.display = showAdvanced ? 'flex' : 'none';
+
   loadTasks();
 }
 
@@ -549,20 +575,116 @@ const STATUS_LABELS = {
   archived: { text: 'Архив', icon: '📦', next: 'backlog' }
 };
 
+function updateTasksPagination() {
+  const pageInfo = document.getElementById('tasksPageInfo');
+  const prevBtn = document.getElementById('tasksPrevPage');
+  const nextBtn = document.getElementById('tasksNextPage');
+  const pagination = document.getElementById('tasksPagination');
+
+  if (!pageInfo || !prevBtn || !nextBtn || !pagination) return;
+
+  if (currentTasksView === 'family') {
+    pagination.style.display = 'none';
+    return;
+  }
+
+  pagination.style.display = 'flex';
+  pageInfo.textContent = `Страница ${tasksPage} / ${tasksPages} (всего: ${tasksTotal})`;
+  prevBtn.disabled = tasksPage <= 1;
+  nextBtn.disabled = tasksPage >= tasksPages;
+}
+
+function updateSelectedCount() {
+  const selectedEl = document.getElementById('tasksSelectedCount');
+  if (selectedEl) selectedEl.textContent = `Выбрано: ${selectedTaskIds.size}`;
+}
+
+function buildTasksQueryString() {
+  const params = new window.URLSearchParams();
+  if (tasksQuery.status) params.set('status', tasksQuery.status);
+  if (tasksQuery.assignee) params.set('assignee', tasksQuery.assignee);
+  if (tasksQuery.tag) params.set('tag', tasksQuery.tag);
+  if (tasksQuery.list) params.set('list', tasksQuery.list);
+  params.set('sort', tasksQuery.sort);
+  params.set('order', tasksQuery.order);
+  params.set('page', String(tasksPage));
+  params.set('limit', String(tasksQuery.limit));
+  return params.toString();
+}
+
+async function loadTaskFilterOptions() {
+  const assigneeSelect = document.getElementById('tasksFilterAssignee');
+  const tagSelect = document.getElementById('tasksFilterTag');
+  const listSelect = document.getElementById('tasksFilterList');
+
+  if (!assigneeSelect || !tagSelect || !listSelect) return;
+
+  try {
+    const familyRes = await fetch(FAMILY_URL, { headers: authHeaders() });
+    if (familyRes.ok) {
+      const familyData = await familyRes.json();
+      const members = familyData.family?.members || [];
+      assigneeSelect.innerHTML = '<option value="">Любой исполнитель</option>' +
+        members.map((m) => `<option value="${m.id}">${m.username}</option>`).join('');
+    }
+  } catch {
+    // ignore filter options loading failures
+  }
+
+  try {
+    const [tagsRes, listsRes] = await Promise.all([
+      fetch('/api/tags', { headers: authHeaders() }),
+      fetch('/api/lists', { headers: authHeaders() })
+    ]);
+
+    if (tagsRes.ok) {
+      const tags = await tagsRes.json();
+      tagSelect.innerHTML = '<option value="">Любой тег</option>' +
+        tags.map((tag) => `<option value="${tag.id}">${tag.name}</option>`).join('');
+    }
+    if (listsRes.ok) {
+      const lists = await listsRes.json();
+      listSelect.innerHTML = '<option value="">Любой список</option>' +
+        lists.map((list) => `<option value="${list.id}">${list.name}</option>`).join('');
+    }
+  } catch {
+    // ignore filter options loading failures
+  }
+}
+
 // Load all tasks from API
 async function loadTasks() {
   try {
-    const url = currentTasksView === 'family' ? `${API_URL}/family` : API_URL;
+    const route = getRouteFromHash();
+    const useAdvancedListQuery = currentTasksView === 'my' && route === 'tasks';
+    const url = currentTasksView === 'family'
+      ? `${API_URL}/family`
+      : (useAdvancedListQuery ? `${API_URL}?${buildTasksQueryString()}` : API_URL);
+
     const response = await fetch(url, { headers: authHeaders() });
     if (response.status === 401 || response.status === 403) { logout(); return; }
     if (response.status === 404 && currentTasksView === 'family') {
       if (tasksContainer) tasksContainer.innerHTML = '<p class="no-tasks">Вы не состоите в семье</p>';
       return;
     }
-    const tasks = await response.json();
+
+    const payload = await response.json();
+    const tasks = Array.isArray(payload) ? payload : payload.tasks || [];
+
+    if (useAdvancedListQuery && !Array.isArray(payload)) {
+      tasksTotal = payload.total || 0;
+      tasksPage = payload.page || 1;
+      tasksPages = payload.pages || 1;
+    } else {
+      tasksTotal = tasks.length;
+      tasksPage = 1;
+      tasksPages = 1;
+    }
+
     allTasks = tasks;
     displayTasks(tasks);
-    // Re-render calendar dots if calendar is visible
+    updateTasksPagination();
+
     const calendarScreen = document.getElementById('screen-calendar');
     if (calendarScreen && calendarScreen.style.display !== 'none') {
       renderCalendar();
@@ -579,6 +701,8 @@ function displayTasks(tasks) {
 
   if (tasks.length === 0) {
     tasksContainer.innerHTML = '<p class="no-tasks">Пока нет задач. Добавьте первую!</p>';
+    selectedTaskIds = new Set();
+    updateSelectedCount();
     return;
   }
 
@@ -592,6 +716,7 @@ function displayTasks(tasks) {
       ? `<span class="task-owner">${task.username}</span>`
       : '';
     const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
+    const checked = selectedTaskIds.has(task.id) ? 'checked' : '';
 
     return `
       <div
@@ -601,8 +726,9 @@ function displayTasks(tasks) {
         data-status="${task.status}"
         data-priority="${task.priority || 'medium'}"
       >
+        ${isOwnTask ? `<input class="task-select" type="checkbox" data-task-id="${task.id}" ${checked}>` : ''}
         <div class="task-info">
-          <div class="task-title">${task.title}</div>
+          <div class="task-title" data-edit-id="${task.id}">${task.title}</div>
           <div class="task-meta">
             ${ownerLabel}
             <span class="task-date">${formatDate(task.date)}</span>
@@ -625,6 +751,32 @@ function displayTasks(tasks) {
   }).join('');
 
   tasksContainer.innerHTML = tasksHTML;
+  updateSelectedCount();
+
+  document.querySelectorAll('.task-select').forEach((checkbox) => {
+    checkbox.addEventListener('change', (e) => {
+      const taskId = parseInt(e.target.dataset.taskId);
+      if (e.target.checked) selectedTaskIds.add(taskId);
+      else selectedTaskIds.delete(taskId);
+      updateSelectedCount();
+    });
+  });
+
+  document.querySelectorAll('.task-title[data-edit-id]').forEach((titleEl) => {
+    titleEl.addEventListener('dblclick', async (e) => {
+      const taskId = parseInt(e.target.dataset.editId);
+      const currentTitle = e.target.textContent || '';
+      const newTitle = window.prompt('Новое название задачи:', currentTitle);
+      if (!newTitle || newTitle.trim() === currentTitle.trim()) return;
+
+      await fetch(`${API_URL}/${taskId}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ title: newTitle.trim() })
+      });
+      loadTasks();
+    });
+  });
 
   if (pendingTaskFocusId !== null) {
     const focusedTask = document.getElementById(`task-item-${pendingTaskFocusId}`);
@@ -689,6 +841,71 @@ taskForm.addEventListener('submit', async (e) => {
     alert('Ошибка при добавлении задачи');
   }
 });
+
+const tasksApplyFiltersBtn = document.getElementById('tasksApplyFilters');
+const tasksPrevPageBtn = document.getElementById('tasksPrevPage');
+const tasksNextPageBtn = document.getElementById('tasksNextPage');
+
+if (tasksApplyFiltersBtn) {
+  tasksApplyFiltersBtn.addEventListener('click', () => {
+    tasksQuery.status = document.getElementById('tasksFilterStatus')?.value || '';
+    tasksQuery.assignee = document.getElementById('tasksFilterAssignee')?.value || '';
+    tasksQuery.tag = document.getElementById('tasksFilterTag')?.value || '';
+    tasksQuery.list = document.getElementById('tasksFilterList')?.value || '';
+    tasksQuery.sort = document.getElementById('tasksSortBy')?.value || 'due_at';
+    tasksQuery.order = document.getElementById('tasksSortOrder')?.value || 'asc';
+    tasksPage = 1;
+    loadTasks();
+  });
+}
+
+if (tasksPrevPageBtn) {
+  tasksPrevPageBtn.addEventListener('click', () => {
+    if (tasksPage > 1) {
+      tasksPage--;
+      loadTasks();
+    }
+  });
+}
+
+if (tasksNextPageBtn) {
+  tasksNextPageBtn.addEventListener('click', () => {
+    if (tasksPage < tasksPages) {
+      tasksPage++;
+      loadTasks();
+    }
+  });
+}
+
+async function bulkUpdateStatus(nextStatus) {
+  if (selectedTaskIds.size === 0) return;
+  await Promise.all(Array.from(selectedTaskIds).map((id) => (
+    fetch(`${API_URL}/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ status: nextStatus })
+    })
+  )));
+  selectedTaskIds = new Set();
+  loadTasks();
+}
+
+async function bulkDeleteTasks() {
+  if (selectedTaskIds.size === 0) return;
+  if (!confirm(`Удалить задач: ${selectedTaskIds.size}?`)) return;
+  await Promise.all(Array.from(selectedTaskIds).map((id) => (
+    fetch(`${API_URL}/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    })
+  )));
+  selectedTaskIds = new Set();
+  loadTasks();
+}
+
+document.getElementById('bulkSetPlanned')?.addEventListener('click', () => bulkUpdateStatus('planned'));
+document.getElementById('bulkSetDone')?.addEventListener('click', () => bulkUpdateStatus('done'));
+document.getElementById('bulkDelete')?.addEventListener('click', bulkDeleteTasks);
 
 // Cycle task status: planned -> in_progress -> done -> planned
 // eslint-disable-next-line no-unused-vars

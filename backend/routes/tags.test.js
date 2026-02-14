@@ -293,19 +293,21 @@ describe('Tasks API - tag filtering', () => {
   });
 
   it('should filter tasks by tag', async () => {
-    pool.query.mockResolvedValueOnce({
-      rows: [
-        { id: 1, title: 'Tagged task', date: '2026-02-15', status: 'planned' }
-      ]
-    });
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: 1, title: 'Tagged task', date: '2026-02-15', status: 'planned' }
+        ]
+      });
 
     const res = await request(app)
       .get('/api/tasks?tag=1')
       .set('Authorization', token1)
       .expect(200);
 
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].title).toBe('Tagged task');
+    expect(res.body.tasks).toHaveLength(1);
+    expect(res.body.tasks[0].title).toBe('Tagged task');
 
     // Verify the JOIN query was used
     const queryCall = pool.query.mock.calls[0];

@@ -476,31 +476,36 @@ describe('Tasks API', () => {
 
   describe('GET /api/tasks?assignee=', () => {
     it('should filter tasks by assignee', async () => {
-      pool.query.mockResolvedValueOnce({
-        rows: [{ id: 1, title: 'Assigned task' }]
-      });
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Assigned task' }]
+        });
 
       const res = await request(app)
         .get('/api/tasks?assignee=2')
         .set('Authorization', authHeader)
         .expect(200);
 
-      expect(res.body).toHaveLength(1);
+      expect(res.body.tasks).toHaveLength(1);
+      expect(res.body.total).toBe(1);
       const queryCall = pool.query.mock.calls[0];
       expect(queryCall[0]).toContain('task_assignments');
     });
 
     it('should filter by both tag and assignee', async () => {
-      pool.query.mockResolvedValueOnce({
-        rows: [{ id: 1, title: 'Tagged and assigned' }]
-      });
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Tagged and assigned' }]
+        });
 
       const res = await request(app)
         .get('/api/tasks?tag=1&assignee=2')
         .set('Authorization', authHeader)
         .expect(200);
 
-      expect(res.body).toHaveLength(1);
+      expect(res.body.tasks).toHaveLength(1);
       const queryCall = pool.query.mock.calls[0];
       expect(queryCall[0]).toContain('task_tags');
       expect(queryCall[0]).toContain('task_assignments');
@@ -509,18 +514,51 @@ describe('Tasks API', () => {
 
   describe('GET /api/tasks?list=', () => {
     it('should filter tasks by list', async () => {
-      pool.query.mockResolvedValueOnce({
-        rows: [{ id: 1, title: 'Listed task', list_id: 5 }]
-      });
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Listed task', list_id: 5 }]
+        });
 
       const res = await request(app)
         .get('/api/tasks?list=5')
         .set('Authorization', authHeader)
         .expect(200);
 
-      expect(res.body).toHaveLength(1);
+      expect(res.body.tasks).toHaveLength(1);
       const queryCall = pool.query.mock.calls[0];
       expect(queryCall[0]).toContain('list_id');
+    });
+  });
+
+  describe('GET /api/tasks advanced pagination & sorting', () => {
+    it('should return paginated response with sort and status filter', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ total: 3 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 3, title: 'Newest', status: 'planned' }]
+        });
+
+      const res = await request(app)
+        .get('/api/tasks?status=planned&sort=due_at&order=desc&page=2&limit=1')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toEqual({
+        tasks: [{ id: 3, title: 'Newest', status: 'planned' }],
+        total: 3,
+        page: 2,
+        pages: 3
+      });
+    });
+
+    it('should return 400 for invalid status in filter', async () => {
+      const res = await request(app)
+        .get('/api/tasks?status=invalid')
+        .set('Authorization', authHeader)
+        .expect(400);
+
+      expect(res.body.error).toMatch(/Invalid status/);
     });
   });
 

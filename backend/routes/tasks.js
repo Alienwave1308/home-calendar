@@ -10,12 +10,24 @@ const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 router.use(authenticateToken);
 
 // GET /api/tasks - get all tasks (excludes soft-deleted)
-// Supports ?tag=tagId, ?assignee=userId, ?list=listId for filtering
+// Supports advanced list mode:
+// ?sort=due_at&order=asc&status=planned&assignee=1&tag=2&list=3&page=1&limit=20&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
 router.get('/', async (req, res) => {
   try {
+    const hasAdvancedQuery = [
+      'sort', 'order', 'status', 'assignee', 'tag', 'list', 'page', 'limit', 'date_from', 'date_to'
+    ].some((key) => req.query[key] !== undefined);
+
     const tagId = req.query.tag ? parseInt(req.query.tag) : null;
     const assigneeId = req.query.assignee ? parseInt(req.query.assignee) : null;
     const listId = req.query.list ? parseInt(req.query.list) : null;
+    const status = req.query.status ? String(req.query.status) : null;
+    const dateFrom = req.query.date_from ? String(req.query.date_from) : null;
+    const dateTo = req.query.date_to ? String(req.query.date_to) : null;
+
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be: ${VALID_STATUSES.join(', ')}` });
+    }
 
     const joins = [];
     const conditions = ['t.user_id = $1', 't.deleted_at IS NULL'];
@@ -39,11 +51,69 @@ router.get('/', async (req, res) => {
       params.push(listId);
     }
 
-    const distinct = joins.length > 1 ? 'DISTINCT ' : '';
-    const query = `SELECT ${distinct}t.* FROM tasks t ${joins.join(' ')} WHERE ${conditions.join(' AND ')} ORDER BY t.id`;
+    if (status) {
+      conditions.push(`t.status = $${paramIndex++}`);
+      params.push(status);
+    }
 
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    if (dateFrom) {
+      conditions.push(`t.date >= $${paramIndex++}`);
+      params.push(dateFrom);
+    }
+
+    if (dateTo) {
+      conditions.push(`t.date <= $${paramIndex++}`);
+      params.push(dateTo);
+    }
+
+    const fromClause = `FROM tasks t ${joins.join(' ')}`;
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    if (!hasAdvancedQuery) {
+      const distinct = joins.length > 1 ? 'DISTINCT ' : '';
+      const query = `SELECT ${distinct}t.* ${fromClause} ${whereClause} ORDER BY t.id`;
+      const result = await pool.query(query, params);
+      return res.json(result.rows);
+    }
+
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
+    const offset = (page - 1) * limit;
+    const order = String(req.query.order || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    const sortMap = {
+      id: 't.id',
+      title: 't.title',
+      date: 't.date',
+      due_at: 'COALESCE(t.due_at, (t.date::timestamp))',
+      status: 't.status',
+      priority: 't.priority'
+    };
+    const sortKey = String(req.query.sort || 'due_at').toLowerCase();
+    const sortSql = sortMap[sortKey] || sortMap.due_at;
+
+    const countQuery = `SELECT COUNT(DISTINCT t.id)::int AS total ${fromClause} ${whereClause}`;
+    const countResult = await pool.query(countQuery, params);
+    const total = countResult.rows[0]?.total || 0;
+    const pages = Math.max(Math.ceil(total / limit), 1);
+
+    const dataQuery = `
+      SELECT DISTINCT t.*
+      ${fromClause}
+      ${whereClause}
+      ORDER BY ${sortSql} ${order}, t.id ${order}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
+
+    const dataParams = [...params, limit, offset];
+    const result = await pool.query(dataQuery, dataParams);
+
+    return res.json({
+      tasks: result.rows,
+      total,
+      page,
+      pages
+    });
   } catch (error) {
     console.error('Error getting tasks:', error);
     res.status(500).json({ error: 'Server error' });
