@@ -51,7 +51,7 @@ jobs:
   e2e-frontend:
     name: "03 - Frontend E2E (${{ matrix.section }})"
     runs-on: ubuntu-latest
-    needs: [lint, backend-tests]
+    needs: [lint]
     strategy:
       fail-fast: false
       matrix:
