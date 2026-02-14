@@ -97,4 +97,86 @@ describe('Auth API', () => {
         .expect(401);
     });
   });
+
+  describe('POST /api/auth/forgot-password', () => {
+    it('should generate reset token for existing user', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // user found
+        .mockResolvedValueOnce({ rows: [] }) // invalidate old tokens
+        .mockResolvedValueOnce({ rows: [] }); // insert new token
+
+      const res = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ username: 'testuser' })
+        .expect(200);
+
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.token.length).toBe(64); // 32 bytes hex
+    });
+
+    it('should return success even for non-existent user', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] }); // user not found
+
+      const res = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ username: 'nobody' })
+        .expect(200);
+
+      expect(res.body.message).toMatch(/reset token/);
+      expect(res.body.token).toBeUndefined();
+    });
+
+    it('should return 400 if username missing', async () => {
+      await request(app)
+        .post('/api/auth/forgot-password')
+        .send({})
+        .expect(400);
+    });
+  });
+
+  describe('POST /api/auth/reset-password', () => {
+    it('should reset password with valid token', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, user_id: 1, token: 'abc', used: false, expires_at: new Date(Date.now() + 3600000) }]
+        }) // valid token
+        .mockResolvedValueOnce({ rows: [] }) // update password
+        .mockResolvedValueOnce({ rows: [] }); // mark token used
+
+      const res = await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: 'abc', password: 'newpassword' })
+        .expect(200);
+
+      expect(res.body.message).toMatch(/reset successfully/);
+    });
+
+    it('should return 400 for invalid token', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] }); // no valid token
+
+      await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: 'badtoken', password: 'newpassword' })
+        .expect(400);
+    });
+
+    it('should return 400 for short password', async () => {
+      await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: 'abc', password: '123' })
+        .expect(400);
+    });
+
+    it('should return 400 if token or password missing', async () => {
+      await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: 'abc' })
+        .expect(400);
+
+      await request(app)
+        .post('/api/auth/reset-password')
+        .send({ password: 'newpassword' })
+        .expect(400);
+    });
+  });
 });
