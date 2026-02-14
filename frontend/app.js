@@ -19,6 +19,39 @@ let calendarMonth = new Date().getMonth();
 let calendarYear = new Date().getFullYear();
 let allTasks = []; // cached tasks for calendar rendering
 let modalDate = null; // currently open day in modal
+let calendarViewMode = localStorage.getItem('calendarViewMode') || 'month';
+let calendarSelectedDate = new Date();
+
+const calendarUtils = window.CalendarViews || {
+  toIsoDate: (date) => (
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  ),
+  addDays: (date, days) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  },
+  getWeekStart: (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + offset);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  },
+  getWeekDates: (date) => {
+    const start = new Date(date);
+    const day = start.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    start.setDate(start.getDate() + offset);
+    start.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }
+};
 
 // Activity state
 let activityEvents = [];
@@ -711,37 +744,73 @@ const MONTH_NAMES = [
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
 ];
 
-function renderCalendar() {
-  const titleEl = document.getElementById('calendarTitle');
-  const gridEl = document.getElementById('calendarGrid');
-  if (!titleEl || !gridEl) return;
+function syncCalendarAnchor(date) {
+  calendarSelectedDate = new Date(date);
+  calendarMonth = calendarSelectedDate.getMonth();
+  calendarYear = calendarSelectedDate.getFullYear();
+}
 
-  titleEl.textContent = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
-
-  // First day of month (0=Sun, convert to Mon=0)
-  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
-  const mondayOffset = (firstDay === 0 ? 6 : firstDay - 1);
-
-  // Days in month
-  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-
-  // Days in previous month
-  const daysInPrevMonth = new Date(calendarYear, calendarMonth, 0).getDate();
-
-  // Today
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-  // Group tasks by date
+function buildTasksByDate() {
   const tasksByDate = {};
-  allTasks.forEach(task => {
+  allTasks.forEach((task) => {
     if (!tasksByDate[task.date]) tasksByDate[task.date] = [];
     tasksByDate[task.date].push(task);
   });
+  return tasksByDate;
+}
+
+function updateCalendarViewControls() {
+  document.querySelectorAll('.calendar-view-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.view === calendarViewMode);
+  });
+}
+
+// eslint-disable-next-line no-unused-vars
+function setCalendarView(view) {
+  if (!['month', 'week', 'day'].includes(view)) return;
+  calendarViewMode = view;
+  localStorage.setItem('calendarViewMode', calendarViewMode);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const titleEl = document.getElementById('calendarTitle');
+  const gridEl = document.getElementById('calendarGrid');
+  const weekdaysEl = document.getElementById('calendarWeekdays');
+  const weekEl = document.getElementById('calendarWeekView');
+  const dayEl = document.getElementById('calendarDayView');
+  if (!titleEl || !gridEl || !weekdaysEl || !weekEl || !dayEl) return;
+
+  updateCalendarViewControls();
+
+  gridEl.style.display = calendarViewMode === 'month' ? 'grid' : 'none';
+  weekdaysEl.style.display = calendarViewMode === 'month' ? 'grid' : 'none';
+  weekEl.style.display = calendarViewMode === 'week' ? 'grid' : 'none';
+  dayEl.style.display = calendarViewMode === 'day' ? 'block' : 'none';
+
+  if (calendarViewMode === 'month') {
+    renderCalendarMonth(titleEl, gridEl);
+    return;
+  }
+  if (calendarViewMode === 'week') {
+    renderCalendarWeek(titleEl, weekEl);
+    return;
+  }
+  renderCalendarDay(titleEl, dayEl);
+}
+
+function renderCalendarMonth(titleEl, gridEl) {
+  titleEl.textContent = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
+
+  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+  const mondayOffset = firstDay === 0 ? 6 : firstDay - 1;
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(calendarYear, calendarMonth, 0).getDate();
+  const todayStr = calendarUtils.toIsoDate(new Date());
+  const tasksByDate = buildTasksByDate();
 
   let html = '';
 
-  // Previous month days
   for (let i = mondayOffset - 1; i >= 0; i--) {
     const day = daysInPrevMonth - i;
     const m = calendarMonth === 0 ? 12 : calendarMonth;
@@ -753,7 +822,6 @@ function renderCalendar() {
     </div>`;
   }
 
-  // Current month days
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const isToday = dateStr === todayStr;
@@ -768,7 +836,6 @@ function renderCalendar() {
     </div>`;
   }
 
-  // Next month days (fill remaining cells)
   const totalCells = mondayOffset + daysInMonth;
   const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
   for (let day = 1; day <= remaining; day++) {
@@ -784,6 +851,67 @@ function renderCalendar() {
   gridEl.innerHTML = html;
 }
 
+function formatCompactDate(date) {
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]}`;
+}
+
+function renderCalendarWeek(titleEl, weekEl) {
+  const weekDates = calendarUtils.getWeekDates(calendarSelectedDate);
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  const tasksByDate = buildTasksByDate();
+  const todayIso = calendarUtils.toIsoDate(new Date());
+
+  titleEl.textContent = `${formatCompactDate(weekStart)} - ${formatCompactDate(weekEnd)} ${weekEnd.getFullYear()}`;
+
+  weekEl.innerHTML = weekDates.map((date) => {
+    const isoDate = calendarUtils.toIsoDate(date);
+    const dayTasks = tasksByDate[isoDate] || [];
+    const todayClass = isoDate === todayIso ? 'today' : '';
+    const weekday = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'][date.getDay() === 0 ? 6 : date.getDay() - 1];
+
+    const taskItems = dayTasks.length === 0
+      ? '<div class="week-task-empty">Нет задач</div>'
+      : dayTasks.slice(0, 5).map((task) => (
+        `<button class="week-task-item status-${task.status}" onclick="openDayModal('${isoDate}')">${task.title}</button>`
+      )).join('');
+
+    return `
+      <article class="week-day-column ${todayClass}" onclick="openDayModal('${isoDate}')">
+        <header class="week-day-header">
+          <span>${weekday}</span>
+          <strong>${date.getDate()}</strong>
+        </header>
+        <div class="week-day-tasks">${taskItems}</div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderCalendarDay(titleEl, dayEl) {
+  const isoDate = calendarUtils.toIsoDate(calendarSelectedDate);
+  const dayTasks = allTasks.filter((task) => task.date === isoDate);
+  const humanDate = formatDate(isoDate);
+  titleEl.textContent = humanDate;
+
+  if (dayTasks.length === 0) {
+    dayEl.innerHTML = `<p class="no-tasks">На ${humanDate} задач нет</p>`;
+    return;
+  }
+
+  dayEl.innerHTML = dayTasks.map((task) => {
+    const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
+    return `
+      <div class="day-task-item">
+        <div class="day-task-title">${task.title}</div>
+        <div class="day-task-meta">
+          <span class="task-status status-${task.status}">${statusInfo.icon} ${statusInfo.text}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderDots(tasks) {
   if (!tasks || tasks.length === 0) return '';
   const maxDots = 4;
@@ -794,22 +922,32 @@ function renderDots(tasks) {
 }
 
 function prevMonth() {
-  calendarMonth--;
-  if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+  if (calendarViewMode === 'month') {
+    const nextDate = new Date(calendarYear, calendarMonth - 1, 1);
+    syncCalendarAnchor(nextDate);
+  } else if (calendarViewMode === 'week') {
+    syncCalendarAnchor(calendarUtils.addDays(calendarSelectedDate, -7));
+  } else {
+    syncCalendarAnchor(calendarUtils.addDays(calendarSelectedDate, -1));
+  }
   renderCalendar();
 }
 
 function nextMonth() {
-  calendarMonth++;
-  if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+  if (calendarViewMode === 'month') {
+    const nextDate = new Date(calendarYear, calendarMonth + 1, 1);
+    syncCalendarAnchor(nextDate);
+  } else if (calendarViewMode === 'week') {
+    syncCalendarAnchor(calendarUtils.addDays(calendarSelectedDate, 7));
+  } else {
+    syncCalendarAnchor(calendarUtils.addDays(calendarSelectedDate, 1));
+  }
   renderCalendar();
 }
 
 // eslint-disable-next-line no-unused-vars
 function goToday() {
-  const now = new Date();
-  calendarMonth = now.getMonth();
-  calendarYear = now.getFullYear();
+  syncCalendarAnchor(new Date());
   renderCalendar();
 }
 

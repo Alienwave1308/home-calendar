@@ -108,6 +108,11 @@
       <!-- Экран: Календарь -->
       <div class="screen" id="screen-calendar" style="display: none;">
         <section class="calendar-section">
+          <div class="calendar-view-switcher" id="calendarViewSwitcher">
+            <button class="calendar-view-btn active" data-view="month" onclick="setCalendarView('month')">Месяц</button>
+            <button class="calendar-view-btn" data-view="week" onclick="setCalendarView('week')">Неделя</button>
+            <button class="calendar-view-btn" data-view="day" onclick="setCalendarView('day')">День</button>
+          </div>
           <div class="calendar-header">
             <button class="btn-small btn-nav" onclick="prevMonth()">&laquo;</button>
             <div class="calendar-title-group">
@@ -116,10 +121,12 @@
             </div>
             <button class="btn-small btn-nav" onclick="nextMonth()">&raquo;</button>
           </div>
-          <div class="calendar-weekdays">
+          <div class="calendar-weekdays" id="calendarWeekdays">
             <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div class="weekend">Сб</div><div class="weekend">Вс</div>
           </div>
           <div class="calendar-grid" id="calendarGrid"></div>
+          <div class="calendar-week-view" id="calendarWeekView" style="display: none;"></div>
+          <div class="calendar-day-view" id="calendarDayView" style="display: none;"></div>
         </section>
       </div>
 
@@ -269,6 +276,7 @@
   </div>
 
   <script src="router.js"></script>
+  <script src="calendar-views.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
