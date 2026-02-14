@@ -152,4 +152,27 @@ describe('Home Calendar - E2E Tests', () => {
     cy.get('.modal-add .btn-primary').click();
     cy.get('.modal-task').should('contain', 'Задача из модала');
   });
+
+  // Тест 13: Добавление задачи с приоритетом
+  it('should add a task with priority', () => {
+    cy.login(testUser, testPass);
+
+    cy.get('#taskTitle').type('Срочная задача');
+    cy.get('#taskDate').type('2026-02-20');
+    cy.get('#taskPriority').select('urgent');
+    cy.get('#taskForm').submit();
+
+    cy.contains('Срочная задача')
+      .parents('.task-item')
+      .should('have.attr', 'data-priority', 'urgent');
+  });
+
+  // Тест 14: Селект приоритета и статуса видны в форме
+  it('should show priority and status selects in task form', () => {
+    cy.login(testUser, testPass);
+    cy.get('#taskPriority').should('be.visible');
+    cy.get('#taskStatus').should('be.visible');
+    cy.get('#taskPriority option').should('have.length', 4);
+    cy.get('#taskStatus option').should('have.length', 3);
+  });
 });
