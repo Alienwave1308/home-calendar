@@ -506,4 +506,192 @@ describe('Tasks API', () => {
       expect(queryCall[0]).toContain('task_assignments');
     });
   });
+
+  // Checklist items
+  describe('GET /api/tasks/:id/checklist', () => {
+    it('should return checklist with progress', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 1, title: 'Step 1', is_done: true, position: 0 },
+            { id: 2, title: 'Step 2', is_done: false, position: 1 },
+            { id: 3, title: 'Step 3', is_done: true, position: 2 }
+          ]
+        });
+
+      const res = await request(app)
+        .get('/api/tasks/1/checklist')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.items).toHaveLength(3);
+      expect(res.body.progress).toEqual({ completed: 2, total: 3 });
+    });
+
+    it('should return 404 if task not found', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/api/tasks/99/checklist')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
+
+  describe('POST /api/tasks/:id/checklist', () => {
+    it('should add a checklist item', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
+        .mockResolvedValueOnce({ rows: [{ max_pos: 1 }] }) // current max position
+        .mockResolvedValueOnce({
+          rows: [{ id: 3, task_id: 1, title: 'New step', is_done: false, position: 2 }]
+        });
+
+      const res = await request(app)
+        .post('/api/tasks/1/checklist')
+        .set('Authorization', authHeader)
+        .send({ title: 'New step' })
+        .expect(201);
+
+      expect(res.body.title).toBe('New step');
+      expect(res.body.position).toBe(2);
+    });
+
+    it('should return 400 for empty title', async () => {
+      await request(app)
+        .post('/api/tasks/1/checklist')
+        .set('Authorization', authHeader)
+        .send({ title: '' })
+        .expect(400);
+    });
+
+    it('should return 404 if task not found', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .post('/api/tasks/99/checklist')
+        .set('Authorization', authHeader)
+        .send({ title: 'Step' })
+        .expect(404);
+    });
+  });
+
+  describe('PUT /api/tasks/:id/checklist/:itemId', () => {
+    it('should toggle is_done', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Step 1', is_done: false, position: 0 }]
+        }) // existing item
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Step 1', is_done: true, position: 0 }]
+        });
+
+      const res = await request(app)
+        .put('/api/tasks/1/checklist/1')
+        .set('Authorization', authHeader)
+        .send({ is_done: true })
+        .expect(200);
+
+      expect(res.body.is_done).toBe(true);
+    });
+
+    it('should update title', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Old', is_done: false, position: 0 }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, title: 'Updated', is_done: false, position: 0 }]
+        });
+
+      const res = await request(app)
+        .put('/api/tasks/1/checklist/1')
+        .set('Authorization', authHeader)
+        .send({ title: 'Updated' })
+        .expect(200);
+
+      expect(res.body.title).toBe('Updated');
+    });
+
+    it('should return 404 if item not found', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [] }); // item not found
+
+      await request(app)
+        .put('/api/tasks/1/checklist/99')
+        .set('Authorization', authHeader)
+        .send({ is_done: true })
+        .expect(404);
+    });
+  });
+
+  describe('DELETE /api/tasks/:id/checklist/:itemId', () => {
+    it('should delete a checklist item', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // deleted
+
+      await request(app)
+        .delete('/api/tasks/1/checklist/1')
+        .set('Authorization', authHeader)
+        .expect(204);
+    });
+
+    it('should return 404 if item not found', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .delete('/api/tasks/1/checklist/99')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
+
+  describe('PUT /api/tasks/:id/checklist-reorder', () => {
+    it('should reorder checklist items', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
+        .mockResolvedValueOnce({ rows: [] }) // update pos 0
+        .mockResolvedValueOnce({ rows: [] }) // update pos 1
+        .mockResolvedValueOnce({ rows: [] }) // update pos 2
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 3, position: 0 },
+            { id: 1, position: 1 },
+            { id: 2, position: 2 }
+          ]
+        });
+
+      const res = await request(app)
+        .put('/api/tasks/1/checklist-reorder')
+        .set('Authorization', authHeader)
+        .send({ order: [3, 1, 2] })
+        .expect(200);
+
+      expect(res.body).toHaveLength(3);
+      expect(res.body[0].id).toBe(3);
+    });
+
+    it('should return 400 for invalid order', async () => {
+      await request(app)
+        .put('/api/tasks/1/checklist-reorder')
+        .set('Authorization', authHeader)
+        .send({ order: [] })
+        .expect(400);
+    });
+
+    it('should return 400 without order', async () => {
+      await request(app)
+        .put('/api/tasks/1/checklist-reorder')
+        .set('Authorization', authHeader)
+        .send({})
+        .expect(400);
+    });
+  });
 });

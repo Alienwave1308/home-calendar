@@ -321,4 +321,184 @@ router.delete('/:id/assign/:userId', async (req, res) => {
   }
 });
 
+// === CHECKLIST ITEMS ===
+
+// GET /api/tasks/:id/checklist — get checklist items
+router.get('/:id/checklist', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+
+    // Verify task belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM checklist_items WHERE task_id = $1 ORDER BY position, id',
+      [taskId]
+    );
+
+    const total = result.rows.length;
+    const completed = result.rows.filter(i => i.is_done).length;
+
+    res.json({ items: result.rows, progress: { completed, total } });
+  } catch (error) {
+    console.error('Error getting checklist:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/tasks/:id/checklist — add checklist item
+router.post('/:id/checklist', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const { title } = req.body;
+
+    if (!title || title.trim().length < 1) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    // Verify task belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Get next position
+    const maxPos = await pool.query(
+      'SELECT COALESCE(MAX(position), -1) AS max_pos FROM checklist_items WHERE task_id = $1',
+      [taskId]
+    );
+    const position = maxPos.rows[0].max_pos + 1;
+
+    const result = await pool.query(
+      'INSERT INTO checklist_items (task_id, title, position) VALUES ($1, $2, $3) RETURNING *',
+      [taskId, title.trim(), position]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding checklist item:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/tasks/:id/checklist/:itemId — update checklist item (title, is_done)
+router.put('/:id/checklist/:itemId', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const itemId = parseInt(req.params.itemId);
+    const { title, is_done } = req.body;
+
+    // Verify task belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Get existing item
+    const existing = await pool.query(
+      'SELECT * FROM checklist_items WHERE id = $1 AND task_id = $2',
+      [itemId, taskId]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Checklist item not found' });
+    }
+
+    const current = existing.rows[0];
+    const newTitle = title !== undefined ? title.trim() : current.title;
+    const newIsDone = is_done !== undefined ? is_done : current.is_done;
+
+    const result = await pool.query(
+      'UPDATE checklist_items SET title = $1, is_done = $2 WHERE id = $3 RETURNING *',
+      [newTitle, newIsDone, itemId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating checklist item:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/tasks/:id/checklist/:itemId — delete checklist item
+router.delete('/:id/checklist/:itemId', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const itemId = parseInt(req.params.itemId);
+
+    // Verify task belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM checklist_items WHERE id = $1 AND task_id = $2 RETURNING *',
+      [itemId, taskId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Checklist item not found' });
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting checklist item:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/tasks/:id/checklist/reorder — reorder checklist items
+router.put('/:id/checklist-reorder', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const { order } = req.body; // array of item IDs in new order
+
+    if (!Array.isArray(order) || order.length === 0) {
+      return res.status(400).json({ error: 'order must be a non-empty array of item IDs' });
+    }
+
+    // Verify task belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Update positions
+    for (let i = 0; i < order.length; i++) {
+      await pool.query(
+        'UPDATE checklist_items SET position = $1 WHERE id = $2 AND task_id = $3',
+        [i, order[i], taskId]
+      );
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM checklist_items WHERE task_id = $1 ORDER BY position, id',
+      [taskId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error reordering checklist:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
