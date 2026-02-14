@@ -530,13 +530,40 @@ header p {
   border-radius: 50%;
 }
 
+.task-dot.backlog { background: #9e9e9e; }
 .task-dot.planned { background: #667eea; }
 .task-dot.in_progress { background: #ff9800; }
 .task-dot.done { background: #4caf50; }
+.task-dot.canceled { background: #f44336; }
+.task-dot.archived { background: #795548; }
 
+.calendar-day.today .task-dot.backlog { background: #bdbdbd; }
 .calendar-day.today .task-dot.planned { background: #c5caf7; }
 .calendar-day.today .task-dot.in_progress { background: #ffcc80; }
 .calendar-day.today .task-dot.done { background: #a5d6a7; }
+.calendar-day.today .task-dot.canceled { background: #ef9a9a; }
+.calendar-day.today .task-dot.archived { background: #bcaaa4; }
+
+/* Priority indicators */
+.task-priority { font-size: 0.8rem; }
+
+/* Form row for side-by-side selects */
+.form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.form-row select {
+  width: 100%;
+  padding: 8px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
 
 /* Модальное окно */
 .modal-overlay {

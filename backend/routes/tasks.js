@@ -3,16 +3,17 @@ const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 
-const VALID_STATUSES = ['planned', 'in_progress', 'done'];
+const VALID_STATUSES = ['backlog', 'planned', 'in_progress', 'done', 'canceled', 'archived'];
+const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
 // All task routes require authentication
 router.use(authenticateToken);
 
-// GET /api/tasks - get all tasks
+// GET /api/tasks - get all tasks (excludes soft-deleted)
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM tasks WHERE user_id = $1 ORDER BY id',
+      'SELECT * FROM tasks WHERE user_id = $1 AND deleted_at IS NULL ORDER BY id',
       [req.user.id]
     );
     res.json(result.rows);
@@ -22,7 +23,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/tasks/family — get all family members' tasks
+// GET /api/tasks/family — get all family members' tasks (excludes soft-deleted)
 router.get('/family', async (req, res) => {
   try {
     // Find user's family
@@ -43,7 +44,7 @@ router.get('/family', async (req, res) => {
        FROM tasks t
        JOIN family_members fm ON fm.user_id = t.user_id
        JOIN users u ON u.id = t.user_id
-       WHERE fm.family_id = $1
+       WHERE fm.family_id = $1 AND t.deleted_at IS NULL
        ORDER BY t.date, t.id`,
       [familyId]
     );
@@ -55,12 +56,12 @@ router.get('/family', async (req, res) => {
   }
 });
 
-// GET /api/tasks/:id - get single task
+// GET /api/tasks/:id - get single task (excludes soft-deleted)
 router.get('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const result = await pool.query(
-      'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
       [id, req.user.id]
     );
 
@@ -78,7 +79,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/tasks - create task
 router.post('/', async (req, res) => {
   try {
-    const { title, date, status } = req.body;
+    const { title, date, status, description, priority } = req.body;
 
     if (!title || !date) {
       return res.status(400).json({ error: 'Title and date are required' });
@@ -86,12 +87,18 @@ router.post('/', async (req, res) => {
 
     const taskStatus = status || 'planned';
     if (!VALID_STATUSES.includes(taskStatus)) {
-      return res.status(400).json({ error: 'Invalid status. Must be: planned, in_progress, or done' });
+      return res.status(400).json({ error: `Invalid status. Must be: ${VALID_STATUSES.join(', ')}` });
+    }
+
+    const taskPriority = priority || 'medium';
+    if (!VALID_PRIORITIES.includes(taskPriority)) {
+      return res.status(400).json({ error: `Invalid priority. Must be: ${VALID_PRIORITIES.join(', ')}` });
     }
 
     const result = await pool.query(
-      'INSERT INTO tasks (title, date, status, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [title, date, taskStatus, req.user.id]
+      `INSERT INTO tasks (title, date, status, description, priority, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [title, date, taskStatus, description || null, taskPriority, req.user.id]
     );
 
     res.status(201).json(result.rows[0]);
@@ -105,14 +112,18 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, date, status } = req.body;
+    const { title, date, status, description, priority } = req.body;
 
     if (status !== undefined && !VALID_STATUSES.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status. Must be: planned, in_progress, or done' });
+      return res.status(400).json({ error: `Invalid status. Must be: ${VALID_STATUSES.join(', ')}` });
+    }
+
+    if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: `Invalid priority. Must be: ${VALID_PRIORITIES.join(', ')}` });
     }
 
     const existing = await pool.query(
-      'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
       [id, req.user.id]
     );
     if (existing.rows.length === 0) {
@@ -123,10 +134,22 @@ router.put('/:id', async (req, res) => {
     const newTitle = title !== undefined ? title : current.title;
     const newDate = date !== undefined ? date : current.date;
     const newStatus = status !== undefined ? status : current.status;
+    const newDescription = description !== undefined ? description : current.description;
+    const newPriority = priority !== undefined ? priority : current.priority;
+
+    // Set completed_at when transitioning to done
+    let completedAt = current.completed_at;
+    if (newStatus === 'done' && current.status !== 'done') {
+      completedAt = new Date().toISOString();
+    } else if (newStatus !== 'done' && current.status === 'done') {
+      completedAt = null;
+    }
 
     const result = await pool.query(
-      'UPDATE tasks SET title = $1, date = $2, status = $3 WHERE id = $4 AND user_id = $5 RETURNING *',
-      [newTitle, newDate, newStatus, id, req.user.id]
+      `UPDATE tasks SET title = $1, date = $2, status = $3, description = $4,
+       priority = $5, completed_at = $6
+       WHERE id = $7 AND user_id = $8 RETURNING *`,
+      [newTitle, newDate, newStatus, newDescription, newPriority, completedAt, id, req.user.id]
     );
 
     res.json(result.rows[0]);
@@ -136,12 +159,12 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/tasks/:id - delete task
+// DELETE /api/tasks/:id - soft delete task
 router.delete('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const result = await pool.query(
-      'DELETE FROM tasks WHERE id = $1 AND user_id = $2 RETURNING *',
+      'UPDATE tasks SET deleted_at = NOW() WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING *',
       [id, req.user.id]
     );
 

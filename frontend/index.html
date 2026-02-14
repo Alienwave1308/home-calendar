@@ -120,6 +120,25 @@
           <label for="taskDate">Дата:</label>
           <input type="date" id="taskDate" required>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="taskPriority">Приоритет:</label>
+            <select id="taskPriority">
+              <option value="low">Низкий</option>
+              <option value="medium" selected>Средний</option>
+              <option value="high">Высокий</option>
+              <option value="urgent">Срочный</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="taskStatus">Статус:</label>
+            <select id="taskStatus">
+              <option value="backlog">Бэклог</option>
+              <option value="planned" selected>Запланировано</option>
+              <option value="in_progress">В работе</option>
+            </select>
+          </div>
+        </div>
         <button type="submit" class="btn-primary">Добавить задачу</button>
       </form>
     </section>

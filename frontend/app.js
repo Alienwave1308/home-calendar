@@ -313,12 +313,23 @@ const taskForm = document.getElementById('taskForm');
 const taskTitle = document.getElementById('taskTitle');
 const taskDate = document.getElementById('taskDate');
 const taskStatus = document.getElementById('taskStatus');
+const taskPriority = document.getElementById('taskPriority');
 const tasksContainer = document.getElementById('tasksContainer');
 
+const PRIORITY_LABELS = {
+  low: { text: 'Низкий', icon: '🟢' },
+  medium: { text: 'Средний', icon: '🟡' },
+  high: { text: 'Высокий', icon: '🟠' },
+  urgent: { text: 'Срочный', icon: '🔴' }
+};
+
 const STATUS_LABELS = {
+  backlog: { text: 'Бэклог', icon: '📥', next: 'planned' },
   planned: { text: 'Запланировано', icon: '📋', next: 'in_progress' },
   in_progress: { text: 'В работе', icon: '🔄', next: 'done' },
-  done: { text: 'Готово', icon: '✅', next: 'planned' }
+  done: { text: 'Готово', icon: '✅', next: 'backlog' },
+  canceled: { text: 'Отменено', icon: '❌', next: 'backlog' },
+  archived: { text: 'Архив', icon: '📦', next: 'backlog' }
 };
 
 // Load all tasks from API
@@ -352,6 +363,7 @@ function displayTasks(tasks) {
 
   const tasksHTML = tasks.map(task => {
     const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
+    const priorityInfo = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS.medium;
     const doneClass = task.status === 'done' ? 'completed' : '';
     const ownerLabel = isFamilyView && task.username
       ? `<span class="task-owner">${task.username}</span>`
@@ -359,12 +371,13 @@ function displayTasks(tasks) {
     const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
 
     return `
-      <div class="task-item ${doneClass}" data-status="${task.status}">
+      <div class="task-item ${doneClass}" data-status="${task.status}" data-priority="${task.priority || 'medium'}">
         <div class="task-info">
           <div class="task-title">${task.title}</div>
           <div class="task-meta">
             ${ownerLabel}
             <span class="task-date">${formatDate(task.date)}</span>
+            <span class="task-priority priority-${task.priority || 'medium'}">${priorityInfo.icon}</span>
             <span class="task-status status-${task.status}">${statusInfo.icon} ${statusInfo.text}</span>
           </div>
         </div>
@@ -407,7 +420,8 @@ taskForm.addEventListener('submit', async (e) => {
   const newTask = {
     title: taskTitle.value.trim(),
     date: taskDate.value,
-    status: taskStatus ? taskStatus.value : 'planned'
+    status: taskStatus ? taskStatus.value : 'planned',
+    priority: taskPriority ? taskPriority.value : 'medium'
   };
 
   if (!newTask.title || !newTask.date) {
@@ -426,6 +440,7 @@ taskForm.addEventListener('submit', async (e) => {
       taskTitle.value = '';
       taskDate.value = '';
       if (taskStatus) taskStatus.value = 'planned';
+      if (taskPriority) taskPriority.value = 'medium';
       loadTasks();
     } else {
       alert('Ошибка при добавлении задачи');
