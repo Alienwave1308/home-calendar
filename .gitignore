@@ -36,3 +36,6 @@ frontend-instrumented/
 # Temporary files
 *.tmp
 .cache/
+
+# Uploaded files
+uploads/

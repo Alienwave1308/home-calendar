@@ -53,6 +53,10 @@ app.use('/api/audit', auditRouter);
 const dashboardRouter = require('./routes/dashboard');
 app.use('/api/dashboard', dashboardRouter);
 
+// Подключаем роуты для вложений (требуют авторизации)
+const attachmentsRouter = require('./routes/attachments');
+app.use('/api', attachmentsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });

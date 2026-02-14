@@ -17,6 +17,7 @@ module.exports = [
         clearTimeout: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly",
+        Buffer: "readonly",
         fetch: "readonly",
         document: "readonly",
         window: "readonly",
