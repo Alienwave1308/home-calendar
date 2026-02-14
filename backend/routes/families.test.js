@@ -11,8 +11,10 @@ jest.mock('../db', () => ({
 
 const user1 = { id: 1, username: 'alice' };
 const user2 = { id: 2, username: 'bob' };
+const user3 = { id: 3, username: 'charlie' };
 const token1 = `Bearer ${jwt.sign(user1, JWT_SECRET, { expiresIn: '1h' })}`;
 const token2 = `Bearer ${jwt.sign(user2, JWT_SECRET, { expiresIn: '1h' })}`;
+const token3 = `Bearer ${jwt.sign(user3, JWT_SECRET, { expiresIn: '1h' })}`;
 
 describe('Families API', () => {
   beforeEach(() => {
@@ -201,7 +203,57 @@ describe('Families API', () => {
       expect(res.body.message).toMatch(/Member removed/);
     });
 
-    it('should return 403 if not owner', async () => {
+    it('should let admin kick a member', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'admin' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ role: 'member' }] // target is member
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 6, family_id: 1, user_id: 3, role: 'member' }]
+        });
+
+      const res = await request(app)
+        .delete('/api/families/members/3')
+        .set('Authorization', token2)
+        .expect(200);
+
+      expect(res.body.message).toMatch(/Member removed/);
+    });
+
+    it('should not let admin kick owner', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'admin' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ role: 'owner' }] // target is owner
+        });
+
+      await request(app)
+        .delete('/api/families/members/1')
+        .set('Authorization', token2)
+        .expect(403);
+    });
+
+    it('should not let admin kick another admin', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'admin' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ role: 'admin' }] // target is also admin
+        });
+
+      await request(app)
+        .delete('/api/families/members/3')
+        .set('Authorization', token2)
+        .expect(403);
+    });
+
+    it('should return 403 if member tries to kick', async () => {
       pool.query.mockResolvedValueOnce({
         rows: [{ family_id: 1, role: 'member' }]
       });
@@ -222,5 +274,180 @@ describe('Families API', () => {
         .set('Authorization', token1)
         .expect(400);
     });
+  });
+
+  describe('PUT /api/families/members/:userId/role', () => {
+    it('should let owner change role to admin', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'owner' }] // caller is owner
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, role: 'member' }] // target exists
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, family_id: 1, user_id: 2, role: 'admin', role_changed_at: new Date() }]
+        });
+
+      const res = await request(app)
+        .put('/api/families/members/2/role')
+        .set('Authorization', token1)
+        .send({ role: 'admin' })
+        .expect(200);
+
+      expect(res.body.member.role).toBe('admin');
+    });
+
+    it('should let owner change role to child', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'owner' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, role: 'member' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, family_id: 1, user_id: 2, role: 'child', role_changed_at: new Date() }]
+        });
+
+      const res = await request(app)
+        .put('/api/families/members/2/role')
+        .set('Authorization', token1)
+        .send({ role: 'child' })
+        .expect(200);
+
+      expect(res.body.member.role).toBe('child');
+    });
+
+    it('should let owner change role to guest', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'owner' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, role: 'member' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, family_id: 1, user_id: 2, role: 'guest', role_changed_at: new Date() }]
+        });
+
+      const res = await request(app)
+        .put('/api/families/members/2/role')
+        .set('Authorization', token1)
+        .send({ role: 'guest' })
+        .expect(200);
+
+      expect(res.body.member.role).toBe('guest');
+    });
+
+    it('should return 400 for invalid role', async () => {
+      await request(app)
+        .put('/api/families/members/2/role')
+        .set('Authorization', token1)
+        .send({ role: 'superadmin' })
+        .expect(400);
+    });
+
+    it('should return 400 when trying to assign owner role', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ family_id: 1, role: 'owner' }]
+      });
+
+      await request(app)
+        .put('/api/families/members/2/role')
+        .set('Authorization', token1)
+        .send({ role: 'owner' })
+        .expect(400);
+    });
+
+    it('should return 400 when owner tries to change own role', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ family_id: 1, role: 'owner' }]
+      });
+
+      await request(app)
+        .put('/api/families/members/1/role')
+        .set('Authorization', token1)
+        .send({ role: 'admin' })
+        .expect(400);
+    });
+
+    it('should return 403 if non-owner tries to change role', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ family_id: 1, role: 'admin' }] // admin, not owner
+      });
+
+      await request(app)
+        .put('/api/families/members/3/role')
+        .set('Authorization', token2)
+        .send({ role: 'member' })
+        .expect(403);
+    });
+
+    it('should return 404 if target not in family', async () => {
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ family_id: 1, role: 'owner' }]
+        })
+        .mockResolvedValueOnce({
+          rows: [] // target not found
+        });
+
+      await request(app)
+        .put('/api/families/members/99/role')
+        .set('Authorization', token1)
+        .send({ role: 'admin' })
+        .expect(404);
+    });
+
+    it('should return 404 if caller not in a family', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] }); // caller not in family
+
+      await request(app)
+        .put('/api/families/members/2/role')
+        .set('Authorization', token3)
+        .send({ role: 'admin' })
+        .expect(404);
+    });
+  });
+});
+
+describe('Family middleware', () => {
+  const { VALID_ROLES, ROLE_PERMISSIONS, hasPermission } = require('../middleware/family');
+
+  it('should have 5 valid roles', () => {
+    expect(VALID_ROLES).toEqual(['owner', 'admin', 'member', 'child', 'guest']);
+  });
+
+  it('should define permissions for all roles', () => {
+    for (const role of VALID_ROLES) {
+      expect(ROLE_PERMISSIONS[role]).toBeDefined();
+      expect(Array.isArray(ROLE_PERMISSIONS[role])).toBe(true);
+    }
+  });
+
+  it('owner should have all permissions', () => {
+    expect(hasPermission('owner', 'manage_family')).toBe(true);
+    expect(hasPermission('owner', 'manage_roles')).toBe(true);
+    expect(hasPermission('owner', 'view')).toBe(true);
+  });
+
+  it('guest should only have view permission', () => {
+    expect(hasPermission('guest', 'view')).toBe(true);
+    expect(hasPermission('guest', 'create_tasks')).toBe(false);
+    expect(hasPermission('guest', 'manage_family')).toBe(false);
+  });
+
+  it('child should have limited permissions', () => {
+    expect(hasPermission('child', 'view')).toBe(true);
+    expect(hasPermission('child', 'comment')).toBe(true);
+    expect(hasPermission('child', 'manage_assigned_tasks')).toBe(true);
+    expect(hasPermission('child', 'create_tasks')).toBe(false);
+  });
+
+  it('admin should not manage family or roles', () => {
+    expect(hasPermission('admin', 'manage_members')).toBe(true);
+    expect(hasPermission('admin', 'manage_family')).toBe(false);
+    expect(hasPermission('admin', 'manage_roles')).toBe(false);
   });
 });

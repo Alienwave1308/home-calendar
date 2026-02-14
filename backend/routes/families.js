@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { VALID_ROLES } = require('../middleware/family');
 
 // All family routes require authentication
 router.use(authenticateToken);
@@ -200,12 +201,12 @@ router.post('/leave', async (req, res) => {
   }
 });
 
-// DELETE /api/families/members/:userId — kick a member (owner only)
+// DELETE /api/families/members/:userId — kick a member (owner or admin)
 router.delete('/members/:userId', async (req, res) => {
   try {
     const targetUserId = parseInt(req.params.userId);
 
-    // Check caller is an owner
+    // Check caller's role
     const callerMembership = await pool.query(
       'SELECT family_id, role FROM family_members WHERE user_id = $1',
       [req.user.id]
@@ -217,12 +218,26 @@ router.delete('/members/:userId', async (req, res) => {
 
     const { family_id, role } = callerMembership.rows[0];
 
-    if (role !== 'owner') {
-      return res.status(403).json({ error: 'Only the family owner can remove members' });
+    if (role !== 'owner' && role !== 'admin') {
+      return res.status(403).json({ error: 'Only owner or admin can remove members' });
     }
 
     if (targetUserId === req.user.id) {
       return res.status(400).json({ error: 'Cannot kick yourself. Use leave instead.' });
+    }
+
+    // Admin cannot kick owner or other admins
+    if (role === 'admin') {
+      const targetMembership = await pool.query(
+        'SELECT role FROM family_members WHERE family_id = $1 AND user_id = $2',
+        [family_id, targetUserId]
+      );
+      if (targetMembership.rows.length > 0) {
+        const targetRole = targetMembership.rows[0].role;
+        if (targetRole === 'owner' || targetRole === 'admin') {
+          return res.status(403).json({ error: 'Admin cannot remove owner or other admins' });
+        }
+      }
     }
 
     const result = await pool.query(
@@ -237,6 +252,63 @@ router.delete('/members/:userId', async (req, res) => {
     res.json({ message: 'Member removed' });
   } catch (error) {
     console.error('Error removing member:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/families/members/:userId/role — change a member's role (owner only)
+router.put('/members/:userId/role', async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.userId);
+    const { role: newRole } = req.body;
+
+    if (!newRole || !VALID_ROLES.includes(newRole)) {
+      return res.status(400).json({ error: `Invalid role. Must be: ${VALID_ROLES.join(', ')}` });
+    }
+
+    // Check caller is owner
+    const callerMembership = await pool.query(
+      'SELECT family_id, role FROM family_members WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (callerMembership.rows.length === 0) {
+      return res.status(404).json({ error: 'You are not in a family' });
+    }
+
+    const { family_id, role: callerRole } = callerMembership.rows[0];
+
+    if (callerRole !== 'owner') {
+      return res.status(403).json({ error: 'Only the owner can change roles' });
+    }
+
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ error: 'Cannot change your own role' });
+    }
+
+    if (newRole === 'owner') {
+      return res.status(400).json({ error: 'Cannot assign owner role. Transfer ownership instead.' });
+    }
+
+    // Check target is in the same family
+    const targetMembership = await pool.query(
+      'SELECT id, role FROM family_members WHERE family_id = $1 AND user_id = $2',
+      [family_id, targetUserId]
+    );
+
+    if (targetMembership.rows.length === 0) {
+      return res.status(404).json({ error: 'User is not a member of your family' });
+    }
+
+    // Update role
+    const result = await pool.query(
+      'UPDATE family_members SET role = $1, role_changed_at = NOW() WHERE family_id = $2 AND user_id = $3 RETURNING *',
+      [newRole, family_id, targetUserId]
+    );
+
+    res.json({ member: result.rows[0] });
+  } catch (error) {
+    console.error('Error changing role:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
