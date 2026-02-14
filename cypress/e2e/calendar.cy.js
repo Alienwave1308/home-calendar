@@ -36,14 +36,14 @@ describe('Home Calendar - Calendar E2E', () => {
     cy.get('.calendar-day:not(.other-month)').first().click();
     cy.get('#dayModal').should('be.visible');
     cy.get('#modalDate').should('not.be.empty');
-    cy.get('.modal-header .btn-nav').click();
+    cy.get('#dayModal .modal-header .btn-nav').click();
     cy.get('#dayModal').should('not.be.visible');
   });
 
   it('should add task from day modal', () => {
     cy.get('.calendar-day:not(.other-month)').first().click();
     cy.get('#modalTaskTitle').type('Задача из модала');
-    cy.get('.modal-add .btn-primary').click();
+    cy.get('#dayModal .modal-add .btn-primary').click();
     cy.get('.modal-task').should('contain', 'Задача из модала');
   });
 });
