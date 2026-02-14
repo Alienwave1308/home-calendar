@@ -3,7 +3,10 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
 
 // Импортируем Express - это библиотека для создания веб-сервера
 const express = require('express');
-const path = require('path');  // ← Добавь эту строку
+const path = require('path');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 // Создаём приложение Express
 const app = express();
@@ -11,8 +14,38 @@ const app = express();
 // Порт на котором будет работать сервер
 const PORT = process.env.PORT || 3000;
 
+// === Security Middleware ===
+
+// Helmet — secure HTTP headers
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// CORS — allow same-origin by default, configurable via env
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// General rate limiter: 100 requests per minute per IP
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+app.use('/api', generalLimiter);
+
+// Strict rate limiter for auth: 10 requests per minute per IP
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth attempts, please try again later' }
+});
+
 // Middleware для работы с JSON
-// (позволяет серверу понимать JSON данные от клиента)
 app.use(express.json());
 
 // Подключаем статические файлы (HTML, CSS, JS), по умолчанию из frontend
@@ -21,9 +54,9 @@ const frontendDir = process.env.FRONTEND_DIR
   : path.join(__dirname, '../frontend');
 app.use(express.static(frontendDir));
 
-// Подключаем роуты авторизации
+// Подключаем роуты авторизации (с усиленным rate limiter)
 const authRouter = require('./routes/auth');
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 
 // Подключаем роуты для задач (требуют авторизации)
 const tasksRouter = require('./routes/tasks');
