@@ -507,6 +507,23 @@ describe('Tasks API', () => {
     });
   });
 
+  describe('GET /api/tasks?list=', () => {
+    it('should filter tasks by list', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id: 1, title: 'Listed task', list_id: 5 }]
+      });
+
+      const res = await request(app)
+        .get('/api/tasks?list=5')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      const queryCall = pool.query.mock.calls[0];
+      expect(queryCall[0]).toContain('list_id');
+    });
+  });
+
   // Checklist items
   describe('GET /api/tasks/:id/checklist', () => {
     it('should return checklist with progress', async () => {

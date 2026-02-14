@@ -38,6 +38,10 @@ app.use('/api/tags', tagsRouter);
 const commentsRouter = require('./routes/comments');
 app.use('/api/comments', commentsRouter);
 
+// Подключаем роуты для списков задач (требуют авторизации)
+const listsRouter = require('./routes/lists');
+app.use('/api/lists', listsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
