@@ -10,12 +10,26 @@ const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 router.use(authenticateToken);
 
 // GET /api/tasks - get all tasks (excludes soft-deleted)
+// Supports ?tag=tagId for filtering by tag
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM tasks WHERE user_id = $1 AND deleted_at IS NULL ORDER BY id',
-      [req.user.id]
-    );
+    const tagId = req.query.tag ? parseInt(req.query.tag) : null;
+
+    let query;
+    let params;
+
+    if (tagId) {
+      query = `SELECT t.* FROM tasks t
+        JOIN task_tags tt ON tt.task_id = t.id
+        WHERE t.user_id = $1 AND t.deleted_at IS NULL AND tt.tag_id = $2
+        ORDER BY t.id`;
+      params = [req.user.id, tagId];
+    } else {
+      query = 'SELECT * FROM tasks WHERE user_id = $1 AND deleted_at IS NULL ORDER BY id';
+      params = [req.user.id];
+    }
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error getting tasks:', error);

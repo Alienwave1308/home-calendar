@@ -30,6 +30,10 @@ app.use('/api/tasks', tasksRouter);
 const familiesRouter = require('./routes/families');
 app.use('/api/families', familiesRouter);
 
+// Подключаем роуты для тегов (требуют авторизации)
+const tagsRouter = require('./routes/tags');
+app.use('/api/tags', tagsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
