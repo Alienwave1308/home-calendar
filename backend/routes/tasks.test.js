@@ -560,6 +560,25 @@ describe('Tasks API', () => {
 
       expect(res.body.error).toMatch(/Invalid status/);
     });
+
+    it('should sort by due_at with tag filter without DISTINCT order by expression errors', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 10, title: 'Tagged due task', status: 'planned' }]
+        });
+
+      const res = await request(app)
+        .get('/api/tasks?tag=2&sort=due_at&order=desc&page=1&limit=20')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.tasks).toHaveLength(1);
+      const dataQueryCall = pool.query.mock.calls[1][0];
+      expect(dataQueryCall).toContain('SELECT DISTINCT t.*');
+      expect(dataQueryCall).toContain('ORDER BY t.due_at DESC NULLS LAST, t.date DESC, t.id DESC');
+      expect(dataQueryCall).not.toContain('COALESCE');
+    });
   });
 
   // Checklist items

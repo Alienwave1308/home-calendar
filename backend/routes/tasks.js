@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
       id: 't.id',
       title: 't.title',
       date: 't.date',
-      due_at: 'COALESCE(t.due_at, (t.date::timestamp))',
+      due_at: 't.due_at',
       status: 't.status',
       priority: 't.priority'
     };
@@ -97,11 +97,16 @@ router.get('/', async (req, res) => {
     const total = countResult.rows[0]?.total || 0;
     const pages = Math.max(Math.ceil(total / limit), 1);
 
+    const selectSql = joins.length > 0 ? 'SELECT DISTINCT t.*' : 'SELECT t.*';
+    const orderSql = sortKey === 'due_at'
+      ? `ORDER BY t.due_at ${order} NULLS LAST, t.date ${order}, t.id ${order}`
+      : `ORDER BY ${sortSql} ${order}, t.id ${order}`;
+
     const dataQuery = `
-      SELECT DISTINCT t.*
+      ${selectSql}
       ${fromClause}
       ${whereClause}
-      ORDER BY ${sortSql} ${order}, t.id ${order}
+      ${orderSql}
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
 
