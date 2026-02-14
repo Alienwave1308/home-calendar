@@ -10,20 +10,34 @@ const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 router.use(authenticateToken);
 
 // GET /api/tasks - get all tasks (excludes soft-deleted)
-// Supports ?tag=tagId for filtering by tag
+// Supports ?tag=tagId and ?assignee=userId for filtering
 router.get('/', async (req, res) => {
   try {
     const tagId = req.query.tag ? parseInt(req.query.tag) : null;
+    const assigneeId = req.query.assignee ? parseInt(req.query.assignee) : null;
 
     let query;
     let params;
 
-    if (tagId) {
+    if (tagId && assigneeId) {
+      query = `SELECT DISTINCT t.* FROM tasks t
+        JOIN task_tags tt ON tt.task_id = t.id
+        JOIN task_assignments ta ON ta.task_id = t.id
+        WHERE t.user_id = $1 AND t.deleted_at IS NULL AND tt.tag_id = $2 AND ta.user_id = $3
+        ORDER BY t.id`;
+      params = [req.user.id, tagId, assigneeId];
+    } else if (tagId) {
       query = `SELECT t.* FROM tasks t
         JOIN task_tags tt ON tt.task_id = t.id
         WHERE t.user_id = $1 AND t.deleted_at IS NULL AND tt.tag_id = $2
         ORDER BY t.id`;
       params = [req.user.id, tagId];
+    } else if (assigneeId) {
+      query = `SELECT t.* FROM tasks t
+        JOIN task_assignments ta ON ta.task_id = t.id
+        WHERE t.user_id = $1 AND t.deleted_at IS NULL AND ta.user_id = $2
+        ORDER BY t.id`;
+      params = [req.user.id, assigneeId];
     } else {
       query = 'SELECT * FROM tasks WHERE user_id = $1 AND deleted_at IS NULL ORDER BY id';
       params = [req.user.id];
@@ -189,6 +203,120 @@ router.delete('/:id', async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting task:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/tasks/:id/assignees — get assignees for a task
+router.get('/:id/assignees', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+
+    const result = await pool.query(
+      `SELECT ta.id, ta.role, ta.assigned_at, u.id AS user_id, u.username
+       FROM task_assignments ta
+       JOIN users u ON u.id = ta.user_id
+       WHERE ta.task_id = $1
+       ORDER BY ta.assigned_at`,
+      [taskId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error getting assignees:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/tasks/:id/assign — assign a user to a task
+router.post('/:id/assign', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const { user_id: targetUserId, role } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const assignRole = role || 'assignee';
+    if (!['assignee', 'watcher'].includes(assignRole)) {
+      return res.status(400).json({ error: 'Role must be assignee or watcher' });
+    }
+
+    // Check task exists and belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check target user is in same family
+    const callerFamily = await pool.query(
+      'SELECT family_id FROM family_members WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (callerFamily.rows.length === 0) {
+      return res.status(404).json({ error: 'You are not in a family' });
+    }
+
+    const targetFamily = await pool.query(
+      'SELECT family_id FROM family_members WHERE user_id = $1 AND family_id = $2',
+      [targetUserId, callerFamily.rows[0].family_id]
+    );
+    if (targetFamily.rows.length === 0) {
+      return res.status(404).json({ error: 'Target user is not in your family' });
+    }
+
+    // Check if already assigned
+    const existing = await pool.query(
+      'SELECT id FROM task_assignments WHERE task_id = $1 AND user_id = $2',
+      [taskId, targetUserId]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'User already assigned to this task' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO task_assignments (task_id, user_id, role) VALUES ($1, $2, $3) RETURNING *',
+      [taskId, targetUserId, assignRole]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error assigning user:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/tasks/:id/assign/:userId — unassign a user from a task
+router.delete('/:id/assign/:userId', async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const targetUserId = parseInt(req.params.userId);
+
+    // Check task belongs to caller
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [taskId, req.user.id]
+    );
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM task_assignments WHERE task_id = $1 AND user_id = $2 RETURNING *',
+      [taskId, targetUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error unassigning user:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -314,4 +314,196 @@ describe('Tasks API', () => {
         .expect(404);
     });
   });
+
+  // Task assignments
+  describe('GET /api/tasks/:id/assignees', () => {
+    it('should return assignees for a task', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [
+          { id: 1, role: 'assignee', assigned_at: new Date(), user_id: 2, username: 'bob' },
+          { id: 2, role: 'watcher', assigned_at: new Date(), user_id: 3, username: 'charlie' }
+        ]
+      });
+
+      const res = await request(app)
+        .get('/api/tasks/1/assignees')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0].role).toBe('assignee');
+      expect(res.body[1].role).toBe('watcher');
+    });
+  });
+
+  describe('POST /api/tasks/:id/assign', () => {
+    it('should assign a user to a task', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] }) // caller family
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] }) // target in same family
+        .mockResolvedValueOnce({ rows: [] }) // not already assigned
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, task_id: 1, user_id: 2, role: 'assignee' }]
+        });
+
+      const res = await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2 })
+        .expect(201);
+
+      expect(res.body.role).toBe('assignee');
+    });
+
+    it('should assign as watcher', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, task_id: 1, user_id: 2, role: 'watcher' }]
+        });
+
+      const res = await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2, role: 'watcher' })
+        .expect(201);
+
+      expect(res.body.role).toBe('watcher');
+    });
+
+    it('should return 400 without user_id', async () => {
+      await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({})
+        .expect(400);
+    });
+
+    it('should return 400 for invalid role', async () => {
+      await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2, role: 'admin' })
+        .expect(400);
+    });
+
+    it('should return 404 if task not found', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .post('/api/tasks/99/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2 })
+        .expect(404);
+    });
+
+    it('should return 404 if caller not in family', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [] }); // no family
+
+      await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2 })
+        .expect(404);
+    });
+
+    it('should return 404 if target not in same family', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] })
+        .mockResolvedValueOnce({ rows: [] }); // target not in family
+
+      await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2 })
+        .expect(404);
+    });
+
+    it('should return 409 if already assigned', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ family_id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // already assigned
+
+      await request(app)
+        .post('/api/tasks/1/assign')
+        .set('Authorization', authHeader)
+        .send({ user_id: 2 })
+        .expect(409);
+    });
+  });
+
+  describe('DELETE /api/tasks/:id/assign/:userId', () => {
+    it('should unassign a user', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
+        .mockResolvedValueOnce({ rows: [{ id: 1, task_id: 1, user_id: 2 }] }); // deleted
+
+      await request(app)
+        .delete('/api/tasks/1/assign/2')
+        .set('Authorization', authHeader)
+        .expect(204);
+    });
+
+    it('should return 404 if task not found', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .delete('/api/tasks/99/assign/2')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+
+    it('should return 404 if assignment not found', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [] }); // not assigned
+
+      await request(app)
+        .delete('/api/tasks/1/assign/99')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
+
+  describe('GET /api/tasks?assignee=', () => {
+    it('should filter tasks by assignee', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id: 1, title: 'Assigned task' }]
+      });
+
+      const res = await request(app)
+        .get('/api/tasks?assignee=2')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      const queryCall = pool.query.mock.calls[0];
+      expect(queryCall[0]).toContain('task_assignments');
+    });
+
+    it('should filter by both tag and assignee', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id: 1, title: 'Tagged and assigned' }]
+      });
+
+      const res = await request(app)
+        .get('/api/tasks?tag=1&assignee=2')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      const queryCall = pool.query.mock.calls[0];
+      expect(queryCall[0]).toContain('task_tags');
+      expect(queryCall[0]).toContain('task_assignments');
+    });
+  });
 });
