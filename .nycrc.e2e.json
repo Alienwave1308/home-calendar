@@ -1,0 +1,9 @@
+{
+  "all": true,
+  "reporter": ["text-summary", "json-summary", "html"],
+  "report-dir": "coverage/e2e",
+  "temp-dir": ".nyc_output",
+  "exclude-after-remap": false,
+  "include": ["frontend-instrumented/**/*.js"],
+  "exclude": ["**/*.cy.js", "cypress/**", "node_modules/**"]
+}

@@ -15,8 +15,11 @@ const PORT = process.env.PORT || 3000;
 // (позволяет серверу понимать JSON данные от клиента)
 app.use(express.json());
 
-// Подключаем статические файлы (HTML, CSS, JS) из папки frontend
-app.use(express.static(path.join(__dirname, '../frontend')));
+// Подключаем статические файлы (HTML, CSS, JS), по умолчанию из frontend
+const frontendDir = process.env.FRONTEND_DIR
+  ? path.resolve(__dirname, '..', process.env.FRONTEND_DIR)
+  : path.join(__dirname, '../frontend');
+app.use(express.static(frontendDir));
 
 // Подключаем роуты авторизации
 const authRouter = require('./routes/auth');

@@ -8,7 +8,11 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "cypress:open": "cypress open",
-    "cypress:run": "cypress run"
+    "cypress:run": "cypress run",
+    "coverage:e2e:prepare": "node scripts/instrument-frontend.js",
+    "coverage:e2e:clean": "rm -rf .nyc_output coverage/e2e frontend-instrumented",
+    "coverage:e2e:report": "nyc report --nycrc-path .nycrc.e2e.json",
+    "coverage:e2e:run": "npm run coverage:e2e:clean && npm run coverage:e2e:prepare && CYPRESS_COVERAGE=true cypress run && npm run coverage:e2e:report"
   },
   "keywords": [],
   "author": "",
@@ -22,10 +26,13 @@
     "pg": "^8.18.0"
   },
   "devDependencies": {
+    "@cypress/code-coverage": "^4.0.0",
     "@eslint/js": "^10.0.1",
     "cypress": "^15.10.0",
     "eslint": "^10.0.0",
+    "istanbul-lib-instrument": "^6.0.3",
     "jest": "^30.2.0",
+    "nyc": "^17.1.0",
     "supertest": "^7.2.2",
     "wait-on": "^9.0.3"
   }
