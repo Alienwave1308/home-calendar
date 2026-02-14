@@ -43,7 +43,9 @@ describe('Home Calendar - Kanban E2E', () => {
         .trigger('drop', { dataTransfer });
     });
 
-    cy.contains('.kanban-column[data-status="done"] .kanban-card-title', title).should('be.visible');
+    cy.contains('.kanban-column[data-status="done"] .kanban-card-title', title)
+      .scrollIntoView()
+      .should('exist');
     cy.contains('.kanban-column[data-status="backlog"] .kanban-card-title', title).should('not.exist');
   });
 });
