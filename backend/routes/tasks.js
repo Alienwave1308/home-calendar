@@ -10,38 +10,37 @@ const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 router.use(authenticateToken);
 
 // GET /api/tasks - get all tasks (excludes soft-deleted)
-// Supports ?tag=tagId and ?assignee=userId for filtering
+// Supports ?tag=tagId, ?assignee=userId, ?list=listId for filtering
 router.get('/', async (req, res) => {
   try {
     const tagId = req.query.tag ? parseInt(req.query.tag) : null;
     const assigneeId = req.query.assignee ? parseInt(req.query.assignee) : null;
+    const listId = req.query.list ? parseInt(req.query.list) : null;
 
-    let query;
-    let params;
+    const joins = [];
+    const conditions = ['t.user_id = $1', 't.deleted_at IS NULL'];
+    const params = [req.user.id];
+    let paramIndex = 2;
 
-    if (tagId && assigneeId) {
-      query = `SELECT DISTINCT t.* FROM tasks t
-        JOIN task_tags tt ON tt.task_id = t.id
-        JOIN task_assignments ta ON ta.task_id = t.id
-        WHERE t.user_id = $1 AND t.deleted_at IS NULL AND tt.tag_id = $2 AND ta.user_id = $3
-        ORDER BY t.id`;
-      params = [req.user.id, tagId, assigneeId];
-    } else if (tagId) {
-      query = `SELECT t.* FROM tasks t
-        JOIN task_tags tt ON tt.task_id = t.id
-        WHERE t.user_id = $1 AND t.deleted_at IS NULL AND tt.tag_id = $2
-        ORDER BY t.id`;
-      params = [req.user.id, tagId];
-    } else if (assigneeId) {
-      query = `SELECT t.* FROM tasks t
-        JOIN task_assignments ta ON ta.task_id = t.id
-        WHERE t.user_id = $1 AND t.deleted_at IS NULL AND ta.user_id = $2
-        ORDER BY t.id`;
-      params = [req.user.id, assigneeId];
-    } else {
-      query = 'SELECT * FROM tasks WHERE user_id = $1 AND deleted_at IS NULL ORDER BY id';
-      params = [req.user.id];
+    if (tagId) {
+      joins.push('JOIN task_tags tt ON tt.task_id = t.id');
+      conditions.push(`tt.tag_id = $${paramIndex++}`);
+      params.push(tagId);
     }
+
+    if (assigneeId) {
+      joins.push('JOIN task_assignments ta ON ta.task_id = t.id');
+      conditions.push(`ta.user_id = $${paramIndex++}`);
+      params.push(assigneeId);
+    }
+
+    if (listId) {
+      conditions.push(`t.list_id = $${paramIndex++}`);
+      params.push(listId);
+    }
+
+    const distinct = joins.length > 1 ? 'DISTINCT ' : '';
+    const query = `SELECT ${distinct}t.* FROM tasks t ${joins.join(' ')} WHERE ${conditions.join(' AND ')} ORDER BY t.id`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);
