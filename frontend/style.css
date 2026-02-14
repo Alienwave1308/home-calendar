@@ -229,22 +229,141 @@ header p {
   color: #444;
 }
 
-/* Заглушки экранов SPA */
-.placeholder-section {
-  background: #f8f9ff;
-  border: 2px dashed #cfd8ff;
-  border-radius: 14px;
-  padding: 24px;
+/* Kanban */
+.kanban-section h2 {
+  color: #333;
+  margin-bottom: 14px;
+  font-size: 1.5em;
 }
 
-.placeholder-section h2 {
-  color: #333;
+.kanban-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.kanban-column {
+  background: #f8f9ff;
+  border: 1px solid #dce4ff;
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 10px;
 }
 
-.placeholder-hint {
-  color: #666;
-  line-height: 1.5;
+.kanban-column-header h3 {
+  margin: 0;
+  color: #3a3f58;
+  font-size: 1.05em;
+}
+
+.kanban-count {
+  min-width: 22px;
+  text-align: center;
+  font-size: 0.82em;
+  color: #4b5aa3;
+  background: #e7ecff;
+  border-radius: 999px;
+  padding: 3px 7px;
+}
+
+.kanban-column-dropzone {
+  flex: 1;
+  border: 2px dashed transparent;
+  border-radius: 10px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.kanban-column-dropzone.is-over {
+  border-color: #667eea;
+  background: #eef2ff;
+}
+
+.kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+}
+
+.kanban-card {
+  background: #fff;
+  border: 1px solid #e1e7ff;
+  border-left: 4px solid #9aa7e7;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(19, 31, 64, 0.08);
+  padding: 10px 11px;
+  cursor: grab;
+}
+
+.kanban-card.dragging {
+  opacity: 0.5;
+}
+
+.kanban-card.priority-low {
+  border-left-color: #2e9d57;
+}
+
+.kanban-card.priority-medium {
+  border-left-color: #d1a22a;
+}
+
+.kanban-card.priority-high {
+  border-left-color: #d97423;
+}
+
+.kanban-card.priority-urgent {
+  border-left-color: #d64545;
+}
+
+.kanban-card-title {
+  font-weight: 600;
+  color: #2f3550;
+  margin-bottom: 6px;
+}
+
+.kanban-card-meta {
+  display: grid;
+  gap: 3px;
+  font-size: 0.82em;
+  color: #5f6688;
+}
+
+.kanban-create-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.kanban-create-input {
+  flex: 1;
+  border: 1px solid #cad4ff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.kanban-create-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.kanban-empty {
+  margin: 0;
+  color: #9097b4;
+  font-size: 0.9em;
+  padding: 8px 2px;
 }
 
 /* Секция добавления задачи */
@@ -1232,6 +1351,14 @@ header p {
 
   .tasks-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kanban-board {
+    grid-auto-columns: minmax(250px, 85vw);
+  }
+
+  .kanban-column {
+    min-height: 380px;
   }
 
   /* Modal — fullscreen on mobile */

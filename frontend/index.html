@@ -269,9 +269,11 @@
 
       <!-- Экран: Канбан -->
       <div class="screen" id="screen-kanban" style="display: none;">
-        <section class="placeholder-section">
+        <section class="kanban-section">
           <h2>Канбан-доска</h2>
-          <p class="placeholder-hint">Экран в разработке: drag-and-drop и колонки по статусам.</p>
+          <div id="kanbanBoard">
+            <p class="loading">Загрузка задач...</p>
+          </div>
         </section>
       </div>
     </div>
@@ -322,6 +324,7 @@
 
   <script src="router.js"></script>
   <script src="calendar-views.js"></script>
+  <script src="kanban-utils.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -137,6 +137,8 @@ function handleRoute() {
   } else if (route === 'tasks') {
     loadTaskFilterOptions();
     loadTasks();
+  } else if (route === 'kanban') {
+    loadKanban();
   } else if (route === 'family') {
     loadFamily();
   } else if (route === 'activity') {
@@ -574,6 +576,23 @@ const STATUS_LABELS = {
   canceled: { text: 'Отменено', icon: '❌', next: 'backlog' },
   archived: { text: 'Архив', icon: '📦', next: 'backlog' }
 };
+const kanbanUtils = window.KanbanUtils || {
+  KANBAN_STATUSES: ['backlog', 'planned', 'in_progress', 'done'],
+  KANBAN_COLUMN_TITLES: {
+    backlog: 'Backlog',
+    planned: 'Planned',
+    in_progress: 'In Progress',
+    done: 'Done'
+  },
+  filterKanbanTasks: (tasks) => (Array.isArray(tasks)
+    ? tasks.filter((task) => ['backlog', 'planned', 'in_progress', 'done'].includes(task.status))
+    : [])
+};
+
+const KANBAN_STATUSES = kanbanUtils.KANBAN_STATUSES;
+const KANBAN_COLUMN_TITLES = kanbanUtils.KANBAN_COLUMN_TITLES;
+let kanbanTasks = [];
+let kanbanInitialized = false;
 
 function updateTasksPagination() {
   const pageInfo = document.getElementById('tasksPageInfo');
@@ -906,6 +925,137 @@ async function bulkDeleteTasks() {
 document.getElementById('bulkSetPlanned')?.addEventListener('click', () => bulkUpdateStatus('planned'));
 document.getElementById('bulkSetDone')?.addEventListener('click', () => bulkUpdateStatus('done'));
 document.getElementById('bulkDelete')?.addEventListener('click', bulkDeleteTasks);
+
+function renderKanbanBoard() {
+  const board = document.getElementById('kanbanBoard');
+  if (!board) return;
+
+  const columnsHtml = KANBAN_STATUSES.map((status) => {
+    const tasks = kanbanTasks.filter((task) => task.status === status);
+    const cardsHtml = tasks.length
+      ? tasks.map((task) => {
+        const priority = task.priority || 'medium';
+        const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
+        return `
+          <article class="kanban-card priority-${priority}" draggable="true" data-task-id="${task.id}">
+            <div class="kanban-card-title">${task.title}</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-priority">Приоритет: ${priority}</span>
+              <span class="kanban-status">${statusInfo.icon} ${statusInfo.text}</span>
+              <span class="kanban-assignee">Исполнитель: ${task.assignees?.[0]?.username || '—'}</span>
+              <span class="kanban-tags">Теги: ${(task.tags || []).map((tag) => tag.name).join(', ') || '—'}</span>
+            </div>
+          </article>
+        `;
+      }).join('')
+      : '<p class="kanban-empty">Нет задач</p>';
+
+    return `
+      <article class="kanban-column" data-status="${status}">
+        <div class="kanban-column-header">
+          <h3>${KANBAN_COLUMN_TITLES[status]}</h3>
+          <span class="kanban-count">${tasks.length}</span>
+        </div>
+        <div class="kanban-column-dropzone" data-status="${status}">
+          <div class="kanban-cards">${cardsHtml}</div>
+        </div>
+        <form class="kanban-create-form" data-status="${status}">
+          <input
+            id="kanbanInput-${status}"
+            class="kanban-create-input"
+            type="text"
+            placeholder="Новая задача"
+            required
+          >
+          <button class="btn-small" type="submit">Добавить</button>
+        </form>
+      </article>
+    `;
+  }).join('');
+
+  board.innerHTML = `<div class="kanban-board">${columnsHtml}</div>`;
+
+  document.querySelectorAll('.kanban-create-form').forEach((form) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const status = form.dataset.status;
+      const input = form.querySelector('.kanban-create-input');
+      const title = input?.value?.trim();
+      if (!status || !title) return;
+
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ title, date: todayIsoDate(), status, priority: 'medium' })
+      });
+
+      if (response.ok) {
+        input.value = '';
+        await loadKanban();
+      }
+    });
+  });
+
+  document.querySelectorAll('.kanban-card').forEach((card) => {
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.taskId);
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+    });
+  });
+
+  document.querySelectorAll('.kanban-column-dropzone').forEach((zone) => {
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      zone.classList.add('is-over');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('is-over'));
+    zone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      zone.classList.remove('is-over');
+      const taskId = parseInt(e.dataTransfer.getData('text/plain'));
+      const nextStatus = zone.dataset.status;
+      if (!taskId || !nextStatus) return;
+
+      const response = await fetch(`${API_URL}/${taskId}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ status: nextStatus })
+      });
+
+      if (response.ok) {
+        await loadKanban();
+      }
+    });
+  });
+}
+
+async function loadKanban() {
+  const board = document.getElementById('kanbanBoard');
+  if (!board) return;
+
+  if (!kanbanInitialized) {
+    kanbanInitialized = true;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}?sort=priority&order=desc&page=1&limit=200`, {
+      headers: authHeaders()
+    });
+    if (response.status === 401 || response.status === 403) { logout(); return; }
+
+    const payload = await response.json();
+    const tasks = Array.isArray(payload) ? payload : payload.tasks || [];
+    kanbanTasks = kanbanUtils.filterKanbanTasks(tasks);
+    renderKanbanBoard();
+  } catch (error) {
+    console.error('Ошибка при загрузке канбан-доски:', error);
+    board.innerHTML = '<p class="no-tasks">Ошибка при загрузке задач</p>';
+  }
+}
 
 // Cycle task status: planned -> in_progress -> done -> planned
 // eslint-disable-next-line no-unused-vars

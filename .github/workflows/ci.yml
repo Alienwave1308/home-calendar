@@ -66,6 +66,8 @@ jobs:
             spec: cypress/e2e/calendar.cy.js
           - section: CalendarViews
             spec: cypress/e2e/calendar-views.cy.js
+          - section: Kanban
+            spec: cypress/e2e/kanban.cy.js
           - section: Priority
             spec: cypress/e2e/priority.cy.js
           - section: TaskListView
