@@ -313,4 +313,132 @@ router.put('/members/:userId/role', async (req, res) => {
   }
 });
 
+// PUT /api/families/transfer — transfer ownership to another member
+router.put('/transfer', async (req, res) => {
+  try {
+    const { user_id: targetUserId } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    // Check caller is owner
+    const callerMembership = await pool.query(
+      'SELECT family_id, role FROM family_members WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (callerMembership.rows.length === 0) {
+      return res.status(404).json({ error: 'You are not in a family' });
+    }
+
+    const { family_id, role: callerRole } = callerMembership.rows[0];
+
+    if (callerRole !== 'owner') {
+      return res.status(403).json({ error: 'Only the owner can transfer ownership' });
+    }
+
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ error: 'You are already the owner' });
+    }
+
+    // Check target is in the same family
+    const targetMembership = await pool.query(
+      'SELECT id FROM family_members WHERE family_id = $1 AND user_id = $2',
+      [family_id, targetUserId]
+    );
+
+    if (targetMembership.rows.length === 0) {
+      return res.status(404).json({ error: 'User is not a member of your family' });
+    }
+
+    // Transfer: new owner gets 'owner', old owner becomes 'admin'
+    await pool.query(
+      'UPDATE family_members SET role = $1, role_changed_at = NOW() WHERE family_id = $2 AND user_id = $3',
+      ['owner', family_id, targetUserId]
+    );
+    await pool.query(
+      'UPDATE family_members SET role = $1, role_changed_at = NOW() WHERE family_id = $2 AND user_id = $3',
+      ['admin', family_id, req.user.id]
+    );
+    await pool.query(
+      'UPDATE families SET owner_id = $1 WHERE id = $2',
+      [targetUserId, family_id]
+    );
+
+    res.json({ message: 'Ownership transferred' });
+  } catch (error) {
+    console.error('Error transferring ownership:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/families/name — rename family (owner only)
+router.put('/name', async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || name.trim().length < 2) {
+      return res.status(400).json({ error: 'Family name must be at least 2 characters' });
+    }
+
+    const callerMembership = await pool.query(
+      'SELECT family_id, role FROM family_members WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (callerMembership.rows.length === 0) {
+      return res.status(404).json({ error: 'You are not in a family' });
+    }
+
+    const { family_id, role } = callerMembership.rows[0];
+
+    if (role !== 'owner') {
+      return res.status(403).json({ error: 'Only the owner can rename the family' });
+    }
+
+    const result = await pool.query(
+      'UPDATE families SET name = $1 WHERE id = $2 RETURNING *',
+      [name.trim(), family_id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error renaming family:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/families/regenerate-invite — regenerate invite code (owner/admin)
+router.post('/regenerate-invite', async (req, res) => {
+  try {
+    const callerMembership = await pool.query(
+      'SELECT family_id, role FROM family_members WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (callerMembership.rows.length === 0) {
+      return res.status(404).json({ error: 'You are not in a family' });
+    }
+
+    const { family_id, role } = callerMembership.rows[0];
+
+    if (role !== 'owner' && role !== 'admin') {
+      return res.status(403).json({ error: 'Only owner or admin can regenerate invite code' });
+    }
+
+    const newCode = generateInviteCode();
+
+    const result = await pool.query(
+      'UPDATE families SET invite_code = $1 WHERE id = $2 RETURNING invite_code',
+      [newCode, family_id]
+    );
+
+    res.json({ invite_code: result.rows[0].invite_code });
+  } catch (error) {
+    console.error('Error regenerating invite code:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

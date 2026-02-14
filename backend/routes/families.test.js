@@ -410,6 +410,165 @@ describe('Families API', () => {
         .expect(404);
     });
   });
+
+  describe('PUT /api/families/transfer', () => {
+    it('should transfer ownership', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'owner' }] }) // caller is owner
+        .mockResolvedValueOnce({ rows: [{ id: 5 }] }) // target in family
+        .mockResolvedValueOnce({ rows: [] }) // update target to owner
+        .mockResolvedValueOnce({ rows: [] }) // update caller to admin
+        .mockResolvedValueOnce({ rows: [] }); // update families.owner_id
+
+      const res = await request(app)
+        .put('/api/families/transfer')
+        .set('Authorization', token1)
+        .send({ user_id: 2 })
+        .expect(200);
+
+      expect(res.body.message).toMatch(/transferred/);
+    });
+
+    it('should return 403 if not owner', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'admin' }] });
+
+      await request(app)
+        .put('/api/families/transfer')
+        .set('Authorization', token2)
+        .send({ user_id: 3 })
+        .expect(403);
+    });
+
+    it('should return 400 if transferring to self', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'owner' }] });
+
+      await request(app)
+        .put('/api/families/transfer')
+        .set('Authorization', token1)
+        .send({ user_id: 1 })
+        .expect(400);
+    });
+
+    it('should return 400 if user_id missing', async () => {
+      await request(app)
+        .put('/api/families/transfer')
+        .set('Authorization', token1)
+        .send({})
+        .expect(400);
+    });
+
+    it('should return 404 if target not in family', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'owner' }] })
+        .mockResolvedValueOnce({ rows: [] }); // target not found
+
+      await request(app)
+        .put('/api/families/transfer')
+        .set('Authorization', token1)
+        .send({ user_id: 99 })
+        .expect(404);
+    });
+
+    it('should return 404 if caller not in family', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .put('/api/families/transfer')
+        .set('Authorization', token3)
+        .send({ user_id: 1 })
+        .expect(404);
+    });
+  });
+
+  describe('PUT /api/families/name', () => {
+    it('should rename family', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'owner' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, name: 'New Name' }] });
+
+      const res = await request(app)
+        .put('/api/families/name')
+        .set('Authorization', token1)
+        .send({ name: 'New Name' })
+        .expect(200);
+
+      expect(res.body.name).toBe('New Name');
+    });
+
+    it('should return 400 for short name', async () => {
+      await request(app)
+        .put('/api/families/name')
+        .set('Authorization', token1)
+        .send({ name: 'A' })
+        .expect(400);
+    });
+
+    it('should return 403 if not owner', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'member' }] });
+
+      await request(app)
+        .put('/api/families/name')
+        .set('Authorization', token2)
+        .send({ name: 'New Name' })
+        .expect(403);
+    });
+
+    it('should return 404 if not in family', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .put('/api/families/name')
+        .set('Authorization', token3)
+        .send({ name: 'New Name' })
+        .expect(404);
+    });
+  });
+
+  describe('POST /api/families/regenerate-invite', () => {
+    it('should regenerate invite code as owner', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'owner' }] })
+        .mockResolvedValueOnce({ rows: [{ invite_code: 'newinvit' }] });
+
+      const res = await request(app)
+        .post('/api/families/regenerate-invite')
+        .set('Authorization', token1)
+        .expect(200);
+
+      expect(res.body.invite_code).toBeTruthy();
+    });
+
+    it('should regenerate invite code as admin', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'admin' }] })
+        .mockResolvedValueOnce({ rows: [{ invite_code: 'newinvit' }] });
+
+      const res = await request(app)
+        .post('/api/families/regenerate-invite')
+        .set('Authorization', token2)
+        .expect(200);
+
+      expect(res.body.invite_code).toBeTruthy();
+    });
+
+    it('should return 403 for member', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [{ family_id: 1, role: 'member' }] });
+
+      await request(app)
+        .post('/api/families/regenerate-invite')
+        .set('Authorization', token2)
+        .expect(403);
+    });
+
+    it('should return 404 if not in family', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .post('/api/families/regenerate-invite')
+        .set('Authorization', token3)
+        .expect(404);
+    });
+  });
 });
 
 describe('Family middleware', () => {
