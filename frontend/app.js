@@ -3,6 +3,7 @@ const API_URL = '/api/tasks';
 const AUTH_URL = '/api/auth';
 const FAMILY_URL = '/api/families';
 const AUDIT_URL = '/api/audit';
+const DASHBOARD_URL = '/api/dashboard';
 
 // Auth state
 let authToken = localStorage.getItem('authToken');
@@ -11,6 +12,7 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 // Family state
 let currentFamily = null;
 let currentTasksView = 'my'; // 'my' or 'family'
+let pendingTaskFocusId = null;
 
 // Calendar state
 let calendarMonth = new Date().getMonth();
@@ -81,7 +83,9 @@ function handleRoute() {
   });
 
   // Load data for the screen
-  if (route === 'calendar') {
+  if (route === 'dashboard') {
+    loadDashboard();
+  } else if (route === 'calendar') {
     renderCalendar();
   } else if (route === 'tasks') {
     loadTasks();
@@ -210,6 +214,106 @@ function logout() {
   localStorage.removeItem('currentUser');
   window.location.hash = '';
   checkAuth();
+}
+
+// === DASHBOARD LOGIC ===
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function renderDashboardList(containerId, tasks) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (!tasks || tasks.length === 0) {
+    container.innerHTML = '<p class="dashboard-empty">Нет задач</p>';
+    return;
+  }
+
+  container.innerHTML = tasks.slice(0, 5).map(task => (
+    `<button class="dashboard-task-btn" onclick="openTaskFromDashboard(${task.id})">
+      ${task.title}
+    </button>`
+  )).join('');
+}
+
+async function loadDashboard() {
+  const errorEl = document.getElementById('dashboardError');
+  if (errorEl) errorEl.textContent = '';
+
+  try {
+    const response = await fetch(DASHBOARD_URL, { headers: authHeaders() });
+    if (response.status === 401 || response.status === 403) { logout(); return; }
+
+    const data = await response.json();
+    if (!response.ok) {
+      if (errorEl) errorEl.textContent = data.error || 'Ошибка загрузки сводки';
+      return;
+    }
+
+    document.getElementById('dashTodayCount').textContent = String(data.stats.today_count || 0);
+    document.getElementById('dashOverdueCount').textContent = String(data.stats.overdue_count || 0);
+    document.getElementById('dashUpcomingCount').textContent = String(data.stats.upcoming_count || 0);
+    document.getElementById('dashDoneWeek').textContent = String(data.stats.done_week || 0);
+
+    renderDashboardList('dashTodayList', data.today);
+    renderDashboardList('dashOverdueList', data.overdue);
+    renderDashboardList('dashUpcomingList', data.upcoming);
+  } catch {
+    if (errorEl) errorEl.textContent = 'Ошибка соединения с сервером';
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+function openTaskFromDashboard(taskId) {
+  pendingTaskFocusId = taskId;
+  currentTasksView = 'my';
+
+  const tasksTitle = document.getElementById('tasksTitle');
+  if (tasksTitle) tasksTitle.textContent = 'Мои задачи';
+
+  const tabs = document.querySelectorAll('.tasks-tab');
+  tabs.forEach((tab, idx) => tab.classList.toggle('active', idx === 0));
+
+  if (getRouteFromHash() === 'tasks') {
+    handleRoute();
+    return;
+  }
+  navigateTo('tasks');
+}
+
+const dashboardQuickForm = document.getElementById('dashboardQuickForm');
+const dashboardQuickTitle = document.getElementById('dashboardQuickTitle');
+
+if (dashboardQuickForm) {
+  dashboardQuickForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = dashboardQuickTitle.value.trim();
+    if (!title) return;
+
+    const errorEl = document.getElementById('dashboardError');
+    if (errorEl) errorEl.textContent = '';
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ title, date: todayIsoDate(), status: 'planned', priority: 'medium' })
+      });
+
+      if (response.ok) {
+        dashboardQuickTitle.value = '';
+        loadDashboard();
+        loadTasks();
+        return;
+      }
+
+      if (errorEl) errorEl.textContent = 'Не удалось добавить задачу';
+    } catch {
+      if (errorEl) errorEl.textContent = 'Ошибка соединения с сервером';
+    }
+  });
 }
 
 // === FAMILY LOGIC ===
@@ -457,7 +561,13 @@ function displayTasks(tasks) {
     const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
 
     return `
-      <div class="task-item ${doneClass}" data-status="${task.status}" data-priority="${task.priority || 'medium'}">
+      <div
+        class="task-item ${doneClass}"
+        id="task-item-${task.id}"
+        data-task-id="${task.id}"
+        data-status="${task.status}"
+        data-priority="${task.priority || 'medium'}"
+      >
         <div class="task-info">
           <div class="task-title">${task.title}</div>
           <div class="task-meta">
@@ -482,6 +592,16 @@ function displayTasks(tasks) {
   }).join('');
 
   tasksContainer.innerHTML = tasksHTML;
+
+  if (pendingTaskFocusId !== null) {
+    const focusedTask = document.getElementById(`task-item-${pendingTaskFocusId}`);
+    pendingTaskFocusId = null;
+    if (focusedTask) {
+      focusedTask.classList.add('focused');
+      focusedTask.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => focusedTask.classList.remove('focused'), 1800);
+    }
+  }
 }
 
 // Format date to Russian locale

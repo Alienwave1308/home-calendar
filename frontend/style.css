@@ -148,6 +148,87 @@ header p {
   color: #667eea;
 }
 
+/* Dashboard */
+.dashboard-section h2 {
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.dashboard-quick-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.dashboard-quick-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95em;
+}
+
+.dashboard-quick-form input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.dashboard-cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.dashboard-card {
+  background: white;
+  border: 2px solid #e6ebff;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.dashboard-card h3 {
+  color: #555;
+  font-size: 0.95em;
+  margin-bottom: 8px;
+}
+
+.dashboard-count {
+  font-size: 1.6em;
+  font-weight: 700;
+  color: #667eea;
+  margin-bottom: 8px;
+}
+
+.dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard-task-btn {
+  border: 1px solid #e0e6ff;
+  background: #f8f9ff;
+  color: #333;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-task-btn:hover {
+  border-color: #667eea;
+}
+
+.dashboard-empty {
+  color: #888;
+  font-size: 0.9em;
+}
+
+.dashboard-stats {
+  margin-top: 14px;
+  color: #444;
+}
+
 /* Заглушки экранов SPA */
 .placeholder-section {
   background: #f8f9ff;
@@ -256,6 +337,11 @@ header p {
 .task-item:hover {
   border-color: #667eea;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.task-item.focused {
+  border-color: #3f51b5;
+  box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.2);
 }
 
 .task-item.completed {

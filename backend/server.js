@@ -46,6 +46,10 @@ app.use('/api/lists', listsRouter);
 const auditRouter = require('./routes/audit');
 app.use('/api/audit', auditRouter);
 
+// Подключаем роуты dashboard (требуют авторизации)
+const dashboardRouter = require('./routes/dashboard');
+app.use('/api/dashboard', dashboardRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });

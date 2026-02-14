@@ -66,9 +66,42 @@
     <div class="app-content">
       <!-- Экран: Dashboard -->
       <div class="screen" id="screen-dashboard">
-        <section class="placeholder-section">
-          <h2>Сводка семьи</h2>
-          <p class="placeholder-hint">Здесь будет быстрый обзор задач и событий.</p>
+        <section class="dashboard-section">
+          <h2>Сводка</h2>
+
+          <form id="dashboardQuickForm" class="dashboard-quick-form">
+            <input
+              type="text"
+              id="dashboardQuickTitle"
+              placeholder="Быстро добавить задачу на сегодня..."
+              required
+            >
+            <button type="submit" class="btn-primary btn-small">Добавить</button>
+          </form>
+
+          <div class="dashboard-cards">
+            <article class="dashboard-card">
+              <h3>Сегодня</h3>
+              <div class="dashboard-count" id="dashTodayCount">0</div>
+              <div class="dashboard-list" id="dashTodayList"></div>
+            </article>
+            <article class="dashboard-card">
+              <h3>Просроченные</h3>
+              <div class="dashboard-count" id="dashOverdueCount">0</div>
+              <div class="dashboard-list" id="dashOverdueList"></div>
+            </article>
+            <article class="dashboard-card">
+              <h3>Ближайшие 3 дня</h3>
+              <div class="dashboard-count" id="dashUpcomingCount">0</div>
+              <div class="dashboard-list" id="dashUpcomingList"></div>
+            </article>
+          </div>
+
+          <div class="dashboard-stats">
+            Выполнено за неделю: <strong id="dashDoneWeek">0</strong>
+          </div>
+
+          <div id="dashboardError" class="auth-error"></div>
         </section>
       </div>
 
