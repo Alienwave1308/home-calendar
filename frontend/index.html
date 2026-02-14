@@ -4,12 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#667eea">
+  <meta name="description" content="Семейный таск-трекер: задачи, календарь, канбан, активность.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Task Tracker</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="networkBanner" class="network-banner" style="display: none;">
+    <span id="networkBannerText"></span>
+    <button id="networkRetryBtn" class="btn-small">Повторить</button>
+  </div>
+
   <!-- Экран авторизации -->
   <div class="container" id="authScreen">
     <header>
@@ -392,6 +401,7 @@
   <script src="calendar-views.js"></script>
   <script src="kanban-utils.js"></script>
   <script src="task-detail-utils.js"></script>
+  <script src="polish-utils.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

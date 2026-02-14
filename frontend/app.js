@@ -6,6 +6,12 @@ const AUDIT_URL = '/api/audit';
 const DASHBOARD_URL = '/api/dashboard';
 const COMMENTS_URL = '/api/comments';
 const TAGS_URL = '/api/tags';
+const polishUtils = window.PolishUtils || {
+  getNetworkMessage: (isOnline) => (isOnline ? '' : 'Вы офлайн. Данные могут быть неактуальны.'),
+  makeSkeleton: (count = 3) => (
+    `<div class="skeleton-list">${Array.from({ length: count }, () => '<div class="skeleton-line"></div>').join('')}</div>`
+  )
+};
 
 // Auth state
 let authToken = localStorage.getItem('authToken');
@@ -85,6 +91,7 @@ let taskDetailAllTags = [];
 let taskDetailAssignees = [];
 let taskDetailMembers = [];
 let taskDetailHistory = [];
+const loadedRoutes = new Set();
 
 // Helper: add auth header to fetch requests
 function authHeaders() {
@@ -93,6 +100,40 @@ function authHeaders() {
     'Authorization': `Bearer ${authToken}`
   };
 }
+
+const nativeFetch = window.fetch.bind(window);
+
+function showNetworkBanner(message, showRetry = false) {
+  const banner = document.getElementById('networkBanner');
+  const text = document.getElementById('networkBannerText');
+  const retry = document.getElementById('networkRetryBtn');
+  if (!banner || !text || !retry) return;
+  text.textContent = message;
+  retry.style.display = showRetry ? 'inline-flex' : 'none';
+  banner.style.display = message ? 'flex' : 'none';
+}
+
+function updateNetworkBanner() {
+  showNetworkBanner(polishUtils.getNetworkMessage(window.navigator.onLine), true);
+}
+
+window.fetch = async (...args) => {
+  try {
+    const response = await nativeFetch(...args);
+    if (response.status >= 500) {
+      showNetworkBanner('Сервер временно недоступен. Попробуйте позже.', true);
+    }
+    return response;
+  } catch (error) {
+    showNetworkBanner(
+      window.navigator.onLine
+        ? 'Ошибка сети. Проверьте подключение и повторите.'
+        : polishUtils.getNetworkMessage(false),
+      true
+    );
+    throw error;
+  }
+};
 
 // === SPA ROUTER ===
 
@@ -146,9 +187,10 @@ function handleRoute() {
   if (route === 'dashboard') {
     loadDashboard();
   } else if (route === 'calendar') {
+    if (allTasks.length === 0) loadTasks();
     renderCalendar();
   } else if (route === 'tasks') {
-    loadTaskFilterOptions();
+    if (!loadedRoutes.has('tasks')) loadTaskFilterOptions();
     loadTasks();
   } else if (route === 'kanban') {
     loadKanban();
@@ -159,6 +201,8 @@ function handleRoute() {
     activityEvents = [];
     loadActivity();
   }
+
+  loadedRoutes.add(route);
 }
 
 window.addEventListener('hashchange', handleRoute);
@@ -176,9 +220,6 @@ function checkAuth() {
     authScreen.style.display = 'none';
     appScreen.style.display = 'flex';
     document.getElementById('currentUser').textContent = currentUser.username;
-    // Load tasks for calendar dots
-    loadTasks();
-    loadFamily();
     // Route to current hash or default
     if (!window.location.hash || window.location.hash === '#/') {
       navigateTo('dashboard');
@@ -275,6 +316,7 @@ function logout() {
   currentFamily = null;
   localStorage.removeItem('authToken');
   localStorage.removeItem('currentUser');
+  loadedRoutes.clear();
   window.location.hash = '';
   checkAuth();
 }
@@ -313,6 +355,13 @@ function renderDashboardList(containerId, tasks) {
 async function loadDashboard() {
   const errorEl = document.getElementById('dashboardError');
   if (errorEl) errorEl.textContent = '';
+  const skeleton = polishUtils.makeSkeleton(3);
+  const todayList = document.getElementById('dashTodayList');
+  const overdueList = document.getElementById('dashOverdueList');
+  const upcomingList = document.getElementById('dashUpcomingList');
+  if (todayList) todayList.innerHTML = skeleton;
+  if (overdueList) overdueList.innerHTML = skeleton;
+  if (upcomingList) upcomingList.innerHTML = skeleton;
 
   try {
     const response = await fetch(DASHBOARD_URL, { headers: authHeaders() });
@@ -391,6 +440,8 @@ if (dashboardQuickForm) {
 // === FAMILY LOGIC ===
 
 async function loadFamily() {
+  const membersEl = document.getElementById('familyMembers');
+  if (membersEl) membersEl.innerHTML = polishUtils.makeSkeleton(2);
   try {
     const response = await fetch(FAMILY_URL, { headers: authHeaders() });
     if (response.status === 401 || response.status === 403) { logout(); return; }
@@ -698,6 +749,7 @@ async function loadTaskFilterOptions() {
 
 // Load all tasks from API
 async function loadTasks() {
+  if (tasksContainer) tasksContainer.innerHTML = polishUtils.makeSkeleton(5);
   try {
     const route = getRouteFromHash();
     const useAdvancedListQuery = currentTasksView === 'my' && route === 'tasks';
@@ -976,7 +1028,7 @@ function renderKanbanBoard() {
           </article>
         `;
       }).join('')
-      : '<p class="kanban-empty">Нет задач</p>';
+      : '<p class="kanban-empty">Нет задач в колонке. Добавьте первую карточку ниже.</p>';
 
     return `
       <article class="kanban-column" data-status="${status}">
@@ -1065,9 +1117,8 @@ async function loadKanban() {
   const board = document.getElementById('kanbanBoard');
   if (!board) return;
 
-  if (!kanbanInitialized) {
-    kanbanInitialized = true;
-  }
+  if (!kanbanInitialized) kanbanInitialized = true;
+  board.innerHTML = polishUtils.makeSkeleton(4);
 
   try {
     const response = await fetch(`${API_URL}?sort=priority&order=desc&page=1&limit=200`, {
@@ -1809,6 +1860,7 @@ const ACTION_LABELS = {
 async function loadActivity() {
   const container = document.getElementById('activityContainer');
   const loadMoreBtn = document.getElementById('activityLoadMore');
+  if (activityOffset === 0) container.innerHTML = polishUtils.makeSkeleton(4);
 
   try {
     const response = await fetch(
@@ -1851,7 +1903,7 @@ function renderActivity() {
   const container = document.getElementById('activityContainer');
 
   if (activityEvents.length === 0) {
-    container.innerHTML = '<p class="no-tasks">Пока нет активности</p>';
+    container.innerHTML = '<p class="no-tasks">Пока нет активности. Как только семья начнет работать с задачами, здесь появятся события.</p>';
     return;
   }
 
@@ -1930,6 +1982,14 @@ document.addEventListener('keydown', (e) => {
     closeDayModal();
   }
 });
+
+window.addEventListener('online', updateNetworkBanner);
+window.addEventListener('offline', updateNetworkBanner);
+document.getElementById('networkRetryBtn')?.addEventListener('click', () => {
+  showNetworkBanner('', false);
+  handleRoute();
+});
+updateNetworkBanner();
 
 // Check auth and load tasks on page load
 checkAuth();

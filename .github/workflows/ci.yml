@@ -74,6 +74,8 @@ jobs:
             spec: cypress/e2e/task-list-view.cy.js
           - section: TaskDetail
             spec: cypress/e2e/task-detail.cy.js
+          - section: Polish
+            spec: cypress/e2e/polish.cy.js
           - section: Dashboard
             spec: cypress/e2e/dashboard.cy.js
           - section: Navigation

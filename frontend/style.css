@@ -12,6 +12,23 @@ body {
   padding: 20px;
 }
 
+.network-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  max-width: 800px;
+  margin: 0 auto 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ffe9cc;
+  border: 1px solid #f3c68b;
+  color: #6f4a0e;
+}
+
 .container {
   max-width: 800px;
   margin: 0 auto;
@@ -94,12 +111,30 @@ header p {
 }
 
 .screen {
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 0.22s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.skeleton-list {
+  display: grid;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef2ff 0%, #dde5ff 50%, #eef2ff 100%);
+  background-size: 180% 100%;
+  animation: skeletonPulse 1.2s infinite linear;
+}
+
+@keyframes skeletonPulse {
+  from { background-position: 0 0; }
+  to { background-position: -180% 0; }
 }
 
 /* === BOTTOM NAVIGATION === */
@@ -1328,6 +1363,11 @@ header p {
 @media (max-width: 600px) {
   body {
     padding: 0;
+  }
+
+  .network-banner {
+    border-radius: 0;
+    margin: 0 0 8px;
   }
 
   .container {
