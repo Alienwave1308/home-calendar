@@ -322,9 +322,76 @@
     </div>
   </div>
 
+  <!-- Карточка задачи -->
+  <div class="modal-overlay task-detail-overlay" id="taskDetailModal" style="display: none;" onclick="closeTaskDetailModal(event)">
+    <div class="modal task-detail-modal">
+      <div class="modal-header">
+        <h2 id="taskDetailTitle">Карточка задачи</h2>
+        <button class="btn-small btn-nav" onclick="closeTaskDetailModal()">&times;</button>
+      </div>
+      <div id="taskDetailBody">
+        <div class="task-detail-grid">
+          <section class="task-detail-section">
+            <h3>Метаданные</h3>
+            <div id="taskDetailMeta"></div>
+          </section>
+          <section class="task-detail-section">
+            <h3>Описание</h3>
+            <textarea id="taskDetailDescription" rows="5" placeholder="Описание задачи (поддерживается markdown)"></textarea>
+            <div class="detail-actions">
+              <button class="btn-small" onclick="saveTaskDetailDescription()">Сохранить описание</button>
+            </div>
+            <div class="task-detail-markdown" id="taskDetailDescriptionPreview"></div>
+          </section>
+          <section class="task-detail-section">
+            <h3>Теги</h3>
+            <div class="detail-inline">
+              <select id="taskDetailTagSelect"></select>
+              <button class="btn-small" onclick="addTagToTaskDetail()">Добавить тег</button>
+            </div>
+            <div id="taskDetailTags"></div>
+          </section>
+          <section class="task-detail-section">
+            <h3>Исполнители</h3>
+            <div class="detail-inline">
+              <select id="taskDetailAssignSelect"></select>
+              <select id="taskDetailAssignRole">
+                <option value="assignee">assignee</option>
+                <option value="watcher">watcher</option>
+              </select>
+              <button class="btn-small" onclick="assignTaskDetailUser()">Назначить</button>
+            </div>
+            <div id="taskDetailAssignees"></div>
+          </section>
+          <section class="task-detail-section">
+            <h3>Чек-лист</h3>
+            <div class="detail-inline">
+              <input id="taskDetailChecklistInput" type="text" placeholder="Новый пункт чек-листа">
+              <button class="btn-small" onclick="addTaskDetailChecklistItem()">Добавить</button>
+            </div>
+            <div id="taskDetailChecklist"></div>
+          </section>
+          <section class="task-detail-section">
+            <h3>Комментарии</h3>
+            <div class="detail-inline">
+              <input id="taskDetailCommentInput" type="text" placeholder="Оставить комментарий">
+              <button class="btn-small" onclick="addTaskDetailComment()">Отправить</button>
+            </div>
+            <div id="taskDetailComments"></div>
+          </section>
+          <section class="task-detail-section">
+            <h3>История</h3>
+            <div id="taskDetailHistory"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="router.js"></script>
   <script src="calendar-views.js"></script>
   <script src="kanban-utils.js"></script>
+  <script src="task-detail-utils.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

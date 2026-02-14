@@ -1198,6 +1198,132 @@ header p {
   border-color: #667eea;
 }
 
+.task-detail-overlay {
+  align-items: center;
+}
+
+.task-detail-modal {
+  max-width: 980px;
+  width: 96%;
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.task-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.task-detail-section {
+  background: #f8f9ff;
+  border: 1px solid #dce4ff;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.task-detail-section h3 {
+  margin-bottom: 8px;
+  color: #3b4060;
+}
+
+.detail-inline {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.detail-inline input,
+.detail-inline select,
+#taskDetailDescription {
+  width: 100%;
+  border: 1px solid #cfd9ff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+#taskDetailDescription {
+  resize: vertical;
+  min-height: 92px;
+}
+
+.task-detail-markdown {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e1e7ff;
+  color: #363e61;
+  line-height: 1.4;
+}
+
+.detail-actions {
+  margin-top: 6px;
+}
+
+.detail-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 6px 0 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e9edff;
+  color: #415199;
+}
+
+.detail-check-item,
+.detail-assignee-item,
+.detail-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e1e7ff;
+}
+
+.detail-check-item.done span {
+  text-decoration: line-through;
+  color: #9097b4;
+}
+
+.detail-comment {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e1e7ff;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.detail-comment-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85em;
+  color: #667094;
+  margin-bottom: 6px;
+}
+
+.detail-comment p {
+  margin-bottom: 6px;
+  color: #2f3656;
+}
+
+.detail-comment-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-empty {
+  color: #8f97b7;
+  margin-top: 6px;
+}
+
 /* Адаптивность для мобильных */
 @media (max-width: 600px) {
   body {
@@ -1359,6 +1485,17 @@ header p {
 
   .kanban-column {
     min-height: 380px;
+  }
+
+  .task-detail-modal {
+    width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    padding: 16px;
+  }
+
+  .task-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   /* Modal — fullscreen on mobile */

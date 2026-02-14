@@ -178,6 +178,35 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /api/tasks/:id/tags — get tags attached to task
+router.get('/:id/tags', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const task = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [id, req.user.id]
+    );
+
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const result = await pool.query(
+      `SELECT t.*
+       FROM tags t
+       JOIN task_tags tt ON tt.tag_id = t.id
+       WHERE tt.task_id = $1
+       ORDER BY t.name`,
+      [id]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error getting task tags:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/tasks - create task
 router.post('/', async (req, res) => {
   try {

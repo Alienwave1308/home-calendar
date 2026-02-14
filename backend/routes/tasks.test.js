@@ -74,6 +74,32 @@ describe('Tasks API', () => {
     });
   });
 
+  describe('GET /api/tasks/:id/tags', () => {
+    it('should return tags attached to task', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 5, name: 'Дом', color: '#ff0000' }]
+        });
+
+      const response = await request(app)
+        .get('/api/tasks/1/tags')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body).toEqual([{ id: 5, name: 'Дом', color: '#ff0000' }]);
+    });
+
+    it('should return 404 if task not found', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/api/tasks/999/tags')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
+
   // POST create task
   describe('POST /api/tasks', () => {
     it('should create a task with default status and priority', async () => {

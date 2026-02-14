@@ -72,6 +72,8 @@ jobs:
             spec: cypress/e2e/priority.cy.js
           - section: TaskListView
             spec: cypress/e2e/task-list-view.cy.js
+          - section: TaskDetail
+            spec: cypress/e2e/task-detail.cy.js
           - section: Dashboard
             spec: cypress/e2e/dashboard.cy.js
           - section: Navigation

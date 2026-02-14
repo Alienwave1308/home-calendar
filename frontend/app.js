@@ -4,6 +4,8 @@ const AUTH_URL = '/api/auth';
 const FAMILY_URL = '/api/families';
 const AUDIT_URL = '/api/audit';
 const DASHBOARD_URL = '/api/dashboard';
+const COMMENTS_URL = '/api/comments';
+const TAGS_URL = '/api/tags';
 
 // Auth state
 let authToken = localStorage.getItem('authToken');
@@ -72,6 +74,17 @@ let activityEvents = [];
 let activityTotal = 0;
 let activityOffset = 0;
 const ACTIVITY_LIMIT = 20;
+
+// Task detail modal state
+let taskDetailId = null;
+let taskDetailData = null;
+let taskDetailChecklist = [];
+let taskDetailComments = [];
+let taskDetailTags = [];
+let taskDetailAllTags = [];
+let taskDetailAssignees = [];
+let taskDetailMembers = [];
+let taskDetailHistory = [];
 
 // Helper: add auth header to fetch requests
 function authHeaders() {
@@ -270,6 +283,15 @@ function logout() {
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function renderDashboardList(containerId, tasks) {
@@ -588,6 +610,9 @@ const kanbanUtils = window.KanbanUtils || {
     ? tasks.filter((task) => ['backlog', 'planned', 'in_progress', 'done'].includes(task.status))
     : [])
 };
+const taskDetailUtils = window.TaskDetailUtils || {
+  markdownToHtml: (text) => String(text || '').replace(/\n/g, '<br>')
+};
 
 const KANBAN_STATUSES = kanbanUtils.KANBAN_STATUSES;
 const KANBAN_COLUMN_TITLES = kanbanUtils.KANBAN_COLUMN_TITLES;
@@ -757,6 +782,9 @@ function displayTasks(tasks) {
         </div>
         ${isOwnTask ? `
         <div class="task-actions">
+          <button class="btn-small" onclick="openTaskDetail(${task.id})">
+            Подробнее
+          </button>
           <button class="btn-small btn-status" onclick="cycleStatus(${task.id}, '${task.status}')">
             ${STATUS_LABELS[statusInfo.next].icon} ${STATUS_LABELS[statusInfo.next].text}
           </button>
@@ -937,7 +965,7 @@ function renderKanbanBoard() {
         const priority = task.priority || 'medium';
         const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
         return `
-          <article class="kanban-card priority-${priority}" draggable="true" data-task-id="${task.id}">
+          <article class="kanban-card priority-${priority}" draggable="true" data-task-id="${task.id}" onclick="openTaskDetail(${task.id})">
             <div class="kanban-card-title">${task.title}</div>
             <div class="kanban-card-meta">
               <span class="kanban-priority">Приоритет: ${priority}</span>
@@ -1435,6 +1463,333 @@ async function deleteTaskModal(id) {
   }
 }
 
+// === TASK DETAIL MODAL ===
+
+function renderTaskDetailModal() {
+  const modalTitle = document.getElementById('taskDetailTitle');
+  const meta = document.getElementById('taskDetailMeta');
+  const description = document.getElementById('taskDetailDescription');
+  const descriptionPreview = document.getElementById('taskDetailDescriptionPreview');
+  const checklist = document.getElementById('taskDetailChecklist');
+  const comments = document.getElementById('taskDetailComments');
+  const tags = document.getElementById('taskDetailTags');
+  const assignees = document.getElementById('taskDetailAssignees');
+  const history = document.getElementById('taskDetailHistory');
+  const tagSelect = document.getElementById('taskDetailTagSelect');
+  const assignSelect = document.getElementById('taskDetailAssignSelect');
+
+  if (!taskDetailData || !modalTitle || !meta || !description || !descriptionPreview ||
+    !checklist || !comments || !tags || !assignees || !history || !tagSelect || !assignSelect) {
+    return;
+  }
+
+  modalTitle.textContent = taskDetailData.title;
+  meta.innerHTML = `
+    <label>Статус
+      <select id="taskDetailStatus">
+        ${Object.keys(STATUS_LABELS).map((status) => (
+    `<option value="${status}" ${taskDetailData.status === status ? 'selected' : ''}>${STATUS_LABELS[status].text}</option>`
+  )).join('')}
+      </select>
+    </label>
+    <label>Приоритет
+      <select id="taskDetailPriority">
+        <option value="low" ${taskDetailData.priority === 'low' ? 'selected' : ''}>Низкий</option>
+        <option value="medium" ${taskDetailData.priority === 'medium' ? 'selected' : ''}>Средний</option>
+        <option value="high" ${taskDetailData.priority === 'high' ? 'selected' : ''}>Высокий</option>
+        <option value="urgent" ${taskDetailData.priority === 'urgent' ? 'selected' : ''}>Срочный</option>
+      </select>
+    </label>
+    <label>Дата
+      <input id="taskDetailDate" type="date" value="${escapeHtml(taskDetailData.date)}">
+    </label>
+    <button class="btn-small" onclick="saveTaskDetailMeta()">Сохранить</button>
+  `;
+
+  description.value = taskDetailData.description || '';
+  descriptionPreview.innerHTML = taskDetailUtils.markdownToHtml(taskDetailData.description || '');
+
+  checklist.innerHTML = taskDetailChecklist.length === 0
+    ? '<p class="detail-empty">Нет пунктов</p>'
+    : taskDetailChecklist.map((item) => `
+      <div class="detail-check-item ${item.is_done ? 'done' : ''}">
+        <input type="checkbox" ${item.is_done ? 'checked' : ''} onclick="toggleTaskDetailChecklistItem(${item.id}, ${!item.is_done})">
+        <span>${escapeHtml(item.title)}</span>
+        <button class="btn-small btn-delete" onclick="deleteTaskDetailChecklistItem(${item.id})">Удалить</button>
+      </div>
+    `).join('');
+
+  comments.innerHTML = taskDetailComments.length === 0
+    ? '<p class="detail-empty">Нет комментариев</p>'
+    : taskDetailComments.map((comment) => `
+      <div class="detail-comment">
+        <div class="detail-comment-head">
+          <strong>${escapeHtml(comment.username || '')}</strong>
+          <span>${new Date(comment.created_at).toLocaleString('ru-RU')}</span>
+        </div>
+        <p>${escapeHtml(comment.text)}</p>
+        ${comment.user_id === currentUser.id ? `
+          <div class="detail-comment-actions">
+            <button class="btn-small" onclick="editTaskDetailComment(${comment.id})">Редактировать</button>
+            <button class="btn-small btn-delete" onclick="deleteTaskDetailComment(${comment.id})">Удалить</button>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+
+  tags.innerHTML = taskDetailTags.length === 0
+    ? '<p class="detail-empty">Нет тегов</p>'
+    : taskDetailTags.map((tag) => `
+      <span class="detail-tag-chip">
+        ${escapeHtml(tag.name)}
+        <button class="btn-small btn-delete" onclick="removeTagFromTaskDetail(${tag.id})">x</button>
+      </span>
+    `).join('');
+
+  const attachedTagIds = new Set(taskDetailTags.map((tag) => tag.id));
+  tagSelect.innerHTML = '<option value="">Выберите тег</option>' + taskDetailAllTags
+    .filter((tag) => !attachedTagIds.has(tag.id))
+    .map((tag) => `<option value="${tag.id}">${escapeHtml(tag.name)}</option>`)
+    .join('');
+
+  assignees.innerHTML = taskDetailAssignees.length === 0
+    ? '<p class="detail-empty">Нет назначений</p>'
+    : taskDetailAssignees.map((row) => `
+      <div class="detail-assignee-item">
+        <span>${escapeHtml(row.username)} (${row.role})</span>
+        <button class="btn-small btn-delete" onclick="unassignTaskDetailUser(${row.user_id})">Снять</button>
+      </div>
+    `).join('');
+
+  const assignedIds = new Set(taskDetailAssignees.map((row) => row.user_id));
+  assignSelect.innerHTML = '<option value="">Выберите участника</option>' + taskDetailMembers
+    .filter((member) => member.id !== currentUser.id && !assignedIds.has(member.id))
+    .map((member) => `<option value="${member.id}">${escapeHtml(member.username)}</option>`)
+    .join('');
+
+  history.innerHTML = taskDetailHistory.length === 0
+    ? '<p class="detail-empty">Нет истории</p>'
+    : taskDetailHistory.slice(0, 20).map((event) => `
+      <div class="detail-history-item">
+        <strong>${escapeHtml(event.username || '')}</strong>
+        <span>${escapeHtml(event.action || '')}</span>
+        <time>${new Date(event.created_at).toLocaleString('ru-RU')}</time>
+      </div>
+    `).join('');
+}
+
+async function loadTaskDetail(taskId) {
+  const modalTitle = document.getElementById('taskDetailTitle');
+  if (modalTitle) modalTitle.textContent = 'Загрузка...';
+
+  try {
+    const [taskRes, checklistRes, commentsRes, taskTagsRes, allTagsRes, historyRes, assigneesRes, familyRes] = await Promise.all([
+      fetch(`${API_URL}/${taskId}`, { headers: authHeaders() }),
+      fetch(`${API_URL}/${taskId}/checklist`, { headers: authHeaders() }),
+      fetch(`${COMMENTS_URL}/task/${taskId}?limit=100&offset=0`, { headers: authHeaders() }),
+      fetch(`${API_URL}/${taskId}/tags`, { headers: authHeaders() }),
+      fetch(TAGS_URL, { headers: authHeaders() }),
+      fetch(`${AUDIT_URL}/entity/task/${taskId}`, { headers: authHeaders() }),
+      fetch(`${API_URL}/${taskId}/assignees`, { headers: authHeaders() }),
+      fetch(FAMILY_URL, { headers: authHeaders() })
+    ]);
+
+    if (!taskRes.ok) throw new Error('task load failed');
+
+    taskDetailId = taskId;
+    taskDetailData = await taskRes.json();
+    taskDetailChecklist = checklistRes.ok ? (await checklistRes.json()).items || [] : [];
+    taskDetailComments = commentsRes.ok ? (await commentsRes.json()).comments || [] : [];
+    taskDetailTags = taskTagsRes.ok ? await taskTagsRes.json() : [];
+    taskDetailAllTags = allTagsRes.ok ? await allTagsRes.json() : [];
+    taskDetailHistory = historyRes.ok ? await historyRes.json() : [];
+    taskDetailAssignees = assigneesRes.ok ? await assigneesRes.json() : [];
+    taskDetailMembers = familyRes.ok ? (await familyRes.json()).family?.members || [] : [];
+
+    renderTaskDetailModal();
+  } catch (error) {
+    console.error('Ошибка загрузки карточки задачи:', error);
+    if (modalTitle) modalTitle.textContent = 'Ошибка загрузки карточки';
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+function openTaskDetail(taskId) {
+  const modal = document.getElementById('taskDetailModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  loadTaskDetail(taskId);
+}
+
+function closeTaskDetailModal(event) {
+  if (event && event.target && event.target.id !== 'taskDetailModal') return;
+  const modal = document.getElementById('taskDetailModal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  taskDetailId = null;
+  taskDetailData = null;
+}
+
+// eslint-disable-next-line no-unused-vars
+async function saveTaskDetailMeta() {
+  if (!taskDetailId) return;
+  const status = document.getElementById('taskDetailStatus')?.value;
+  const priority = document.getElementById('taskDetailPriority')?.value;
+  const date = document.getElementById('taskDetailDate')?.value;
+
+  const response = await fetch(`${API_URL}/${taskDetailId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ status, priority, date })
+  });
+  if (response.ok) {
+    await loadTaskDetail(taskDetailId);
+    if (getRouteFromHash() === 'tasks') loadTasks();
+    if (getRouteFromHash() === 'kanban') loadKanban();
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function saveTaskDetailDescription() {
+  if (!taskDetailId) return;
+  const description = document.getElementById('taskDetailDescription')?.value || '';
+  const response = await fetch(`${API_URL}/${taskDetailId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ description })
+  });
+  if (response.ok) {
+    await loadTaskDetail(taskDetailId);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function addTaskDetailChecklistItem() {
+  if (!taskDetailId) return;
+  const input = document.getElementById('taskDetailChecklistInput');
+  const title = input?.value?.trim();
+  if (!title) return;
+  const response = await fetch(`${API_URL}/${taskDetailId}/checklist`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ title })
+  });
+  if (response.ok) {
+    input.value = '';
+    await loadTaskDetail(taskDetailId);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function toggleTaskDetailChecklistItem(itemId, nextDone) {
+  if (!taskDetailId) return;
+  const current = taskDetailChecklist.find((item) => item.id === itemId);
+  if (!current) return;
+  const response = await fetch(`${API_URL}/${taskDetailId}/checklist/${itemId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ title: current.title, is_done: nextDone })
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function deleteTaskDetailChecklistItem(itemId) {
+  if (!taskDetailId) return;
+  const response = await fetch(`${API_URL}/${taskDetailId}/checklist/${itemId}`, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function addTaskDetailComment() {
+  if (!taskDetailId) return;
+  const input = document.getElementById('taskDetailCommentInput');
+  const text = input?.value?.trim();
+  if (!text) return;
+  const response = await fetch(`${COMMENTS_URL}/task/${taskDetailId}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ text })
+  });
+  if (response.ok) {
+    input.value = '';
+    await loadTaskDetail(taskDetailId);
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function editTaskDetailComment(commentId) {
+  const current = taskDetailComments.find((comment) => comment.id === commentId);
+  if (!current) return;
+  const text = window.prompt('Изменить комментарий', current.text || '');
+  if (!text || !text.trim()) return;
+  const response = await fetch(`${COMMENTS_URL}/${commentId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ text: text.trim() })
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function deleteTaskDetailComment(commentId) {
+  if (!confirm('Удалить комментарий?')) return;
+  const response = await fetch(`${COMMENTS_URL}/${commentId}`, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function addTagToTaskDetail() {
+  if (!taskDetailId) return;
+  const tagId = parseInt(document.getElementById('taskDetailTagSelect')?.value || '');
+  if (!tagId) return;
+  const response = await fetch(`${TAGS_URL}/${tagId}/tasks/${taskDetailId}`, {
+    method: 'POST',
+    headers: authHeaders()
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function removeTagFromTaskDetail(tagId) {
+  if (!taskDetailId) return;
+  const response = await fetch(`${TAGS_URL}/${tagId}/tasks/${taskDetailId}`, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function assignTaskDetailUser() {
+  if (!taskDetailId) return;
+  const userId = parseInt(document.getElementById('taskDetailAssignSelect')?.value || '');
+  const role = document.getElementById('taskDetailAssignRole')?.value || 'assignee';
+  if (!userId) return;
+  const response = await fetch(`${API_URL}/${taskDetailId}/assign`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ user_id: userId, role })
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
+// eslint-disable-next-line no-unused-vars
+async function unassignTaskDetailUser(userId) {
+  if (!taskDetailId) return;
+  const response = await fetch(`${API_URL}/${taskDetailId}/assign/${userId}`, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  if (response.ok) await loadTaskDetail(taskDetailId);
+}
+
 // === ACTIVITY FEED ===
 
 const ACTION_LABELS = {
@@ -1565,7 +1920,13 @@ document.addEventListener('touchend', (e) => {
 // === KEYBOARD: Escape closes modal ===
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && modalDate) {
+  if (e.key !== 'Escape') return;
+  const detailModal = document.getElementById('taskDetailModal');
+  if (detailModal && detailModal.style.display !== 'none') {
+    closeTaskDetailModal();
+    return;
+  }
+  if (modalDate) {
     closeDayModal();
   }
 });
