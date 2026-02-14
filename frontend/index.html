@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#667eea">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Домашний Календарь</title>
+  <title>Family Task Tracker</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- Экран авторизации -->
   <div class="container" id="authScreen">
     <header>
-      <h1>📅 Домашний Календарь</h1>
+      <h1>Family Task Tracker</h1>
       <p>Войдите или зарегистрируйтесь</p>
     </header>
 
@@ -51,109 +51,173 @@
     </section>
   </div>
 
-  <!-- Основной экран (скрыт до авторизации) -->
-  <div class="container" id="appScreen" style="display: none;">
-    <header>
-      <h1>📅 Домашний Календарь</h1>
-      <div class="user-bar">
+  <!-- Основной экран приложения -->
+  <div id="appScreen" style="display: none;">
+    <!-- Верхняя шапка -->
+    <div class="app-header">
+      <h1 class="app-title">Family Task Tracker</h1>
+      <div class="app-header-right">
         <span id="currentUser"></span>
         <button class="btn-small btn-logout" onclick="logout()">Выйти</button>
       </div>
-    </header>
+    </div>
 
-    <!-- Секция семьи -->
-    <section class="family-section" id="familySection">
-      <!-- Если нет семьи -->
-      <div id="noFamily">
-        <h2>Семья</h2>
-        <p class="family-hint">Создайте семью или присоединитесь по коду приглашения</p>
-        <div class="family-actions">
-          <div class="family-create">
-            <input type="text" id="familyName" placeholder="Название семьи" minlength="2">
-            <button class="btn-primary btn-small" onclick="createFamily()">Создать</button>
-          </div>
-          <div class="family-join">
-            <input type="text" id="inviteCodeInput" placeholder="Код приглашения" maxlength="8">
-            <button class="btn-primary btn-small" onclick="joinFamily()">Присоединиться</button>
-          </div>
-        </div>
-        <div id="familyError" class="auth-error"></div>
+    <!-- Контент экранов -->
+    <div class="app-content">
+      <!-- Экран: Dashboard -->
+      <div class="screen" id="screen-dashboard">
+        <section class="placeholder-section">
+          <h2>Сводка семьи</h2>
+          <p class="placeholder-hint">Здесь будет быстрый обзор задач и событий.</p>
+        </section>
       </div>
-      <!-- Если есть семья -->
-      <div id="hasFamily" style="display: none;">
-        <div class="family-header">
-          <h2 id="familyTitle"></h2>
-          <button class="btn-small btn-logout" onclick="leaveFamily()">Покинуть</button>
-        </div>
-        <div class="family-info">
-          <span class="invite-code">Код: <strong id="familyCode"></strong></span>
-        </div>
-        <div class="family-members" id="familyMembers"></div>
-      </div>
-    </section>
 
-    <!-- Календарь -->
-    <section class="calendar-section">
-      <div class="calendar-header">
-        <button class="btn-small btn-nav" onclick="prevMonth()">&laquo;</button>
-        <div class="calendar-title-group">
-          <h2 id="calendarTitle"></h2>
-          <button class="btn-today" onclick="goToday()">Сегодня</button>
-        </div>
-        <button class="btn-small btn-nav" onclick="nextMonth()">&raquo;</button>
-      </div>
-      <div class="calendar-weekdays">
-        <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div class="weekend">Сб</div><div class="weekend">Вс</div>
-      </div>
-      <div class="calendar-grid" id="calendarGrid"></div>
-    </section>
-
-    <!-- Форма для добавления задачи -->
-    <section class="add-task">
-      <h2>Добавить новую задачу</h2>
-      <form id="taskForm">
-        <div class="form-group">
-          <label for="taskTitle">Задача:</label>
-          <input type="text" id="taskTitle" placeholder="Что нужно сделать?" required>
-        </div>
-        <div class="form-group">
-          <label for="taskDate">Дата:</label>
-          <input type="date" id="taskDate" required>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="taskPriority">Приоритет:</label>
-            <select id="taskPriority">
-              <option value="low">Низкий</option>
-              <option value="medium" selected>Средний</option>
-              <option value="high">Высокий</option>
-              <option value="urgent">Срочный</option>
-            </select>
+      <!-- Экран: Календарь -->
+      <div class="screen" id="screen-calendar" style="display: none;">
+        <section class="calendar-section">
+          <div class="calendar-header">
+            <button class="btn-small btn-nav" onclick="prevMonth()">&laquo;</button>
+            <div class="calendar-title-group">
+              <h2 id="calendarTitle"></h2>
+              <button class="btn-today" onclick="goToday()">Сегодня</button>
+            </div>
+            <button class="btn-small btn-nav" onclick="nextMonth()">&raquo;</button>
           </div>
-          <div class="form-group">
-            <label for="taskStatus">Статус:</label>
-            <select id="taskStatus">
-              <option value="backlog">Бэклог</option>
-              <option value="planned" selected>Запланировано</option>
-              <option value="in_progress">В работе</option>
-            </select>
+          <div class="calendar-weekdays">
+            <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div class="weekend">Сб</div><div class="weekend">Вс</div>
           </div>
-        </div>
-        <button type="submit" class="btn-primary">Добавить задачу</button>
-      </form>
-    </section>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+      </div>
 
-    <!-- Переключатель: мои / семейные задачи -->
-    <section class="tasks-list">
-      <div class="tasks-tabs" id="tasksTabs" style="display: none;">
-        <button class="tasks-tab active" onclick="switchTasksView('my', this)">Мои задачи</button>
-        <button class="tasks-tab" onclick="switchTasksView('family', this)">Задачи семьи</button>
+      <!-- Экран: Задачи -->
+      <div class="screen" id="screen-tasks" style="display: none;">
+        <section class="add-task">
+          <h2>Добавить новую задачу</h2>
+          <form id="taskForm">
+            <div class="form-group">
+              <label for="taskTitle">Задача:</label>
+              <input type="text" id="taskTitle" placeholder="Что нужно сделать?" required>
+            </div>
+            <div class="form-group">
+              <label for="taskDate">Дата:</label>
+              <input type="date" id="taskDate" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="taskPriority">Приоритет:</label>
+                <select id="taskPriority">
+                  <option value="low">Низкий</option>
+                  <option value="medium" selected>Средний</option>
+                  <option value="high">Высокий</option>
+                  <option value="urgent">Срочный</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="taskStatus">Статус:</label>
+                <select id="taskStatus">
+                  <option value="backlog">Бэклог</option>
+                  <option value="planned" selected>Запланировано</option>
+                  <option value="in_progress">В работе</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn-primary">Добавить задачу</button>
+          </form>
+        </section>
+
+        <section class="tasks-list">
+          <div class="tasks-tabs" id="tasksTabs" style="display: none;">
+            <button class="tasks-tab active" onclick="switchTasksView('my', this)">Мои задачи</button>
+            <button class="tasks-tab" onclick="switchTasksView('family', this)">Задачи семьи</button>
+          </div>
+          <h2 id="tasksTitle">Мои задачи</h2>
+          <div id="tasksContainer">
+            <p class="loading">Загрузка задач...</p>
+          </div>
+        </section>
       </div>
-      <h2 id="tasksTitle">Мои задачи</h2>
-      <div id="tasksContainer">
-        <p class="loading">Загрузка задач...</p>
+
+      <!-- Экран: Семья -->
+      <div class="screen" id="screen-family" style="display: none;">
+        <section class="family-section" id="familySection">
+          <div id="noFamily">
+            <h2>Семья</h2>
+            <p class="family-hint">Создайте семью или присоединитесь по коду приглашения</p>
+            <div class="family-actions">
+              <div class="family-create">
+                <input type="text" id="familyName" placeholder="Название семьи" minlength="2">
+                <button class="btn-primary btn-small" onclick="createFamily()">Создать</button>
+              </div>
+              <div class="family-join">
+                <input type="text" id="inviteCodeInput" placeholder="Код приглашения" maxlength="8">
+                <button class="btn-primary btn-small" onclick="joinFamily()">Присоединиться</button>
+              </div>
+            </div>
+            <div id="familyError" class="auth-error"></div>
+          </div>
+          <div id="hasFamily" style="display: none;">
+            <div class="family-header">
+              <h2 id="familyTitle"></h2>
+              <button class="btn-small btn-logout" onclick="leaveFamily()">Покинуть</button>
+            </div>
+            <div class="family-info">
+              <span class="invite-code">Код: <strong id="familyCode"></strong></span>
+            </div>
+            <div class="family-members" id="familyMembers"></div>
+          </div>
+        </section>
       </div>
-    </section>
+
+      <!-- Экран: Активность (аудит лог) -->
+      <div class="screen" id="screen-activity" style="display: none;">
+        <section class="activity-section">
+          <h2>Лента активности</h2>
+          <div id="activityContainer">
+            <p class="loading">Загрузка...</p>
+          </div>
+          <div id="activityLoadMore" style="display: none;">
+            <button class="btn-primary btn-small" onclick="loadMoreActivity()">Загрузить ещё</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Экран: Канбан -->
+      <div class="screen" id="screen-kanban" style="display: none;">
+        <section class="placeholder-section">
+          <h2>Канбан-доска</h2>
+          <p class="placeholder-hint">Экран в разработке: drag-and-drop и колонки по статусам.</p>
+        </section>
+      </div>
+    </div>
+
+    <!-- Нижняя навигация -->
+    <nav class="bottom-nav" id="bottomNav">
+      <a href="#/dashboard" class="nav-item active" data-route="dashboard">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Сводка</span>
+      </a>
+      <a href="#/calendar" class="nav-item" data-route="calendar">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">Календарь</span>
+      </a>
+      <a href="#/tasks" class="nav-item" data-route="tasks">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Задачи</span>
+      </a>
+      <a href="#/kanban" class="nav-item" data-route="kanban">
+        <span class="nav-icon">🧩</span>
+        <span class="nav-label">Канбан</span>
+      </a>
+      <a href="#/family" class="nav-item" data-route="family">
+        <span class="nav-icon">👨‍👩‍👧‍👦</span>
+        <span class="nav-label">Семья</span>
+      </a>
+      <a href="#/activity" class="nav-item" data-route="activity">
+        <span class="nav-icon">🔔</span>
+        <span class="nav-label">Активность</span>
+      </a>
+    </nav>
   </div>
 
   <!-- Модальное окно дня -->
@@ -171,7 +235,7 @@
     </div>
   </div>
 
+  <script src="router.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
-

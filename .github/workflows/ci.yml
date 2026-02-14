@@ -2,25 +2,26 @@ name: CI
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main, dev ]
+    branches: [main, dev]
 
 jobs:
-  # Job 1: Линтер (быстрый, без БД)
   lint:
+    name: "01 - Lint"
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-    - run: npm install
-    - run: npm run lint
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npm run lint
 
-  # Job 2: Backend тесты (Jest + PostgreSQL)
   backend-tests:
+    name: "02 - Backend Tests"
     runs-on: ubuntu-latest
+    needs: [lint]
     services:
       postgres:
         image: postgres:16-alpine
@@ -40,16 +41,33 @@ jobs:
       JWT_SECRET: test-secret-for-ci-only
       NODE_ENV: test
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-    - run: npm install
-    - run: npm test
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npm test
 
-  # Job 3: E2E тесты (Cypress + сервер + PostgreSQL)
-  e2e:
+  e2e-frontend:
+    name: "03 - Frontend E2E (${{ matrix.section }})"
     runs-on: ubuntu-latest
+    needs: [lint, backend-tests]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - section: Auth
+            spec: cypress/e2e/auth.cy.js
+          - section: Tasks
+            spec: cypress/e2e/tasks.cy.js
+          - section: Family
+            spec: cypress/e2e/family.cy.js
+          - section: Calendar
+            spec: cypress/e2e/calendar.cy.js
+          - section: Priority
+            spec: cypress/e2e/priority.cy.js
+          - section: Navigation
+            spec: cypress/e2e/navigation.cy.js
     services:
       postgres:
         image: postgres:16-alpine
@@ -69,13 +87,41 @@ jobs:
       JWT_SECRET: test-secret-for-ci-only
       NODE_ENV: test
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-    - run: npm install
-    - name: Start server
-      run: node backend/server.js &
-    - name: Wait for server
-      run: npx wait-on http://localhost:3000 --timeout 30000
-    - run: npm run cypress:run
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - name: Start server
+        run: node backend/server.js &
+      - name: Wait for server
+        run: npx wait-on http://localhost:3000 --timeout 30000
+      - name: Run Cypress section
+        run: npx cypress run --spec "${{ matrix.spec }}"
+      - name: Upload Cypress artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-${{ matrix.section }}-artifacts
+          path: |
+            cypress/screenshots
+            cypress/videos
+          if-no-files-found: ignore
+
+  ci-summary:
+    name: "04 - CI Summary"
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, backend-tests, e2e-frontend]
+    steps:
+      - name: Validate job results
+        run: |
+          echo "lint: ${{ needs.lint.result }}"
+          echo "backend-tests: ${{ needs.backend-tests.result }}"
+          echo "e2e-frontend: ${{ needs.e2e-frontend.result }}"
+
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.backend-tests.result }}" != "success" ] || \
+             [ "${{ needs.e2e-frontend.result }}" != "success" ]; then
+            exit 1
+          fi

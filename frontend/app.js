@@ -2,6 +2,7 @@
 const API_URL = '/api/tasks';
 const AUTH_URL = '/api/auth';
 const FAMILY_URL = '/api/families';
+const AUDIT_URL = '/api/audit';
 
 // Auth state
 let authToken = localStorage.getItem('authToken');
@@ -17,6 +18,12 @@ let calendarYear = new Date().getFullYear();
 let allTasks = []; // cached tasks for calendar rendering
 let modalDate = null; // currently open day in modal
 
+// Activity state
+let activityEvents = [];
+let activityTotal = 0;
+let activityOffset = 0;
+const ACTIVITY_LIMIT = 20;
+
 // Helper: add auth header to fetch requests
 function authHeaders() {
   return {
@@ -24,6 +31,70 @@ function authHeaders() {
     'Authorization': `Bearer ${authToken}`
   };
 }
+
+// === SPA ROUTER ===
+
+const router = window.RouterUtils || {
+  ROUTES: ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'],
+  normalizeRoute: (route) => (
+    ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'].includes(route)
+      ? route
+      : 'dashboard'
+  ),
+  getRouteFromHash: (hash) => {
+    const route = (hash || '').replace('#/', '');
+    return ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'].includes(route)
+      ? route
+      : 'dashboard';
+  },
+  buildHash: (route) => {
+    const normalized = ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'].includes(route)
+      ? route
+      : 'dashboard';
+    return `#/${normalized}`;
+  }
+};
+
+function navigateTo(route) {
+  window.location.hash = router.buildHash(route);
+}
+
+function getRouteFromHash() {
+  return router.getRouteFromHash(window.location.hash);
+}
+
+function handleRoute() {
+  if (!authToken || !currentUser) return;
+
+  const route = getRouteFromHash();
+
+  // Hide all screens
+  document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+
+  // Show current screen
+  const screen = document.getElementById(`screen-${route}`);
+  if (screen) screen.style.display = 'block';
+
+  // Update nav active state
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.route === route);
+  });
+
+  // Load data for the screen
+  if (route === 'calendar') {
+    renderCalendar();
+  } else if (route === 'tasks') {
+    loadTasks();
+  } else if (route === 'family') {
+    loadFamily();
+  } else if (route === 'activity') {
+    activityOffset = 0;
+    activityEvents = [];
+    loadActivity();
+  }
+}
+
+window.addEventListener('hashchange', handleRoute);
 
 // === AUTH LOGIC ===
 
@@ -36,10 +107,17 @@ const registerForm = document.getElementById('registerForm');
 function checkAuth() {
   if (authToken && currentUser) {
     authScreen.style.display = 'none';
-    appScreen.style.display = 'block';
+    appScreen.style.display = 'flex';
     document.getElementById('currentUser').textContent = currentUser.username;
-    loadFamily();
+    // Load tasks for calendar dots
     loadTasks();
+    loadFamily();
+    // Route to current hash or default
+    if (!window.location.hash || window.location.hash === '#/') {
+      navigateTo('dashboard');
+    } else {
+      handleRoute();
+    }
   } else {
     authScreen.style.display = 'block';
     appScreen.style.display = 'none';
@@ -130,6 +208,7 @@ function logout() {
   currentFamily = null;
   localStorage.removeItem('authToken');
   localStorage.removeItem('currentUser');
+  window.location.hash = '';
   checkAuth();
 }
 
@@ -155,7 +234,7 @@ function renderFamily() {
   if (currentFamily) {
     noFamily.style.display = 'none';
     hasFamily.style.display = 'block';
-    tasksTabs.style.display = 'flex';
+    if (tasksTabs) tasksTabs.style.display = 'flex';
 
     document.getElementById('familyTitle').textContent = currentFamily.name;
     document.getElementById('familyCode').textContent = currentFamily.invite_code;
@@ -177,10 +256,11 @@ function renderFamily() {
   } else {
     noFamily.style.display = 'block';
     hasFamily.style.display = 'none';
-    tasksTabs.style.display = 'none';
+    if (tasksTabs) tasksTabs.style.display = 'none';
     // Reset to my tasks view
     currentTasksView = 'my';
-    document.getElementById('tasksTitle').textContent = 'Мои задачи';
+    const tasksTitle = document.getElementById('tasksTitle');
+    if (tasksTitle) tasksTitle.textContent = 'Мои задачи';
   }
 }
 
@@ -339,21 +419,27 @@ async function loadTasks() {
     const response = await fetch(url, { headers: authHeaders() });
     if (response.status === 401 || response.status === 403) { logout(); return; }
     if (response.status === 404 && currentTasksView === 'family') {
-      tasksContainer.innerHTML = '<p class="no-tasks">Вы не состоите в семье</p>';
+      if (tasksContainer) tasksContainer.innerHTML = '<p class="no-tasks">Вы не состоите в семье</p>';
       return;
     }
     const tasks = await response.json();
     allTasks = tasks;
     displayTasks(tasks);
-    renderCalendar();
+    // Re-render calendar dots if calendar is visible
+    const calendarScreen = document.getElementById('screen-calendar');
+    if (calendarScreen && calendarScreen.style.display !== 'none') {
+      renderCalendar();
+    }
   } catch (error) {
     console.error('Ошибка при загрузке задач:', error);
-    tasksContainer.innerHTML = '<p class="no-tasks">Ошибка при загрузке задач</p>';
+    if (tasksContainer) tasksContainer.innerHTML = '<p class="no-tasks">Ошибка при загрузке задач</p>';
   }
 }
 
 // Render tasks list
 function displayTasks(tasks) {
+  if (!tasksContainer) return;
+
   if (tasks.length === 0) {
     tasksContainer.innerHTML = '<p class="no-tasks">Пока нет задач. Добавьте первую!</p>';
     return;
@@ -508,6 +594,7 @@ const MONTH_NAMES = [
 function renderCalendar() {
   const titleEl = document.getElementById('calendarTitle');
   const gridEl = document.getElementById('calendarGrid');
+  if (!titleEl || !gridEl) return;
 
   titleEl.textContent = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
 
@@ -721,6 +808,114 @@ async function deleteTaskModal(id) {
   } catch (error) {
     console.error('Ошибка:', error);
   }
+}
+
+// === ACTIVITY FEED ===
+
+const ACTION_LABELS = {
+  'task.created': 'создал(а) задачу',
+  'task.updated': 'обновил(а) задачу',
+  'task.deleted': 'удалил(а) задачу',
+  'task.status_changed': 'изменил(а) статус',
+  'comment.created': 'оставил(а) комментарий',
+  'comment.deleted': 'удалил(а) комментарий',
+  'member.joined': 'присоединился(ась)',
+  'member.left': 'покинул(а) семью',
+  'member.kicked': 'убрал(а) участника',
+  'list.created': 'создал(а) список',
+  'list.deleted': 'удалил(а) список'
+};
+
+async function loadActivity() {
+  const container = document.getElementById('activityContainer');
+  const loadMoreBtn = document.getElementById('activityLoadMore');
+
+  try {
+    const response = await fetch(
+      `${AUDIT_URL}?limit=${ACTIVITY_LIMIT}&offset=${activityOffset}`,
+      { headers: authHeaders() }
+    );
+
+    if (response.status === 401 || response.status === 403) { logout(); return; }
+
+    if (response.status === 404) {
+      container.innerHTML = '<p class="no-tasks">Вступите в семью, чтобы видеть активность</p>';
+      loadMoreBtn.style.display = 'none';
+      return;
+    }
+
+    const data = await response.json();
+    activityTotal = data.total;
+    activityEvents = activityEvents.concat(data.events);
+
+    renderActivity();
+
+    if (activityEvents.length < activityTotal) {
+      loadMoreBtn.style.display = 'block';
+    } else {
+      loadMoreBtn.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки активности:', error);
+    container.innerHTML = '<p class="no-tasks">Ошибка загрузки</p>';
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+function loadMoreActivity() {
+  activityOffset += ACTIVITY_LIMIT;
+  loadActivity();
+}
+
+function renderActivity() {
+  const container = document.getElementById('activityContainer');
+
+  if (activityEvents.length === 0) {
+    container.innerHTML = '<p class="no-tasks">Пока нет активности</p>';
+    return;
+  }
+
+  container.innerHTML = activityEvents.map(event => {
+    const actionText = ACTION_LABELS[event.action] || event.action;
+    const time = formatActivityTime(event.created_at);
+    const details = event.details && typeof event.details === 'object'
+      ? formatActivityDetails(event.details)
+      : '';
+
+    return `
+      <div class="activity-item">
+        <div class="activity-user">${event.username}</div>
+        <div class="activity-action">${actionText}</div>
+        ${details ? `<div class="activity-details">${details}</div>` : ''}
+        <div class="activity-time">${time}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatActivityTime(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'только что';
+  if (diffMins < 60) return `${diffMins} мин. назад`;
+  if (diffHours < 24) return `${diffHours} ч. назад`;
+  if (diffDays < 7) return `${diffDays} дн. назад`;
+  return date.toLocaleDateString('ru-RU');
+}
+
+function formatActivityDetails(details) {
+  const parts = [];
+  if (details.title) parts.push(details.title);
+  if (details.status) {
+    const statusInfo = STATUS_LABELS[details.status];
+    if (statusInfo) parts.push(`${statusInfo.icon} ${statusInfo.text}`);
+  }
+  return parts.join(' — ');
 }
 
 // === SWIPE GESTURES FOR CALENDAR ===
