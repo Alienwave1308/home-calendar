@@ -57,6 +57,7 @@ describe('Home Calendar - Task List View E2E', () => {
   it('should bulk update selected tasks to done', () => {
     createTaskViaApi({ title: `Bulk Done A ${unique}`, date: '2026-03-05', status: 'planned' });
     createTaskViaApi({ title: `Bulk Done B ${unique}`, date: '2026-03-06', status: 'planned' });
+    cy.get('#tasksApplyFilters').click();
 
     cy.contains('.task-item', `Bulk Done A ${unique}`).find('.task-select').check();
     cy.contains('.task-item', `Bulk Done B ${unique}`).find('.task-select').check();
@@ -70,6 +71,7 @@ describe('Home Calendar - Task List View E2E', () => {
   it('should bulk delete selected tasks', () => {
     createTaskViaApi({ title: `Bulk Delete A ${unique}`, date: '2026-03-07' });
     createTaskViaApi({ title: `Bulk Delete B ${unique}`, date: '2026-03-08' });
+    cy.get('#tasksApplyFilters').click();
 
     cy.contains('.task-item', `Bulk Delete A ${unique}`).find('.task-select').check();
     cy.contains('.task-item', `Bulk Delete B ${unique}`).find('.task-select').check();
@@ -83,6 +85,7 @@ describe('Home Calendar - Task List View E2E', () => {
 
   it('should rename task title via inline edit prompt', () => {
     createTaskViaApi({ title: `Inline Edit Old ${unique}`, date: '2026-03-09' });
+    cy.get('#tasksApplyFilters').click();
 
     cy.window().then((win) => {
       cy.stub(win, 'prompt').returns(`Inline Edit New ${unique}`);
