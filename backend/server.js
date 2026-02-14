@@ -34,6 +34,10 @@ app.use('/api/families', familiesRouter);
 const tagsRouter = require('./routes/tags');
 app.use('/api/tags', tagsRouter);
 
+// Подключаем роуты для комментариев (требуют авторизации)
+const commentsRouter = require('./routes/comments');
+app.use('/api/comments', commentsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
