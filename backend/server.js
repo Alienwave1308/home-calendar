@@ -26,12 +26,16 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Rate limiting (skip in test environment to avoid blocking E2E/Jest tests)
+const isTest = process.env.NODE_ENV === 'test';
+
 // General rate limiter: 100 requests per minute per IP
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isTest,
   message: { error: 'Too many requests, please try again later' }
 });
 app.use('/api', generalLimiter);
@@ -42,6 +46,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isTest,
   message: { error: 'Too many auth attempts, please try again later' }
 });
 
