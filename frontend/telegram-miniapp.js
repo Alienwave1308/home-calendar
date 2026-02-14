@@ -7,6 +7,12 @@
       : null;
   }
 
+  function isRealMiniApp(webApp) {
+    if (!webApp) return false;
+    if (typeof webApp.initData === 'string' && webApp.initData.length > 0) return true;
+    return Boolean(webApp.initDataUnsafe && webApp.initDataUnsafe.user);
+  }
+
   function applyTheme(themeParams = {}) {
     if (!globalScope.document || !globalScope.document.documentElement) return;
     const root = globalScope.document.documentElement;
@@ -28,7 +34,7 @@
 
   function init() {
     const webApp = getWebApp();
-    if (!webApp) return false;
+    if (!isRealMiniApp(webApp)) return false;
 
     try {
       if (typeof webApp.ready === 'function') webApp.ready();
@@ -47,7 +53,7 @@
 
   function onBackButton(handler) {
     const webApp = getWebApp();
-    if (!webApp || !webApp.BackButton || typeof webApp.onEvent !== 'function') return;
+    if (!isRealMiniApp(webApp) || !webApp.BackButton || typeof webApp.onEvent !== 'function') return;
 
     if (backHandler && typeof webApp.offEvent === 'function') {
       webApp.offEvent('backButtonClicked', backHandler);
@@ -59,14 +65,14 @@
 
   function setBackButtonVisible(visible) {
     const webApp = getWebApp();
-    if (!webApp || !webApp.BackButton) return;
+    if (!isRealMiniApp(webApp) || !webApp.BackButton) return;
     if (visible) webApp.BackButton.show();
     else webApp.BackButton.hide();
   }
 
   function confirm(message) {
     const webApp = getWebApp();
-    if (webApp && typeof webApp.showConfirm === 'function') {
+    if (isRealMiniApp(webApp) && typeof webApp.showConfirm === 'function') {
       return new Promise((resolve) => {
         webApp.showConfirm(message, (ok) => resolve(Boolean(ok)));
       });
@@ -76,7 +82,7 @@
 
   function alert(message) {
     const webApp = getWebApp();
-    if (webApp && typeof webApp.showAlert === 'function') {
+    if (isRealMiniApp(webApp) && typeof webApp.showAlert === 'function') {
       return new Promise((resolve) => {
         webApp.showAlert(message, resolve);
       });
@@ -91,8 +97,8 @@
     setBackButtonVisible,
     confirm,
     alert,
-    isMiniApp: () => Boolean(getWebApp()),
-    getInitData: () => getWebApp()?.initData || '',
+    isMiniApp: () => isRealMiniApp(getWebApp()),
+    getInitData: () => (isRealMiniApp(getWebApp()) ? getWebApp().initData : ''),
     getStartParam: () => getWebApp()?.initDataUnsafe?.start_param || null
   };
 
