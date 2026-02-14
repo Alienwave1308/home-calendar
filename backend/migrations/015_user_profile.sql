@@ -1,0 +1,6 @@
+-- Extend users table with profile fields
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'UTC';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS quiet_hours_start TIME;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS quiet_hours_end TIME;
