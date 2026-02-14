@@ -1,7 +1,7 @@
 describe('Home Calendar - Task List View E2E', () => {
-  const testUser = 'cypressuser';
-  const testPass = 'cypress123';
   const unique = Date.now();
+  const testUser = `cypressuser-tasklist-${unique}`;
+  const testPass = 'cypress123';
 
   const createTaskViaApi = (task) => {
     cy.window().then((win) => {
