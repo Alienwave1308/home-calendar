@@ -16,17 +16,34 @@ jobs:
       env:
         SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         HOST: ${{ secrets.DEPLOY_HOST }}
+        APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+        LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       run: |
+        if [ -z "$APP_DOMAIN" ] || [ -z "$LETSENCRYPT_EMAIL" ] || [ -z "$JWT_SECRET" ] || [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+          echo "One or more required secrets are missing: APP_DOMAIN, LETSENCRYPT_EMAIL, JWT_SECRET, TELEGRAM_BOT_TOKEN"
+          exit 1
+        fi
+
         mkdir -p ~/.ssh
         echo "$SSH_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
         ssh-keyscan -H $HOST >> ~/.ssh/known_hosts 2>/dev/null
 
-        ssh -i ~/.ssh/deploy_key root@$HOST << 'ENDSSH'
+        ssh -i ~/.ssh/deploy_key root@$HOST << ENDSSH
           cd ~/home-calendar
           git pull origin main
-          docker compose down
-          docker compose build --no-cache
-          docker compose up -d
-          echo "Deploy complete: $(date)"
+
+          cat > .env <<EOF
+APP_DOMAIN=${APP_DOMAIN}
+LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+JWT_SECRET=${JWT_SECRET}
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+EOF
+
+          docker compose -f docker-compose.prod.yml down
+          docker compose -f docker-compose.prod.yml build --no-cache
+          docker compose -f docker-compose.prod.yml up -d
+          echo "Deploy complete"
         ENDSSH

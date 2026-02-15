@@ -42,3 +42,17 @@ node backend/server.js
 ```bash
 docker-compose up --build
 ```
+
+## Production HTTPS (Telegram Mini App)
+Production deploy now uses `docker-compose.prod.yml` + Caddy (automatic Let's Encrypt TLS).
+
+Required GitHub repository secrets for Deploy workflow:
+- `APP_DOMAIN` (example: `app.example.com`)
+- `LETSENCRYPT_EMAIL`
+- `JWT_SECRET`
+- `TELEGRAM_BOT_TOKEN`
+- existing: `DEPLOY_HOST`, `DEPLOY_SSH_KEY`
+
+Also required:
+- DNS `A` record for `APP_DOMAIN` must point to your VPS public IP.
+- Ports `80` and `443` must be open on VPS firewall/security group.
