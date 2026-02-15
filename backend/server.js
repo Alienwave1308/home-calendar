@@ -91,6 +91,10 @@ app.use('/api/audit', auditRouter);
 const dashboardRouter = require('./routes/dashboard');
 app.use('/api/dashboard', dashboardRouter);
 
+// Подключаем роуты мастера (booking system)
+const masterRouter = require('./routes/master');
+app.use('/api/master', masterRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
