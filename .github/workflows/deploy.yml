@@ -35,12 +35,11 @@ jobs:
           cd ~/home-calendar
           git pull origin main
 
-          cat > .env <<EOF
-APP_DOMAIN=${APP_DOMAIN}
-LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
-JWT_SECRET=${JWT_SECRET}
-TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-EOF
+          printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\n" \
+            "${APP_DOMAIN}" \
+            "${LETSENCRYPT_EMAIL}" \
+            "${JWT_SECRET}" \
+            "${TELEGRAM_BOT_TOKEN}" > .env
 
           docker compose -f docker-compose.prod.yml down
           docker compose -f docker-compose.prod.yml build --no-cache
