@@ -42,6 +42,11 @@ describe('Booking Mini App - Calendar Export E2E', () => {
       }
     });
     cy.wait('@getMaster', { timeout: 10000 });
+
+    cy.window().then((win) => {
+      cy.stub(win.URL, 'createObjectURL').returns('blob:test-ics').as('createObjectURL');
+      cy.stub(win.URL, 'revokeObjectURL').as('revokeObjectURL');
+    });
   });
 
   it('shows calendar export actions after successful booking', () => {
@@ -57,7 +62,13 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('#doneGoogleLink')
       .should('be.visible')
       .and('have.attr', 'href')
-      .and('include', 'calendar.google.com');
+      .and('include', 'calendar.google.com')
+      .and('include', 'ctz=Asia%2FNovosibirsk');
     cy.get('#doneAppleBtn').should('be.visible');
+
+    cy.get('#doneAppleBtn').click();
+    cy.get('@createObjectURL').should('have.been.calledOnce');
+    cy.get('@createObjectURL').its('firstCall.args.0.type').should('include', 'text/calendar');
+    cy.get('@revokeObjectURL').should('have.been.calledWith', 'blob:test-ics');
   });
 });

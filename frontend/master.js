@@ -84,9 +84,9 @@
 
   let STATUS_LABELS = {
     pending: 'Ожидает',
-    confirmed: 'Подтверждена',
-    completed: 'Завершена',
-    canceled: 'Отменена'
+    confirmed: 'Запланировано',
+    completed: 'Выполнено',
+    canceled: 'Отменено'
   };
 
   function formatDateTime(iso) {
@@ -177,7 +177,7 @@
   function renderBookingCard(b) {
     let actions = '<button class="btn-small btn-edit" onclick="MasterApp.openBookingForm(' + b.id + ')">Редактировать</button>';
     if (b.status === 'pending') {
-      actions += '<button class="btn-small btn-confirm" onclick="MasterApp.updateBooking(' + b.id + ',\'confirmed\')">Подтвердить</button>'
+      actions += '<button class="btn-small btn-confirm" onclick="MasterApp.updateBooking(' + b.id + ',\'confirmed\')">Запланировать</button>'
         + '<button class="btn-small btn-cancel" onclick="MasterApp.updateBooking(' + b.id + ',\'canceled\')">Отклонить</button>';
     } else if (b.status === 'confirmed') {
       actions += '<button class="btn-small btn-complete" onclick="MasterApp.updateBooking(' + b.id + ',\'completed\')">Завершить</button>'
@@ -256,9 +256,9 @@
       + '<div class="form-field"><label>Статус</label>'
       + '<select id="bookingFormStatus">'
       + '<option value="pending"' + (statusValue === 'pending' ? ' selected' : '') + '>Ожидает</option>'
-      + '<option value="confirmed"' + (statusValue === 'confirmed' ? ' selected' : '') + '>Подтверждена</option>'
-      + '<option value="completed"' + (statusValue === 'completed' ? ' selected' : '') + '>Завершена</option>'
-      + '<option value="canceled"' + (statusValue === 'canceled' ? ' selected' : '') + '>Отменена</option>'
+      + '<option value="confirmed"' + (statusValue === 'confirmed' ? ' selected' : '') + '>Запланировано</option>'
+      + '<option value="completed"' + (statusValue === 'completed' ? ' selected' : '') + '>Выполнено</option>'
+      + '<option value="canceled"' + (statusValue === 'canceled' ? ' selected' : '') + '>Отменено</option>'
       + '</select></div>'
       + '<div class="form-field"><label>Комментарий</label><textarea id="bookingFormNote" rows="3" placeholder="Комментарий мастера">'
       + escapeHtml(booking && booking.master_note ? booking.master_note : '') + '</textarea></div>'

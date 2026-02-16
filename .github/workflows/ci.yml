@@ -85,6 +85,8 @@ jobs:
             spec: cypress/e2e/booking-export.cy.js
           - section: MasterCalendar
             spec: cypress/e2e/master-calendar-settings.cy.js
+          - section: MasterBookings
+            spec: cypress/e2e/master-bookings-crud.cy.js
     services:
       postgres:
         image: postgres:16-alpine
