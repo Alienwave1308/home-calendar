@@ -71,21 +71,20 @@ describe('Master Panel - Calendar Settings E2E', () => {
       }
     }).as('settingsEnabled');
 
-    cy.intercept('GET', /\/api\/master\/availability\/?(?:\?.*)?$/, (req) => {
+    cy.intercept('GET', /\/api\/master\/availability\/windows\/?(?:\?.*)?$/, (req) => {
       req.reply({
         statusCode: 200,
         body: availabilityRules
       });
     }).as('availability');
 
-    cy.intercept('POST', '/api/master/availability', (req) => {
+    cy.intercept('POST', '/api/master/availability/windows', (req) => {
       availabilitySeq += 1;
       availabilityRules.push({
         id: availabilitySeq,
-        day_of_week: req.body.day_of_week,
+        date: req.body.date,
         start_time: req.body.start_time,
-        end_time: req.body.end_time,
-        slot_granularity_minutes: req.body.slot_granularity_minutes
+        end_time: req.body.end_time
       });
       req.reply({
         statusCode: 201,
@@ -151,19 +150,17 @@ describe('Master Panel - Calendar Settings E2E', () => {
 
     cy.wait('@availability');
     cy.wait('@availabilityExclusions');
-    cy.get('#availabilityDay').select('Понедельник');
+    cy.get('#availabilityDate').type('2026-02-23');
     cy.get('#availabilityStart').clear().type('10:00');
     cy.get('#availabilityEnd').clear().type('18:00');
-    cy.get('#availabilityStep').clear().type('30');
     cy.contains('button', 'Добавить окно').click();
 
     cy.wait('@addAvailability').its('request.body').should('deep.include', {
-      day_of_week: 1,
+      date: '2026-02-23',
       start_time: '10:00',
-      end_time: '18:00',
-      slot_granularity_minutes: 30
+      end_time: '18:00'
     });
-    cy.contains('#availabilityRules', 'Понедельник').should('be.visible');
+    cy.contains('#availabilityRules', '2026-02-23').should('be.visible');
     cy.contains('#availabilityRules', '10:00 - 18:00').should('be.visible');
   });
 
@@ -175,16 +172,14 @@ describe('Master Panel - Calendar Settings E2E', () => {
     cy.wait('@availability');
     cy.wait('@availabilityExclusions');
 
-    cy.get('#availabilityBulkInput').type('Пн 10:00-12:00, 13:00-14:00{enter}Вт 11:00-15:00');
-    cy.get('#availabilityBulkStep').clear().type('20');
+    cy.get('#availabilityBulkInput').type('2026-02-24 10:00-12:00, 13:00-14:00{enter}2026-02-25 11:00-15:00');
     cy.contains('button', 'Добавить из строк').click();
 
     cy.wait('@addAvailability');
     cy.wait('@addAvailability');
     cy.wait('@addAvailability');
 
-    cy.contains('#availabilityRules', 'Понедельник').should('be.visible');
-    cy.contains('#availabilityRules', 'Вторник').should('be.visible');
-    cy.contains('#availabilityRules', 'шаг 20 мин').should('be.visible');
+    cy.contains('#availabilityRules', '2026-02-24').should('be.visible');
+    cy.contains('#availabilityRules', '2026-02-25').should('be.visible');
   });
 });

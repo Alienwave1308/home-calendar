@@ -109,6 +109,91 @@ function generateSlots({ service, rules, exclusions, bookings, blocks, dateFrom,
   return slots;
 }
 
+function getTimezoneOffsetMinutes(timezone) {
+  if (timezone === 'Asia/Novosibirsk') return 420;
+  if (timezone === 'Europe/Moscow') return 180;
+  return 0;
+}
+
+function parseTimeParts(timeStr) {
+  const [hh, mm, ss] = String(timeStr || '00:00:00').split(':').map(Number);
+  return { hh: hh || 0, mm: mm || 0, ss: ss || 0 };
+}
+
+function localDateTimeToUtcMs(dateStr, timeStr, timezone) {
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  const { hh, mm, ss } = parseTimeParts(timeStr);
+  const offset = getTimezoneOffsetMinutes(timezone);
+  return Date.UTC(year, (month || 1) - 1, day || 1, hh, mm, ss, 0) - offset * 60000;
+}
+
+function normalizeDateString(dateValue) {
+  if (typeof dateValue === 'string') return dateValue.slice(0, 10);
+  if (dateValue instanceof Date) return dateValue.toISOString().slice(0, 10);
+  return String(dateValue).slice(0, 10);
+}
+
+function generateSlotsFromWindows({
+  service,
+  windows,
+  bookings,
+  blocks,
+  timezone,
+  stepMinutes,
+  minLeadMinutes,
+  nowMs
+}) {
+  const slots = [];
+  const duration = Number(service.duration_minutes || 0);
+  const bufferBefore = Number(service.buffer_before_minutes || 0);
+  const bufferAfter = Number(service.buffer_after_minutes || 0);
+  const totalNeededMinutes = bufferBefore + duration + bufferAfter;
+  const step = Number(stepMinutes || 10);
+  const leadMs = Number(minLeadMinutes || 60) * 60000;
+  const now = Number(nowMs || Date.now());
+
+  const occupied = [
+    ...(bookings || []).map((b) => ({
+      start: new Date(b.start_at).getTime(),
+      end: new Date(b.end_at).getTime()
+    })),
+    ...(blocks || []).map((b) => ({
+      start: new Date(b.start_at).getTime(),
+      end: new Date(b.end_at).getTime()
+    }))
+  ];
+
+  for (const window of windows || []) {
+    const dateStr = normalizeDateString(window.date);
+    const startMs = localDateTimeToUtcMs(dateStr, window.start_time, timezone);
+    const endMs = localDateTimeToUtcMs(dateStr, window.end_time, timezone);
+    if (endMs <= startMs) continue;
+
+    for (
+      let slotStartMs = startMs;
+      slotStartMs + totalNeededMinutes * 60000 <= endMs;
+      slotStartMs += step * 60000
+    ) {
+      const serviceStartMs = slotStartMs + bufferBefore * 60000;
+      const serviceEndMs = serviceStartMs + duration * 60000;
+      const blockEndMs = serviceEndMs + bufferAfter * 60000;
+
+      if (serviceStartMs < now + leadMs) continue;
+
+      const hasConflict = occupied.some((o) => o.start < blockEndMs && o.end > slotStartMs);
+      if (hasConflict) continue;
+
+      slots.push({
+        date: dateStr,
+        start: new Date(serviceStartMs).toISOString(),
+        end: new Date(serviceEndMs).toISOString()
+      });
+    }
+  }
+
+  return slots;
+}
+
 /**
  * Parse YYYY-MM-DD into a UTC midnight Date.
  */
@@ -133,4 +218,10 @@ function parseTime(dateStr, timeStr) {
   return new Date(parseTimeUTC(dateStr, timeStr));
 }
 
-module.exports = { generateSlots, parseTime, parseTimeUTC };
+module.exports = {
+  generateSlots,
+  generateSlotsFromWindows,
+  parseTime,
+  parseTimeUTC,
+  localDateTimeToUtcMs
+};

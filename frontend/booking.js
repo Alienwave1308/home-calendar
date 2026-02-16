@@ -47,10 +47,13 @@
 
   // State
   let master = null;
+  let masterSettings = { first_visit_discount_percent: 15, min_booking_notice_minutes: 60 };
   let services = [];
   let selectedService = null;
   let selectedDate = null;
   let selectedSlot = null;
+  let selectedPricing = null;
+  let isFirstVisitClient = false;
   let currentDateOffset = 0; // days from today
   const DAYS_TO_SHOW = 14;
 
@@ -118,20 +121,33 @@
 
   // Format date helpers
   let DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-  let MONTH_NAMES = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
   function formatDate(dateStr) {
     let d = new Date(dateStr);
-    return d.getDate() + ' ' + MONTH_NAMES[d.getMonth()];
+    const timezone = (master && master.timezone) || 'Asia/Novosibirsk';
+    return new Intl.DateTimeFormat('ru-RU', {
+      timeZone: timezone,
+      day: '2-digit',
+      month: 'short'
+    }).format(d);
   }
 
   function formatTime(isoStr) {
     let d = new Date(isoStr);
-    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    const timezone = (master && master.timezone) || 'Asia/Novosibirsk';
+    return new Intl.DateTimeFormat('ru-RU', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(d);
   }
 
   function toDateStr(date) {
-    return date.toISOString().slice(0, 10);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
   }
 
   // === SKELETONS ===
@@ -175,9 +191,24 @@
     try {
       let data = await apiFetch('/public/master/' + slug);
       master = data.master;
+      masterSettings = data.settings || masterSettings;
       services = data.services || [];
 
       $('masterName').textContent = master.display_name;
+      try {
+        const bookings = await apiFetch('/client/bookings');
+        isFirstVisitClient = Array.isArray(bookings) && bookings.filter(function (b) { return b.status !== 'canceled'; }).length === 0;
+      } catch (_) {
+        isFirstVisitClient = false;
+      }
+
+      if (isFirstVisitClient && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
+        $('firstVisitBanner').style.display = '';
+        $('firstVisitBannerText').textContent = 'Скидка на первый визит: '
+          + Number(masterSettings.first_visit_discount_percent) + '%';
+      } else {
+        $('firstVisitBanner').style.display = 'none';
+      }
 
       if (services.length === 0) {
         $('servicesList').innerHTML = '';
@@ -188,10 +219,16 @@
       let html = '';
       services.forEach(function (s) {
         let priceText = s.price ? s.price + ' ₽' : '';
+        let discountedText = '';
+        if (isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
+          const finalPrice = Math.max(0, Number(s.price) - (Number(s.price) * Number(masterSettings.first_visit_discount_percent) / 100));
+          discountedText = '<span class="service-meta">Первый визит: ' + Math.round(finalPrice) + ' ₽</span>';
+        }
         html += '<div class="service-card" data-id="' + s.id + '" onclick="BookingApp.selectService(' + s.id + ')">'
           + '<div class="service-info">'
           + '<h3>' + escapeHtml(s.name) + '</h3>'
           + '<span class="service-meta">' + s.duration_minutes + ' мин</span>'
+          + discountedText
           + '</div>'
           + (priceText ? '<span class="service-price">' + priceText + '</span>' : '')
           + '</div>';
@@ -281,6 +318,7 @@
       start: btn.dataset.start,
       end: btn.dataset.end
     };
+    selectedPricing = null;
 
     // Go to confirm
     $('confirmService').textContent = selectedService.name;
@@ -291,8 +329,21 @@
     if (selectedService.price) {
       $('confirmPriceRow').style.display = '';
       $('confirmPrice').textContent = selectedService.price + ' ₽';
+      const discountPercent = isFirstVisitClient ? Number(masterSettings.first_visit_discount_percent || 0) : 0;
+      if (discountPercent > 0) {
+        const finalPrice = Math.max(0, Number(selectedService.price) - (Number(selectedService.price) * discountPercent / 100));
+        $('confirmDiscountRow').style.display = '';
+        $('confirmDiscount').textContent = '-' + discountPercent + '%';
+        $('confirmFinalPriceRow').style.display = '';
+        $('confirmFinalPrice').textContent = Math.round(finalPrice) + ' ₽';
+      } else {
+        $('confirmDiscountRow').style.display = 'none';
+        $('confirmFinalPriceRow').style.display = 'none';
+      }
     } else {
       $('confirmPriceRow').style.display = 'none';
+      $('confirmDiscountRow').style.display = 'none';
+      $('confirmFinalPriceRow').style.display = 'none';
     }
 
     $('confirmNote').value = '';
@@ -325,11 +376,15 @@
       };
 
       const note = $('confirmNote').value.trim();
-      await apiPost('/public/master/' + slug + '/book', body);
+      const created = await apiPost('/public/master/' + slug + '/book', body);
+      selectedPricing = created.pricing || null;
 
       hideLoader();
       $('doneDetails').textContent = selectedService.name + '\n'
-        + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end);
+        + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end)
+        + (selectedPricing && selectedPricing.first_visit_discount_percent
+          ? '\nСкидка: ' + selectedPricing.first_visit_discount_percent + '%, итог: ' + selectedPricing.final_price + ' ₽'
+          : '');
       setupCalendarExport(note);
       showStep('stepDone');
 
