@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { createReminders, deleteReminders } = require('../lib/reminders');
@@ -7,6 +8,44 @@ const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
 
 // All client booking routes require authentication
 router.use(authenticateToken);
+
+// GET /api/client/bookings/:id/calendar-feed
+// Returns a per-client Apple Calendar feed link (never shared across clients)
+router.get('/:id/calendar-feed', async (req, res) => {
+  try {
+    const bookingRes = await pool.query(
+      `SELECT b.id, b.master_id, m.booking_slug
+       FROM bookings b
+       JOIN masters m ON m.id = b.master_id
+       WHERE b.id = $1 AND b.client_id = $2
+       LIMIT 1`,
+      [req.params.id, req.user.id]
+    );
+    if (!bookingRes.rows.length) {
+      return res.status(404).json({ error: 'Запись не найдена' });
+    }
+
+    const booking = bookingRes.rows[0];
+    const seedToken = crypto.randomBytes(24).toString('hex');
+    const feedRes = await pool.query(
+      `INSERT INTO client_calendar_feeds (master_id, client_id, token, enabled)
+       VALUES ($1, $2, $3, true)
+       ON CONFLICT (master_id, client_id) DO UPDATE
+         SET enabled = true,
+             updated_at = NOW(),
+             token = COALESCE(client_calendar_feeds.token, $3)
+       RETURNING token`,
+      [booking.master_id, req.user.id, seedToken]
+    );
+
+    const token = feedRes.rows[0].token;
+    const feedPath = `/api/public/master/${booking.booking_slug}/client-calendar.ics?token=${token}`;
+    return res.json({ feed_path: feedPath });
+  } catch (error) {
+    console.error('Error generating client calendar feed link:', error);
+    return res.status(500).json({ error: 'Не удалось сформировать ссылку календаря. Попробуйте ещё раз чуть позже.' });
+  }
+});
 
 // GET /api/client/bookings
 router.get('/', async (req, res) => {

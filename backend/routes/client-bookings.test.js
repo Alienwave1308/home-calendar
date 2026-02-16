@@ -72,6 +72,30 @@ describe('Client Bookings API', () => {
     });
   });
 
+  describe('GET /api/client/bookings/:id/calendar-feed', () => {
+    it('should return per-client calendar feed path', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 1, master_id: 1, booking_slug: 'master-slug' }] })
+        .mockResolvedValueOnce({ rows: [{ token: 'client-token-1' }] });
+
+      const res = await request(app)
+        .get('/api/client/bookings/1/calendar-feed')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.feed_path).toBe('/api/public/master/master-slug/client-calendar.ics?token=client-token-1');
+    });
+
+    it('should return 404 for unknown booking on calendar-feed endpoint', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/api/client/bookings/404/calendar-feed')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
+
   // === CANCEL ===
 
   describe('PATCH /api/client/bookings/:id/cancel', () => {

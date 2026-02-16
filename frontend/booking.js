@@ -54,6 +54,7 @@
   let selectedDate = null;
   let selectedSlot = null;
   let selectedPricing = null;
+  let lastCreatedBookingId = null;
   let isFirstVisitClient = false;
   let methodFilter = 'all';
   let categoryFilter = 'all';
@@ -476,7 +477,8 @@
           ? '\nСкидка: ' + selectedPricing.first_visit_discount_percent + '%, итог: ' + selectedPricing.final_price + ' ₽'
             + '\nПри отмене первой записи скидка аннулируется.'
           : '');
-      setupCalendarExport(note);
+      lastCreatedBookingId = created.id || null;
+      setupCalendarExport(note, lastCreatedBookingId);
       showStep('stepDone');
 
       // Notify Telegram
@@ -495,7 +497,7 @@
     }
   }
 
-  function setupCalendarExport(note) {
+  function setupCalendarExport(note, bookingId) {
     const googleLink = $('doneGoogleLink');
     const appleBtn = $('doneAppleBtn');
     if (!googleLink || !appleBtn || !selectedSlot || !selectedService || !master) return;
@@ -528,22 +530,28 @@
       tg.openLink(googleUrl, { try_instant_view: false });
     };
 
-    appleBtn.onclick = function () {
-      const appleUrl = new window.URL(window.location.origin + '/api/public/export/booking.ics');
-      appleUrl.searchParams.set('title', eventTitle);
-      appleUrl.searchParams.set('details', description);
-      appleUrl.searchParams.set('location', address);
-      appleUrl.searchParams.set('calendar_name', calendarName);
-      appleUrl.searchParams.set('start_at', selectedSlot.start);
-      appleUrl.searchParams.set('end_at', selectedSlot.end);
-      appleUrl.searchParams.set('timezone', timezone);
-      const href = appleUrl.toString();
+    appleBtn.onclick = async function () {
+      try {
+        if (!bookingId) {
+          throw new Error('Идентификатор записи не найден');
+        }
+        const linkData = await apiFetch('/client/bookings/' + bookingId + '/calendar-feed');
+        const feedPath = linkData && linkData.feed_path ? String(linkData.feed_path) : '';
+        if (!feedPath) {
+          throw new Error('Ссылка календаря не сформирована');
+        }
 
-      if (tg && typeof tg.openLink === 'function') {
-        tg.openLink(href, { try_instant_view: false });
-        return;
+        const httpsUrl = new window.URL(feedPath, window.location.origin).toString();
+        const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
+
+        if (tg && typeof tg.openLink === 'function') {
+          tg.openLink(webcalUrl, { try_instant_view: false });
+          return;
+        }
+        window.location.href = webcalUrl;
+      } catch (error) {
+        showToast('Не удалось открыть экспорт: ' + error.message);
       }
-      window.location.href = href;
     };
   }
 
@@ -581,11 +589,19 @@
         let statusClass = b.status || 'pending';
         let statusLabel = STATUS_LABELS[b.status] || b.status;
 
+        const canExport = b.status !== 'canceled';
+        const canManage = b.status === 'confirmed' || b.status === 'pending';
         let actions = '';
-        if (b.status === 'confirmed' || b.status === 'pending') {
+        if (canExport || canManage) {
           actions = '<div class="my-booking-actions">'
-            + '<button class="btn-secondary" onclick="BookingApp.startReschedule(' + b.id + ')">Перенести запись</button>'
-            + '<button class="btn-secondary btn-cancel-booking" onclick="BookingApp.cancelBooking(' + b.id + ')">Отменить запись</button>'
+            + (canExport
+              ? '<button class="btn-secondary" onclick="BookingApp.exportBookingToGoogle(' + b.id + ')">Экспорт в Google Calendar</button>'
+                + '<button class="btn-secondary" onclick="BookingApp.exportBookingToApple(' + b.id + ')">Экспорт в Apple Calendar (.ics)</button>'
+              : '')
+            + (canManage
+              ? '<button class="btn-secondary" onclick="BookingApp.startReschedule(' + b.id + ')">Перенести запись</button>'
+                + '<button class="btn-secondary btn-cancel-booking" onclick="BookingApp.cancelBooking(' + b.id + ')">Отменить запись</button>'
+              : '')
             + '</div>';
         }
 
@@ -662,6 +678,68 @@
     }
   }
 
+  function buildBookingExportPayload(booking) {
+    const address = 'Мкр Околица д.1, квартира 60';
+    const timezone = booking.master_timezone || (master && master.timezone) || 'Asia/Novosibirsk';
+    const title = 'Запись на депиляцию: ' + (booking.service_name || 'Услуга');
+    const details = [
+      'Услуга: ' + (booking.service_name || 'Услуга'),
+      'Мастер: ' + (booking.master_name || 'Лера'),
+      'Адрес: ' + address,
+      booking.client_note ? ('Комментарий: ' + booking.client_note) : ''
+    ].filter(Boolean).join('\n');
+    return {
+      title: title,
+      details: details,
+      location: address,
+      calendarName: 'RoVa Epil',
+      startIso: booking.start_at,
+      endIso: booking.end_at,
+      timezone: timezone
+    };
+  }
+
+  async function exportBookingToGoogle(bookingId) {
+    try {
+      const bookings = await apiFetch('/client/bookings');
+      const booking = (bookings || []).find(function (b) { return Number(b.id) === Number(bookingId); });
+      if (!booking) {
+        showToast('Запись не найдена');
+        return;
+      }
+      const payload = buildBookingExportPayload(booking);
+      const googleUrl = exportUtils.buildGoogleCalendarUrl(payload);
+      if (tg && typeof tg.openLink === 'function') {
+        tg.openLink(googleUrl, { try_instant_view: false });
+        return;
+      }
+      window.open(googleUrl, '_blank', 'noopener');
+    } catch (err) {
+      showToast('Не удалось открыть экспорт: ' + err.message);
+    }
+  }
+
+  async function exportBookingToApple(bookingId) {
+    try {
+      const linkData = await apiFetch('/client/bookings/' + bookingId + '/calendar-feed');
+      const feedPath = linkData && linkData.feed_path ? String(linkData.feed_path) : '';
+      if (!feedPath) {
+        throw new Error('Ссылка календаря не сформирована');
+      }
+
+      const httpsUrl = new window.URL(feedPath, window.location.origin).toString();
+      const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
+
+      if (tg && typeof tg.openLink === 'function') {
+        tg.openLink(webcalUrl, { try_instant_view: false });
+        return;
+      }
+      window.location.href = webcalUrl;
+    } catch (err) {
+      showToast('Не удалось открыть экспорт: ' + err.message);
+    }
+  }
+
   // === RESET ===
 
   function reset() {
@@ -716,6 +794,8 @@
     showMyBookings: showMyBookings,
     cancelBooking: cancelBooking,
     startReschedule: startReschedule,
+    exportBookingToGoogle: exportBookingToGoogle,
+    exportBookingToApple: exportBookingToApple,
     setMethodFilter: setMethodFilter,
     setCategoryFilter: setCategoryFilter,
     reset: reset,

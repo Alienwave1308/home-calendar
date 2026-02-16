@@ -330,6 +330,90 @@ router.get('/master/:slug/calendar.ics', async (req, res) => {
   }
 });
 
+// GET /api/public/master/:slug/client-calendar.ics?token=...
+// Personal client feed: one token -> one (master_id, client_id) pair
+router.get('/master/:slug/client-calendar.ics', async (req, res) => {
+  try {
+    const token = String(req.query.token || '');
+    if (!token) {
+      return res.status(400).json({ error: 'token query param is required' });
+    }
+
+    const master = await loadMasterBySlug(req.params.slug);
+    if (!master) {
+      return res.status(404).json({ error: 'Master not found' });
+    }
+
+    const feedRes = await pool.query(
+      `SELECT client_id
+       FROM client_calendar_feeds
+       WHERE master_id = $1 AND token = $2 AND enabled = true
+       LIMIT 1`,
+      [master.id, token]
+    );
+    if (!feedRes.rows.length) {
+      return res.status(403).json({ error: 'Invalid client calendar token' });
+    }
+    const clientId = feedRes.rows[0].client_id;
+
+    const bookingsRes = await pool.query(
+      `SELECT b.id, b.start_at, b.end_at, b.client_note, b.status,
+              s.name AS service_name
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.master_id = $1
+         AND b.client_id = $2
+         AND b.status NOT IN ('canceled')
+         AND b.start_at >= NOW() - interval '30 days'
+       ORDER BY b.start_at ASC`,
+      [master.id, clientId]
+    );
+
+    const dtStamp = toUtcIcsDate(new Date().toISOString());
+    const events = bookingsRes.rows.map((b) => {
+      const description = [
+        `Услуга: ${b.service_name || 'Услуга'}`,
+        b.client_note ? `Комментарий: ${b.client_note}` : '',
+        'Адрес: Мкр Околица д.1, квартира 60'
+      ].filter(Boolean).join('\n');
+
+      return [
+        'BEGIN:VEVENT',
+        `UID:client-booking-${b.id}@rova-epil.ru`,
+        `DTSTAMP:${dtStamp}`,
+        `DTSTART:${toUtcIcsDate(b.start_at)}`,
+        `DTEND:${toUtcIcsDate(b.end_at)}`,
+        `SUMMARY:${escapeIcsText('Запись: ' + (b.service_name || 'Услуга'))}`,
+        `DESCRIPTION:${escapeIcsText(description)}`,
+        `LOCATION:${escapeIcsText('Мкр Околица д.1, квартира 60')}`,
+        'END:VEVENT'
+      ].join('\r\n');
+    });
+
+    const displayName = master.display_name || 'Лера';
+    const timezone = resolveMasterTimezone(master);
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//RoVa Epil//Client Feed//RU',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      `X-WR-CALNAME:${escapeIcsText(displayName + ' — Мои записи')}`,
+      `X-WR-TIMEZONE:${escapeIcsText(timezone)}`,
+      ...events,
+      'END:VCALENDAR',
+      ''
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="my-bookings.ics"');
+    return res.status(200).send(ics);
+  } catch (error) {
+    console.error('Error generating client Apple calendar feed:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/public/master/:slug/book
 router.post('/master/:slug/book', authenticateToken, async (req, res) => {
   try {
@@ -381,6 +465,22 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     );
     if (!windowCoverage.rows.length) {
       return res.status(409).json({ error: 'Selected time is outside available windows' });
+    }
+
+    const activeBookingsCountRes = await pool.query(
+      `SELECT COUNT(*)::int AS active_count
+       FROM bookings
+       WHERE master_id = $1
+         AND client_id = $2
+         AND status IN ('pending', 'confirmed')
+         AND start_at >= NOW()`,
+      [master.id, req.user.id]
+    );
+    const activeBookingsCount = Number(activeBookingsCountRes.rows[0]?.active_count || 0);
+    if (activeBookingsCount >= 3) {
+      return res.status(429).json({
+        error: 'У вас уже есть 3 активные записи. Чтобы записаться дополнительно, свяжитесь с мастером в Telegram: @RoVVVVa'
+      });
     }
 
     const firstBookingCheck = await pool.query(
