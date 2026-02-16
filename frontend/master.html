@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#667eea">
+  <title>Панель мастера</title>
+  <link rel="stylesheet" href="booking.css">
+  <link rel="stylesheet" href="master.css">
+</head>
+<body>
+  <div id="app">
+    <div class="master-header">
+      <h1>Панель мастера</h1>
+      <button class="btn-back" id="btnLogout" onclick="MasterApp.logout()">Выйти</button>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="master-tabs" id="masterTabs">
+      <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Сегодня</button>
+      <button class="master-tab" data-tab="bookings" onclick="MasterApp.switchTab('bookings')">Записи</button>
+      <button class="master-tab" data-tab="services" onclick="MasterApp.switchTab('services')">Услуги</button>
+      <button class="master-tab" data-tab="settings" onclick="MasterApp.switchTab('settings')">Настройки</button>
+    </nav>
+
+    <!-- Tab: Today -->
+    <section class="tab-panel" id="tabToday">
+      <div id="todayBookings" class="bookings-list"></div>
+      <div id="todayEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">🎉</div>
+        <p>На сегодня записей нет</p>
+        <p class="empty-hint">Поделитесь ссылкой для записи с клиентами</p>
+      </div>
+    </section>
+
+    <!-- Tab: Bookings -->
+    <section class="tab-panel" id="tabBookings" style="display:none;">
+      <div class="bookings-filters">
+        <select id="bookingsStatus" onchange="MasterApp.loadBookings()">
+          <option value="">Все статусы</option>
+          <option value="pending">Ожидают</option>
+          <option value="confirmed">Подтверждены</option>
+          <option value="completed">Завершены</option>
+          <option value="canceled">Отменены</option>
+        </select>
+      </div>
+      <div id="bookingsList" class="bookings-list"></div>
+      <div id="bookingsEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">📅</div>
+        <p>Записей не найдено</p>
+      </div>
+    </section>
+
+    <!-- Tab: Services -->
+    <section class="tab-panel" id="tabServices" style="display:none;">
+      <div id="servicesList" class="services-list"></div>
+      <div id="servicesEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">💇</div>
+        <p>Добавьте свою первую услугу</p>
+      </div>
+      <button class="btn-primary" style="margin-top:16px;" onclick="MasterApp.showAddService()">Добавить услугу</button>
+    </section>
+
+    <!-- Tab: Settings -->
+    <section class="tab-panel" id="tabSettings" style="display:none;">
+      <div class="settings-card">
+        <h3>Ссылка для записи</h3>
+        <div class="link-copy-row">
+          <input type="text" id="bookingLink" readonly class="link-input">
+          <button class="btn-secondary btn-copy" onclick="MasterApp.copyLink()">Копировать</button>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3>Google Calendar</h3>
+        <div id="gcalStatus" class="gcal-status"></div>
+      </div>
+      <div class="settings-card">
+        <h3>Напоминания</h3>
+        <div id="reminderSettings"></div>
+      </div>
+    </section>
+
+    <!-- Network toast (reused from booking.css) -->
+    <div id="networkToast" class="network-toast" style="display:none;">
+      <span id="networkToastText"></span>
+      <button class="toast-close" onclick="MasterApp.hideToast()">&times;</button>
+    </div>
+  </div>
+
+  <script src="master.js"></script>
+</body>
+</html>

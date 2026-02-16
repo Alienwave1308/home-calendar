@@ -91,6 +91,48 @@ app.use('/api/audit', auditRouter);
 const dashboardRouter = require('./routes/dashboard');
 app.use('/api/dashboard', dashboardRouter);
 
+// Подключаем роуты для повторяющихся задач (требуют авторизации)
+const recurrenceRouter = require('./routes/recurrence');
+app.use('/api', recurrenceRouter);
+
+// Подключаем роуты для списка покупок (требуют авторизации)
+const shoppingRouter = require('./routes/shopping');
+app.use('/api/shopping', shoppingRouter);
+
+// Подключаем роуты для уведомлений (требуют авторизации)
+const notificationsRouter = require('./routes/notifications');
+app.use('/api/notifications', notificationsRouter);
+
+// Подключаем роуты для профиля пользователя (требуют авторизации)
+const usersRouter = require('./routes/users');
+app.use('/api/users', usersRouter);
+
+// Подключаем роуты для вложений (требуют авторизации)
+const attachmentsRouter = require('./routes/attachments');
+app.use('/api', attachmentsRouter);
+
+// Подключаем роуты мастера (booking system)
+const masterRouter = require('./routes/master');
+app.use('/api/master', masterRouter);
+
+// Подключаем роуты клиентских бронирований
+const clientBookingsRouter = require('./routes/client-bookings');
+app.use('/api/client/bookings', clientBookingsRouter);
+
+// Подключаем роуты синхронизации с Google Calendar
+const calendarSyncRouter = require('./routes/calendar-sync');
+app.use('/api/calendar-sync', calendarSyncRouter);
+
+// Booking Mini App — serve booking.html for /book/:slug
+app.get('/book/:slug', (req, res) => {
+  res.sendFile(path.join(frontendDir, 'booking.html'));
+});
+
+// Master panel
+app.get('/master', (req, res) => {
+  res.sendFile(path.join(frontendDir, 'master.html'));
+});
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });

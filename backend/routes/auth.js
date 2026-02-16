@@ -1,7 +1,7 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const { URLSearchParams } = require('url');
 const { Buffer } = require('buffer');
 const router = express.Router();
@@ -109,6 +109,82 @@ router.post('/login', async (req, res) => {
     res.json({ user: { id: user.id, username: user.username }, token });
   } catch (error) {
     console.error('Error logging in:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/forgot-password — generate reset token
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const user = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
+    if (user.rows.length === 0) {
+      return res.json({ message: 'If the user exists, a reset token has been generated' });
+    }
+
+    await pool.query(
+      'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false',
+      [user.rows[0].id]
+    );
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await pool.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.rows[0].id, token, expiresAt]
+    );
+
+    res.json({ message: 'If the user exists, a reset token has been generated', token });
+  } catch (error) {
+    console.error('Error in forgot-password:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/reset-password — reset password using token
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const tokenResult = await pool.query(
+      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()',
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const resetToken = tokenResult.rows[0];
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [passwordHash, resetToken.user_id]
+    );
+
+    await pool.query(
+      'UPDATE password_reset_tokens SET used = true WHERE id = $1',
+      [resetToken.id]
+    );
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Error in reset-password:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
