@@ -1,45 +1,57 @@
 describe('Home Calendar - Auth E2E', () => {
-  const testUser = 'cypressuser';
-  const testPass = 'cypress123';
-
-  before(() => {
-    cy.register(testUser, testPass);
-  });
-
   beforeEach(() => {
     cy.clearLocalStorage();
+  });
+
+  it('shows telegram-only auth state without web forms', () => {
     cy.visit('/');
-  });
-
-  it('should load the auth screen', () => {
     cy.contains('Календарь мастера');
-    cy.contains('Войдите или зарегистрируйтесь');
-    cy.get('#loginForm').should('be.visible');
+    cy.contains('Вход только через Telegram Mini App');
+    cy.get('#loginForm').should('not.exist');
+    cy.get('#registerForm').should('not.exist');
+    cy.get('#tgAuthRetryBtn').should('be.visible');
   });
 
-  it('should switch between login and register tabs', () => {
-    cy.get('#loginForm').should('be.visible');
-    cy.get('#registerForm').should('not.be.visible');
+  it('auto logins through Telegram and opens app', () => {
+    cy.intercept('POST', '/api/auth/telegram', {
+      statusCode: 200,
+      body: {
+        token: 'tg-token',
+        user: { id: 101, username: 'tg_client' },
+        role: 'client',
+        booking_slug: 'wife-master'
+      }
+    }).as('telegramAuth');
 
-    cy.contains('Регистрация').click();
-    cy.get('#registerForm').should('be.visible');
-    cy.get('#loginForm').should('not.be.visible');
+    cy.visit('/', {
+      onBeforeLoad(win) {
+        win.Telegram = {
+          WebApp: {
+            initData: 'query_id=abc&user=%7B%22id%22%3A777%7D&auth_date=1700000000&hash=test',
+            initDataUnsafe: { user: { id: 777, username: 'telegram_user' } },
+            ready() {},
+            expand() {}
+          }
+        };
+      }
+    });
 
-    cy.contains('Вход').click();
-    cy.get('#loginForm').should('be.visible');
-  });
-
-  it('should login successfully', () => {
-    cy.login(testUser, testPass, { mode: 'ui' });
+    cy.wait('@telegramAuth');
     cy.get('#appScreen').should('be.visible');
     cy.location('hash').should('eq', '#/dashboard');
-    cy.contains(testUser);
+    cy.contains('tg_client');
   });
 
-  it('should logout', () => {
-    cy.login(testUser, testPass, { mode: 'ui' });
+  it('logs out back to telegram-only auth screen', () => {
+    cy.window().then((win) => {
+      win.localStorage.setItem('authToken', 'mock-token');
+      win.localStorage.setItem('token', 'mock-token');
+      win.localStorage.setItem('currentUser', JSON.stringify({ id: 7, username: 'mock-user' }));
+    });
+    cy.visit('/');
     cy.contains('Выйти').click();
     cy.get('#authScreen').should('be.visible');
     cy.get('#appScreen').should('not.be.visible');
+    cy.contains('Вход только через Telegram Mini App');
   });
 });

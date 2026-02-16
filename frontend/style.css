@@ -7,7 +7,7 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   min-height: 100vh;
   padding: 20px;
 }
@@ -43,7 +43,7 @@ header {
   text-align: center;
   margin-bottom: 30px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #667eea;
+  border-bottom: 2px solid #2f9f68;
 }
 
 header h1 {
@@ -71,7 +71,7 @@ header p {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
   position: sticky;
   top: 0;
@@ -127,7 +127,7 @@ header p {
 .skeleton-line {
   height: 12px;
   border-radius: 8px;
-  background: linear-gradient(90deg, #eef2ff 0%, #dde5ff 50%, #eef2ff 100%);
+  background: linear-gradient(90deg, #e7f6ec 0%, #cfe7d8 50%, #e7f6ec 100%);
   background-size: 180% 100%;
   animation: skeletonPulse 1.2s infinite linear;
 }
@@ -176,11 +176,11 @@ header p {
 }
 
 .nav-item.active {
-  color: #667eea;
+  color: #2f9f68;
 }
 
 .nav-item:hover {
-  color: #667eea;
+  color: #2f9f68;
 }
 
 /* Dashboard */
@@ -205,7 +205,7 @@ header p {
 
 .dashboard-quick-form input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .dashboard-cards {
@@ -216,7 +216,7 @@ header p {
 
 .dashboard-card {
   background: white;
-  border: 2px solid #e6ebff;
+  border: 2px solid #dcefe2;
   border-radius: 12px;
   padding: 14px;
 }
@@ -230,7 +230,7 @@ header p {
 .dashboard-count {
   font-size: 1.6em;
   font-weight: 700;
-  color: #667eea;
+  color: #2f9f68;
   margin-bottom: 8px;
 }
 
@@ -251,7 +251,7 @@ header p {
 }
 
 .dashboard-task-btn:hover {
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .dashboard-empty {
@@ -321,8 +321,8 @@ header p {
 }
 
 .kanban-column-dropzone.is-over {
-  border-color: #667eea;
-  background: #eef2ff;
+  border-color: #2f9f68;
+  background: #e7f6ec;
 }
 
 .kanban-cards {
@@ -391,7 +391,7 @@ header p {
 
 .kanban-create-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .kanban-empty {
@@ -410,7 +410,7 @@ header p {
 }
 
 .add-task h2 {
-  color: #667eea;
+  color: #2f9f68;
   margin-bottom: 20px;
   font-size: 1.5em;
 }
@@ -437,11 +437,11 @@ header p {
 
 .form-group input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
   border: none;
   padding: 12px 30px;
@@ -518,7 +518,7 @@ header p {
 }
 
 .task-item:hover {
-  border-color: #667eea;
+  border-color: #2f9f68;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
@@ -553,7 +553,7 @@ header p {
 }
 
 .task-date {
-  color: #667eea;
+  color: #2f9f68;
   font-size: 0.9em;
   font-weight: 600;
 }
@@ -614,6 +614,8 @@ header p {
 /* Авторизация */
 .auth-section {
   padding: 25px;
+  display: grid;
+  gap: 14px;
 }
 
 .auth-tabs {
@@ -625,9 +627,9 @@ header p {
 .auth-tab {
   flex: 1;
   padding: 12px;
-  border: 2px solid #667eea;
+  border: 2px solid #2f9f68;
   background: white;
-  color: #667eea;
+  color: #2f9f68;
   border-radius: 8px;
   font-size: 1em;
   font-weight: 600;
@@ -636,15 +638,29 @@ header p {
 }
 
 .auth-tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
 }
 
 .auth-error {
-  color: #f44336;
+  color: #25583d;
+  background: #dff2e6;
+  border: 1px solid #b9dfc7;
+  border-radius: 10px;
+  padding: 10px 12px;
   font-size: 0.9em;
-  margin-bottom: 10px;
-  min-height: 1.2em;
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.auth-hint {
+  color: #426554;
+  font-size: 0.95em;
+  line-height: 1.45;
+}
+
+#tgAuthRetryBtn {
+  justify-self: start;
 }
 
 .user-bar {
@@ -768,9 +784,9 @@ header p {
 .tasks-tab {
   flex: 1;
   padding: 10px;
-  border: 2px solid #667eea;
+  border: 2px solid #2f9f68;
   background: white;
-  color: #667eea;
+  color: #2f9f68;
   border-radius: 8px;
   font-size: 0.95em;
   font-weight: 600;
@@ -780,14 +796,14 @@ header p {
 }
 
 .tasks-tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
 }
 
 /* Метка автора задачи */
 .task-owner {
   background: #e8edff;
-  color: #667eea;
+  color: #2f9f68;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.85em;
@@ -818,8 +834,8 @@ header p {
 }
 
 .calendar-view-btn.active {
-  background: #667eea;
-  border-color: #667eea;
+  background: #2f9f68;
+  border-color: #2f9f68;
   color: white;
 }
 
@@ -843,7 +859,7 @@ header p {
 }
 
 .btn-nav {
-  background: #667eea;
+  background: #2f9f68;
   color: white;
   font-size: 1.2em;
   width: 36px;
@@ -856,13 +872,13 @@ header p {
 }
 
 .btn-nav:hover {
-  background: #764ba2;
+  background: #1f7e4f;
 }
 
 .btn-today {
   background: none;
-  border: 1.5px solid #667eea;
-  color: #667eea;
+  border: 1.5px solid #2f9f68;
+  color: #2f9f68;
   padding: 4px 12px;
   border-radius: 6px;
   font-size: 0.85em;
@@ -872,7 +888,7 @@ header p {
 }
 
 .btn-today:hover {
-  background: #667eea;
+  background: #2f9f68;
   color: white;
 }
 
@@ -882,7 +898,7 @@ header p {
   text-align: center;
   font-weight: 700;
   font-size: 0.85em;
-  color: #667eea;
+  color: #2f9f68;
   margin-bottom: 5px;
   padding: 8px 0;
   border-bottom: 2px solid #f0f0f0;
@@ -914,7 +930,7 @@ header p {
 }
 
 .week-day-column.today {
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .week-day-header {
@@ -995,7 +1011,7 @@ header p {
 }
 
 .calendar-day.today {
-  background: #667eea;
+  background: #2f9f68;
   border-radius: 10px;
 }
 
@@ -1029,7 +1045,7 @@ header p {
 }
 
 .task-dot.backlog { background: #9e9e9e; }
-.task-dot.planned { background: #667eea; }
+.task-dot.planned { background: #2f9f68; }
 .task-dot.in_progress { background: #ff9800; }
 .task-dot.done { background: #4caf50; }
 .task-dot.canceled { background: #f44336; }
@@ -1076,7 +1092,7 @@ header p {
   align-items: baseline;
   gap: 8px;
   padding: 12px 15px;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid #2f9f68;
   margin-bottom: 12px;
   background: #f8f9ff;
   border-radius: 0 10px 10px 0;
@@ -1085,7 +1101,7 @@ header p {
 
 .activity-user {
   font-weight: 700;
-  color: #667eea;
+  color: #2f9f68;
   font-size: 0.95em;
 }
 
@@ -1178,7 +1194,7 @@ header p {
 }
 
 .modal-task:hover {
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .modal-task.completed {
@@ -1225,7 +1241,7 @@ header p {
 
 .modal-add input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .task-detail-overlay {

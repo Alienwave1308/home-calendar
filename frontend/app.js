@@ -261,8 +261,7 @@ window.addEventListener('hashchange', handleRoute);
 
 const authScreen = document.getElementById('authScreen');
 const appScreen = document.getElementById('appScreen');
-const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
+const tgAuthRetryBtn = document.getElementById('tgAuthRetryBtn');
 
 async function tryTelegramAutoLogin() {
   if (authToken && currentUser) return true;
@@ -323,7 +322,7 @@ function checkAuth() {
   if (!tgState.enabled) {
     authScreen.style.display = 'block';
     appScreen.style.display = 'none';
-    renderTelegramOnlyState();
+    renderTelegramOnlyState('outside');
     return;
   }
 
@@ -342,105 +341,46 @@ function checkAuth() {
   } else {
     authScreen.style.display = 'block';
     appScreen.style.display = 'none';
+    renderTelegramOnlyState('failed');
     syncMiniAppBackButton();
   }
 }
 
-function renderTelegramOnlyState() {
-  const tabs = document.querySelector('.auth-tabs');
-  const loginError = document.getElementById('loginError');
-  const registerError = document.getElementById('registerError');
-  const title = document.querySelector('#authScreen header p');
+function renderTelegramOnlyState(mode) {
+  const subtitle = document.getElementById('authSubtitle');
   const notice = document.getElementById('telegramOnlyNotice');
+  const retryBtn = document.getElementById('tgAuthRetryBtn');
+  const isOutsideTelegram = mode === 'outside';
 
-  if (tabs) tabs.style.display = 'none';
-  if (loginForm) loginForm.style.display = 'none';
-  if (registerForm) registerForm.style.display = 'none';
-  if (loginError) loginError.textContent = '';
-  if (registerError) registerError.textContent = '';
-  if (title) title.textContent = 'Доступен только через Telegram Mini App';
-  if (notice) notice.style.display = 'block';
+  if (subtitle) {
+    subtitle.textContent = isOutsideTelegram
+      ? 'Откройте приложение через Telegram Mini App'
+      : 'Подтверждаем вход через Telegram';
+  }
+
+  if (notice) {
+    notice.textContent = isOutsideTelegram
+      ? 'Веб-вход отключен. Запустите приложение из Telegram бота.'
+      : 'Не удалось подтвердить сессию Telegram. Нажмите «Повторить вход».';
+    notice.style.display = 'block';
+  }
+
+  if (retryBtn) retryBtn.style.display = isOutsideTelegram ? 'none' : 'inline-flex';
 }
 
-// Switch between login/register tabs
-// eslint-disable-next-line no-unused-vars
-function showAuthTab(tab, el) {
-  const tabs = document.querySelectorAll('.auth-tab');
-  tabs.forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-
-  if (tab === 'login') {
-    loginForm.style.display = 'block';
-    registerForm.style.display = 'none';
-  } else {
-    loginForm.style.display = 'none';
-    registerForm.style.display = 'block';
-  }
+if (tgAuthRetryBtn) {
+  tgAuthRetryBtn.addEventListener('click', async () => {
+    tgAuthRetryBtn.disabled = true;
+    const ok = await tryTelegramAutoLogin();
+    if (!ok) {
+      renderTelegramOnlyState('failed');
+      tgAuthRetryBtn.disabled = false;
+      return;
+    }
+    tgAuthRetryBtn.disabled = false;
+    checkAuth();
+  });
 }
-
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const errorEl = document.getElementById('loginError');
-  errorEl.textContent = '';
-
-  try {
-    const response = await fetch(`${AUTH_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: document.getElementById('loginUsername').value.trim(),
-        password: document.getElementById('loginPassword').value
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      errorEl.textContent = data.error || 'Ошибка входа';
-      return;
-    }
-
-    authToken = data.token;
-    currentUser = data.user;
-    localStorage.setItem('authToken', authToken);
-    localStorage.setItem('token', authToken);
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    checkAuth();
-  } catch {
-    errorEl.textContent = 'Ошибка соединения с сервером';
-  }
-});
-
-registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const errorEl = document.getElementById('registerError');
-  errorEl.textContent = '';
-
-  try {
-    const response = await fetch(`${AUTH_URL}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: document.getElementById('regUsername').value.trim(),
-        password: document.getElementById('regPassword').value
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      errorEl.textContent = data.error || 'Ошибка регистрации';
-      return;
-    }
-
-    authToken = data.token;
-    currentUser = data.user;
-    localStorage.setItem('authToken', authToken);
-    localStorage.setItem('token', authToken);
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    checkAuth();
-  } catch {
-    errorEl.textContent = 'Ошибка соединения с сервером';
-  }
-});
 
 function logout() {
   authToken = null;
@@ -2126,7 +2066,7 @@ if (tgState.enabled) {
   telegramMiniApp.onBackButton(handleMiniAppBack);
 }
 
-// Bootstrap auth state (Telegram mini app autologin first, then fallback to classic auth)
+// Bootstrap auth state (Telegram mini app only)
 (async () => {
   await tryTelegramAutoLogin();
   checkAuth();

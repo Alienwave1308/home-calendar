@@ -40,7 +40,7 @@
       if (typeof webApp.ready === 'function') webApp.ready();
       if (typeof webApp.expand === 'function') webApp.expand();
       if (typeof webApp.disableVerticalSwipes === 'function') webApp.disableVerticalSwipes();
-      if (typeof webApp.setHeaderColor === 'function') webApp.setHeaderColor('#667eea');
+      if (typeof webApp.setHeaderColor === 'function') webApp.setHeaderColor('#2f9f68');
       applyTheme(webApp.themeParams || {});
       if (globalScope.document && globalScope.document.documentElement) {
         globalScope.document.documentElement.classList.add('is-telegram-mini-app');
