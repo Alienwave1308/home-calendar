@@ -41,6 +41,32 @@ describe('Public Booking API', () => {
       .expect(400);
   });
 
+  it('should return 400 when booking export ics params are missing', async () => {
+    const res = await request(app)
+      .get('/api/public/export/booking.ics')
+      .expect(400);
+
+    expect(res.body.error).toContain('start_at and end_at are required');
+  });
+
+  it('should return single-event ics export with valid params', async () => {
+    const res = await request(app)
+      .get('/api/public/export/booking.ics')
+      .query({
+        title: 'Запись на депиляцию: Ноги',
+        details: 'Комментарий клиента: тест',
+        start_at: '2026-03-05T10:00:00.000Z',
+        end_at: '2026-03-05T11:00:00.000Z',
+        timezone: 'Asia/Novosibirsk'
+      })
+      .expect(200);
+
+    expect(res.headers['content-type']).toContain('text/calendar');
+    expect(res.text).toContain('BEGIN:VCALENDAR');
+    expect(res.text).toContain('SUMMARY:Запись на депиляцию: Ноги');
+    expect(res.text).toContain('X-WR-TIMEZONE:Asia/Novosibirsk');
+  });
+
   it('should require auth for booking creation', async () => {
     await request(app)
       .post('/api/public/master/master-slug/book')

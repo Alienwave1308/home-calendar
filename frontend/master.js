@@ -521,7 +521,13 @@
       showToast('Ссылка пока не доступна');
       return;
     }
-    const webcalUrl = input.value.replace(/^https?:\/\//, 'webcal://');
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    const httpsUrl = input.value;
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(httpsUrl, { try_instant_view: false });
+      return;
+    }
+    const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
     window.location.href = webcalUrl;
   }
 

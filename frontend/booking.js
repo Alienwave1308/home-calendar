@@ -359,32 +359,34 @@
     const description = descriptionParts.join('\n');
     const timezone = master.timezone || 'UTC';
 
-    googleLink.href = exportUtils.buildGoogleCalendarUrl({
+    const googleUrl = exportUtils.buildGoogleCalendarUrl({
       title: eventTitle,
       details: description,
       startIso: selectedSlot.start,
       endIso: selectedSlot.end,
       timezone: timezone
     });
+    googleLink.href = googleUrl;
+    googleLink.onclick = function (e) {
+      if (!tg || typeof tg.openLink !== 'function') return;
+      e.preventDefault();
+      tg.openLink(googleUrl, { try_instant_view: false });
+    };
 
     appleBtn.onclick = function () {
-      const content = exportUtils.buildIcsContent({
-        uid: 'booking-' + Date.now() + '@rova-epil.ru',
-        title: eventTitle,
-        description: description,
-        startIso: selectedSlot.start,
-        endIso: selectedSlot.end,
-        timezone: timezone
-      });
-      const blob = new window.Blob([content], { type: 'text/calendar;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'booking.ics';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const appleUrl = new window.URL(window.location.origin + '/api/public/export/booking.ics');
+      appleUrl.searchParams.set('title', eventTitle);
+      appleUrl.searchParams.set('details', description);
+      appleUrl.searchParams.set('start_at', selectedSlot.start);
+      appleUrl.searchParams.set('end_at', selectedSlot.end);
+      appleUrl.searchParams.set('timezone', timezone);
+      const href = appleUrl.toString();
+
+      if (tg && typeof tg.openLink === 'function') {
+        tg.openLink(href, { try_instant_view: false });
+        return;
+      }
+      window.location.href = href;
     };
   }
 
