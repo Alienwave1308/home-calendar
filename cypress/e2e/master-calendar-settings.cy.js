@@ -1,6 +1,8 @@
 describe('Master Panel - Calendar Settings E2E', () => {
   beforeEach(() => {
     let seeded = false;
+    let availabilityRules = [];
+    let exclusions = [];
 
     cy.intercept('GET', /\/api\/master\/calendar.*/, {
       statusCode: 200,
@@ -68,6 +70,34 @@ describe('Master Panel - Calendar Settings E2E', () => {
       }
     }).as('settingsEnabled');
 
+    cy.intercept('GET', /\/api\/master\/availability\/?(?:\?.*)?$/, (req) => {
+      req.reply({
+        statusCode: 200,
+        body: availabilityRules
+      });
+    }).as('availability');
+
+    cy.intercept('POST', '/api/master/availability', (req) => {
+      availabilityRules.push({
+        id: 101,
+        day_of_week: req.body.day_of_week,
+        start_time: req.body.start_time,
+        end_time: req.body.end_time,
+        slot_granularity_minutes: req.body.slot_granularity_minutes
+      });
+      req.reply({
+        statusCode: 201,
+        body: availabilityRules[availabilityRules.length - 1]
+      });
+    }).as('addAvailability');
+
+    cy.intercept('GET', /\/api\/master\/availability\/exclusions\/?(?:\?.*)?$/, (req) => {
+      req.reply({
+        statusCode: 200,
+        body: exclusions
+      });
+    }).as('availabilityExclusions');
+
     cy.visit('/master.html', {
       onBeforeLoad(win) {
         win.Telegram = {
@@ -110,5 +140,28 @@ describe('Master Panel - Calendar Settings E2E', () => {
 
     cy.contains('.service-card', 'Сахар: Бёдра').should('be.visible');
     cy.contains('.service-card', 'Воск: Ноги полностью').should('be.visible');
+  });
+
+  it('should allow adding availability rule for booking slots', () => {
+    cy.window().then((win) => {
+      win.MasterApp.switchTab('settings');
+    });
+
+    cy.wait('@availability');
+    cy.wait('@availabilityExclusions');
+    cy.get('#availabilityDay').select('Понедельник');
+    cy.get('#availabilityStart').clear().type('10:00');
+    cy.get('#availabilityEnd').clear().type('18:00');
+    cy.get('#availabilityStep').clear().type('30');
+    cy.contains('button', 'Добавить окно').click();
+
+    cy.wait('@addAvailability').its('request.body').should('deep.include', {
+      day_of_week: 1,
+      start_time: '10:00',
+      end_time: '18:00',
+      slot_granularity_minutes: 30
+    });
+    cy.contains('#availabilityRules', 'Понедельник').should('be.visible');
+    cy.contains('#availabilityRules', '10:00 - 18:00').should('be.visible');
   });
 });

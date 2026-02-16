@@ -31,6 +31,7 @@
   let token = localStorage.getItem('token') || '';
   let bookingsCache = [];
   let currentMasterSlug = '';
+  const DAY_LABELS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
   function $(id) { return document.getElementById(id); }
 
@@ -430,6 +431,123 @@
     }
 
     renderAppleCalendarSettings(appleSettings);
+    await loadAvailabilitySettings();
+  }
+
+  async function loadAvailabilitySettings() {
+    const rulesEl = $('availabilityRules');
+    const exclusionsEl = $('availabilityExclusions');
+    if (!rulesEl || !exclusionsEl) return;
+
+    rulesEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    exclusionsEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+
+    try {
+      const [rules, exclusions] = await Promise.all([
+        apiFetch('/availability'),
+        apiFetch('/availability/exclusions')
+      ]);
+
+      if (!rules.length) {
+        rulesEl.innerHTML = '<p class="settings-hint">Пока нет рабочих окон. Добавьте первое окно выше.</p>';
+      } else {
+        rulesEl.innerHTML = rules.map(function (rule) {
+          return '<div class="settings-list-item">'
+            + '<div>'
+            + '<strong>' + DAY_LABELS[rule.day_of_week] + '</strong>'
+            + '<div class="settings-hint">' + rule.start_time.slice(0, 5) + ' - ' + rule.end_time.slice(0, 5)
+            + ' · шаг ' + rule.slot_granularity_minutes + ' мин</div>'
+            + '</div>'
+            + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityRule(' + rule.id + ')">Удалить</button>'
+            + '</div>';
+        }).join('');
+      }
+
+      if (!exclusions.length) {
+        exclusionsEl.innerHTML = '<p class="settings-hint">Нет выходных дат.</p>';
+      } else {
+        exclusionsEl.innerHTML = exclusions.map(function (item) {
+          const reason = item.reason ? ' — ' + escapeHtml(item.reason) : '';
+          return '<div class="settings-list-item">'
+            + '<div><strong>' + item.date + '</strong><div class="settings-hint">' + reason + '</div></div>'
+            + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityExclusion(' + item.id + ')">Удалить</button>'
+            + '</div>';
+        }).join('');
+      }
+    } catch (err) {
+      rulesEl.innerHTML = '<p class="settings-hint">Не удалось загрузить</p>';
+      exclusionsEl.innerHTML = '<p class="settings-hint">Не удалось загрузить</p>';
+      showToast(err.message);
+    }
+  }
+
+  async function addAvailabilityRule() {
+    try {
+      const day = Number($('availabilityDay').value);
+      const start = $('availabilityStart').value;
+      const end = $('availabilityEnd').value;
+      const step = Number($('availabilityStep').value || 30);
+
+      if (!start || !end) {
+        showToast('Выберите время начала и конца');
+        return;
+      }
+
+      await apiMethod('POST', '/availability', {
+        day_of_week: day,
+        start_time: start,
+        end_time: end,
+        slot_granularity_minutes: step
+      });
+      await loadAvailabilitySettings();
+      showToast('Окно добавлено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deleteAvailabilityRule(ruleId) {
+    try {
+      await apiMethod('DELETE', '/availability/' + ruleId);
+      await loadAvailabilitySettings();
+      showToast('Окно удалено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function addAvailabilityExclusion() {
+    try {
+      const date = $('availabilityExclusionDate').value;
+      const reason = $('availabilityExclusionReason').value.trim();
+
+      if (!date) {
+        showToast('Выберите дату');
+        return;
+      }
+
+      await apiMethod('POST', '/availability/exclusions', {
+        date: date,
+        reason: reason || null
+      });
+
+      $('availabilityExclusionDate').value = '';
+      $('availabilityExclusionReason').value = '';
+      await loadAvailabilitySettings();
+      showToast('Выходной добавлен');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deleteAvailabilityExclusion(exclusionId) {
+    try {
+      await apiMethod('DELETE', '/availability/exclusions/' + exclusionId);
+      await loadAvailabilitySettings();
+      showToast('Выходной удален');
+    } catch (err) {
+      showToast(err.message);
+    }
   }
 
   function getAppleCalendarFeedUrl(tokenValue) {
@@ -588,6 +706,10 @@
     enableAppleCalendar: enableAppleCalendar,
     rotateAppleCalendar: rotateAppleCalendar,
     disableAppleCalendar: disableAppleCalendar,
+    addAvailabilityRule: addAvailabilityRule,
+    deleteAvailabilityRule: deleteAvailabilityRule,
+    addAvailabilityExclusion: addAvailabilityExclusion,
+    deleteAvailabilityExclusion: deleteAvailabilityExclusion,
     logout: logout,
     hideToast: hideToast
   };
