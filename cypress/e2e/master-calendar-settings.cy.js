@@ -49,7 +49,16 @@ describe('Master Panel - Calendar Settings E2E', () => {
 
     cy.visit('/master', {
       onBeforeLoad(win) {
+        win.Telegram = {
+          WebApp: {
+            initData: 'test-init-data',
+            initDataUnsafe: { user: { id: 777, username: 'master' } },
+            ready() {},
+            expand() {}
+          }
+        };
         win.localStorage.setItem('token', 'mock-token');
+        win.localStorage.setItem('authToken', 'mock-token');
       }
     });
   });

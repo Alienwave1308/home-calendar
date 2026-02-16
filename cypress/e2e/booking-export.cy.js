@@ -29,7 +29,18 @@ describe('Booking Mini App - Calendar Export E2E', () => {
       req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed' } });
     }).as('postBook');
 
-    cy.visit('/book/test-master');
+    cy.visit('/book/test-master', {
+      onBeforeLoad(win) {
+        win.Telegram = {
+          WebApp: {
+            initData: 'test-init-data',
+            initDataUnsafe: { user: { id: 1, username: 'client' } },
+            ready() {},
+            expand() {}
+          }
+        };
+      }
+    });
     cy.wait('@getMaster');
   });
 
