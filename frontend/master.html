@@ -101,6 +101,36 @@
         <h3>Напоминания</h3>
         <div id="reminderSettings"></div>
       </div>
+      <div class="settings-card">
+        <h3>Свободные окна для записи</h3>
+        <p class="settings-hint">Добавьте рабочие интервалы по дням недели. Клиенты будут видеть слоты только в этих окнах.</p>
+        <div class="availability-form">
+          <select id="availabilityDay">
+            <option value="1">Понедельник</option>
+            <option value="2">Вторник</option>
+            <option value="3">Среда</option>
+            <option value="4">Четверг</option>
+            <option value="5">Пятница</option>
+            <option value="6">Суббота</option>
+            <option value="0">Воскресенье</option>
+          </select>
+          <input id="availabilityStart" type="time" value="10:00">
+          <input id="availabilityEnd" type="time" value="20:00">
+          <input id="availabilityStep" type="number" min="5" step="5" value="30" placeholder="Шаг, мин">
+          <button class="btn-secondary" onclick="MasterApp.addAvailabilityRule()">Добавить окно</button>
+        </div>
+        <div id="availabilityRules" class="settings-list"></div>
+
+        <div class="availability-exclusions">
+          <h4>Выходные даты</h4>
+          <div class="availability-form">
+            <input id="availabilityExclusionDate" type="date">
+            <input id="availabilityExclusionReason" type="text" placeholder="Причина (необязательно)">
+            <button class="btn-secondary" onclick="MasterApp.addAvailabilityExclusion()">Добавить дату</button>
+          </div>
+          <div id="availabilityExclusions" class="settings-list"></div>
+        </div>
+      </div>
     </section>
 
     <!-- Network toast (reused from booking.css) -->
