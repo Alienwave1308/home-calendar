@@ -99,6 +99,10 @@ app.use('/api', recurrenceRouter);
 const shoppingRouter = require('./routes/shopping');
 app.use('/api/shopping', shoppingRouter);
 
+// Подключаем роуты для уведомлений (требуют авторизации)
+const notificationsRouter = require('./routes/notifications');
+app.use('/api/notifications', notificationsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
