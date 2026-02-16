@@ -10,7 +10,13 @@ describe('Master Panel - Calendar Settings E2E', () => {
       body: { connected: false }
     }).as('gcalStatus');
 
-    cy.intercept('GET', '/api/master/settings', {
+    cy.intercept(
+      {
+        method: 'GET',
+        url: '/api/master/settings',
+        times: 1
+      },
+      {
       statusCode: 200,
       body: {
         reminder_hours: [24, 2],
@@ -19,7 +25,8 @@ describe('Master Panel - Calendar Settings E2E', () => {
         apple_calendar_enabled: false,
         apple_calendar_token: null
       }
-    }).as('settingsInitial');
+      }
+    ).as('settingsInitial');
 
     cy.intercept('POST', '/api/master/settings/apple-calendar/enable', {
       statusCode: 200,

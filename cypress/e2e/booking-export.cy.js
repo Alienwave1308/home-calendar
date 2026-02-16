@@ -1,6 +1,6 @@
 describe('Booking Mini App - Calendar Export E2E', () => {
   beforeEach(() => {
-    cy.intercept('GET', '/api/public/master/test-master', {
+    cy.intercept('GET', /\/api\/public\/master\/test-master\/?$/, {
       statusCode: 200,
       body: {
         master: {
@@ -20,7 +20,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
       }
     }).as('getSlots');
 
-    cy.intercept('POST', '/api/public/master/test-master/book', (req) => {
+    cy.intercept('POST', /\/api\/public\/master\/test-master\/book\/?$/, (req) => {
       expect(req.body).to.include({
         service_id: 10,
         start_at: '2026-02-20T10:00:00.000Z',

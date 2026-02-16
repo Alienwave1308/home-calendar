@@ -34,9 +34,10 @@
   }
 
   // Extract booking slug from URL: /book/:slug or ?slug=...
-  const slug = new URLSearchParams(window.location.search).get('slug')
+  const rawSlug = new URLSearchParams(window.location.search).get('slug')
     || window.location.pathname.split('/book/')[1]
     || '';
+  const slug = String(rawSlug).split('?')[0].replace(/^\/+|\/+$/g, '');
 
   const API_BASE = '/api';
   const exportUtils = window.BookingExportUtils || {
