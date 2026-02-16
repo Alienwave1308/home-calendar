@@ -6,7 +6,8 @@ describe('Home Calendar - Auth E2E', () => {
   it('shows telegram-only auth state without web forms', () => {
     cy.visit('/');
     cy.contains('Календарь мастера');
-    cy.contains('Вход только через Telegram Mini App');
+    cy.contains('Подтверждаем вход через Telegram');
+    cy.contains('Не удалось подтвердить сессию Telegram');
     cy.get('#loginForm').should('not.exist');
     cy.get('#registerForm').should('not.exist');
     cy.get('#tgAuthRetryBtn').should('be.visible');
@@ -52,6 +53,6 @@ describe('Home Calendar - Auth E2E', () => {
     cy.contains('Выйти').click();
     cy.get('#authScreen').should('be.visible');
     cy.get('#appScreen').should('not.be.visible');
-    cy.contains('Вход только через Telegram Mini App');
+    cy.contains('Подтверждаем вход через Telegram');
   });
 });
