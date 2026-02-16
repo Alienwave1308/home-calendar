@@ -1,4 +1,4 @@
-describe('Home Calendar - Auth E2E', () => {
+describe('TG Mini App - Auth E2E', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
     cy.intercept('GET', '/api/dashboard', {

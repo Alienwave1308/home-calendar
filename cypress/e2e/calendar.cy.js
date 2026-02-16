@@ -1,4 +1,4 @@
-describe('Home Calendar - Calendar E2E', () => {
+describe('TG Mini App - Calendar E2E', () => {
   const testUser = 'cypressuser';
   const testPass = 'cypress123';
 

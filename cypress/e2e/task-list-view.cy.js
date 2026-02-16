@@ -1,4 +1,4 @@
-describe('Home Calendar - Task List View E2E', () => {
+describe('TG Mini App - Task List View E2E', () => {
   const unique = Date.now();
   const testUser = `cypressuser-tasklist-${unique}`;
   const testPass = 'cypress123';

@@ -1,4 +1,4 @@
-describe('Home Calendar - Kanban E2E', () => {
+describe('TG Mini App - Kanban E2E', () => {
   const unique = Date.now();
   const testUser = `cypressuser-kanban-${unique}`;
   const testPass = 'cypress123';
