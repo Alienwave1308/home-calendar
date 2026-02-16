@@ -140,6 +140,7 @@ app.get('/health', (req, res) => {
 
 // Подключаем базу данных
 const { initDB } = require('./db');
+const { runReminderWorkerTick } = require('./lib/reminders-worker');
 
 // Запускаем сервер только если файл запущен напрямую
 // (не при импорте в тестах)
@@ -148,6 +149,17 @@ if (require.main === module) {
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
     });
+
+    if (process.env.NODE_ENV !== 'test') {
+      const pollMs = Number(process.env.REMINDER_POLL_MS || 60000);
+      setInterval(async () => {
+        try {
+          await runReminderWorkerTick();
+        } catch (error) {
+          console.error('Reminder worker tick failed:', error);
+        }
+      }, pollMs);
+    }
   });
 }
 

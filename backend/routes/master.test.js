@@ -14,6 +14,17 @@ jest.mock('nanoid', () => ({
   nanoid: () => 'abc123test'
 }));
 
+jest.mock('../lib/reminders', () => ({
+  createReminders: jest.fn(),
+  deleteReminders: jest.fn(),
+  processPendingReminders: jest.fn(),
+  isQuietHours: jest.fn()
+}));
+
+jest.mock('../lib/telegram-notify', () => ({
+  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+}));
+
 const token = jwt.sign({ id: 1, username: 'master1' }, JWT_SECRET);
 const authHeader = `Bearer ${token}`;
 

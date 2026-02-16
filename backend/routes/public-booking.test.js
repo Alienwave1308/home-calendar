@@ -9,6 +9,14 @@ jest.mock('../db', () => ({
   initDB: jest.fn()
 }));
 
+jest.mock('../lib/reminders', () => ({
+  createReminders: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('../lib/telegram-notify', () => ({
+  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+}));
+
 describe('Public Booking API', () => {
   const token = jwt.sign({ id: 42, username: 'tg_42' }, JWT_SECRET, { expiresIn: '1h' });
   const authHeader = `Bearer ${token}`;

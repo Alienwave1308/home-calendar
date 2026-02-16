@@ -3,6 +3,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
     let seeded = false;
     let availabilityRules = [];
     let exclusions = [];
+    let availabilitySeq = 100;
 
     cy.intercept('GET', /\/api\/master\/calendar.*/, {
       statusCode: 200,
@@ -78,8 +79,9 @@ describe('Master Panel - Calendar Settings E2E', () => {
     }).as('availability');
 
     cy.intercept('POST', '/api/master/availability', (req) => {
+      availabilitySeq += 1;
       availabilityRules.push({
-        id: 101,
+        id: availabilitySeq,
         day_of_week: req.body.day_of_week,
         start_time: req.body.start_time,
         end_time: req.body.end_time,
@@ -163,5 +165,26 @@ describe('Master Panel - Calendar Settings E2E', () => {
     });
     cy.contains('#availabilityRules', 'Понедельник').should('be.visible');
     cy.contains('#availabilityRules', '10:00 - 18:00').should('be.visible');
+  });
+
+  it('should allow bulk availability input', () => {
+    cy.window().then((win) => {
+      win.MasterApp.switchTab('settings');
+    });
+
+    cy.wait('@availability');
+    cy.wait('@availabilityExclusions');
+
+    cy.get('#availabilityBulkInput').type('Пн 10:00-12:00, 13:00-14:00{enter}Вт 11:00-15:00');
+    cy.get('#availabilityBulkStep').clear().type('20');
+    cy.contains('button', 'Добавить из строк').click();
+
+    cy.wait('@addAvailability');
+    cy.wait('@addAvailability');
+    cy.wait('@addAvailability');
+
+    cy.contains('#availabilityRules', 'Понедельник').should('be.visible');
+    cy.contains('#availabilityRules', 'Вторник').should('be.visible');
+    cy.contains('#availabilityRules', 'шаг 20 мин').should('be.visible');
   });
 });

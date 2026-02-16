@@ -3,6 +3,8 @@ const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { generateSlots } = require('../lib/slots');
+const { createReminders } = require('../lib/reminders');
+const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -295,8 +297,16 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
        RETURNING *`,
       [master.id, req.user.id, service.id, startDate.toISOString(), endDate.toISOString(), client_note || null]
     );
+    const created = result.rows[0];
 
-    return res.status(201).json(result.rows[0]);
+    try {
+      await createReminders(created.id, created.master_id, created.start_at);
+      await notifyMasterBookingEvent(created.id, 'created');
+    } catch (notifyError) {
+      console.error('Error handling public booking side-effects:', notifyError);
+    }
+
+    return res.status(201).json(created);
   } catch (error) {
     if (error.code === '23P01') {
       return res.status(409).json({ error: 'Time slot is already taken' });

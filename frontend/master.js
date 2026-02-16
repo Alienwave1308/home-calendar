@@ -32,6 +32,15 @@
   let bookingsCache = [];
   let currentMasterSlug = '';
   const DAY_LABELS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+  const DAY_ALIASES = {
+    'пн': 1, 'понедельник': 1,
+    'вт': 2, 'вторник': 2,
+    'ср': 3, 'среда': 3,
+    'чт': 4, 'четверг': 4,
+    'пт': 5, 'пятница': 5,
+    'сб': 6, 'суббота': 6,
+    'вс': 0, 'воскресенье': 0
+  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -506,6 +515,66 @@
     }
   }
 
+  function parseAvailabilityBulk(text, step) {
+    const lines = String(text || '')
+      .split('\n')
+      .map(function (line) { return line.trim(); })
+      .filter(Boolean);
+
+    const result = [];
+    for (const line of lines) {
+      const match = line.match(/^([а-яА-Яa-zA-Z]+)\s+(.+)$/);
+      if (!match) {
+        throw new Error('Неверный формат строки: ' + line);
+      }
+      const dayToken = match[1].toLowerCase();
+      const dayOfWeek = DAY_ALIASES[dayToken];
+      if (dayOfWeek === undefined) {
+        throw new Error('Неизвестный день недели: ' + match[1]);
+      }
+
+      const ranges = match[2]
+        .split(',')
+        .map(function (item) { return item.trim(); })
+        .filter(Boolean);
+
+      for (const range of ranges) {
+        const rangeMatch = range.match(/^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/);
+        if (!rangeMatch) {
+          throw new Error('Неверный диапазон времени: ' + range);
+        }
+        result.push({
+          day_of_week: dayOfWeek,
+          start_time: rangeMatch[1],
+          end_time: rangeMatch[2],
+          slot_granularity_minutes: step
+        });
+      }
+    }
+    return result;
+  }
+
+  async function addAvailabilityBulk() {
+    try {
+      const text = $('availabilityBulkInput').value;
+      const step = Number($('availabilityBulkStep').value || 30);
+      const rules = parseAvailabilityBulk(text, step);
+      if (!rules.length) {
+        showToast('Добавьте хотя бы одну строку');
+        return;
+      }
+
+      for (const rule of rules) {
+        await apiMethod('POST', '/availability', rule);
+      }
+      $('availabilityBulkInput').value = '';
+      await loadAvailabilitySettings();
+      showToast('Добавлено окон: ' + rules.length);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
   async function deleteAvailabilityRule(ruleId) {
     try {
       await apiMethod('DELETE', '/availability/' + ruleId);
@@ -707,6 +776,7 @@
     rotateAppleCalendar: rotateAppleCalendar,
     disableAppleCalendar: disableAppleCalendar,
     addAvailabilityRule: addAvailabilityRule,
+    addAvailabilityBulk: addAvailabilityBulk,
     deleteAvailabilityRule: deleteAvailabilityRule,
     addAvailabilityExclusion: addAvailabilityExclusion,
     deleteAvailabilityExclusion: deleteAvailabilityExclusion,

@@ -12,6 +12,15 @@ jest.mock('../db', () => ({
   initDB: jest.fn()
 }));
 
+jest.mock('../lib/reminders', () => ({
+  createReminders: jest.fn().mockResolvedValue(undefined),
+  deleteReminders: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('../lib/telegram-notify', () => ({
+  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+}));
+
 const token = jwt.sign({ id: 10, username: 'client1' }, JWT_SECRET);
 const authHeader = `Bearer ${token}`;
 

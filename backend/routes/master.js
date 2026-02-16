@@ -6,6 +6,8 @@ const { nanoid } = require('nanoid');
 const crypto = require('crypto');
 const { generateSlots } = require('../lib/slots');
 const { DEFAULT_SERVICES, toDescription } = require('../lib/default-services');
+const { createReminders, deleteReminders } = require('../lib/reminders');
+const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
 
 // All master routes require authentication
 router.use(authenticateToken);
@@ -706,8 +708,23 @@ router.patch('/bookings/:id', loadMaster, async (req, res) => {
       `UPDATE bookings SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
       values
     );
+    const updated = result.rows[0];
 
-    res.json(result.rows[0]);
+    try {
+      if (status !== undefined) {
+        if (['canceled', 'completed', 'no_show'].includes(updated.status)) {
+          await deleteReminders(updated.id);
+        } else if (updated.status === 'confirmed') {
+          await deleteReminders(updated.id);
+          await createReminders(updated.id, updated.master_id, updated.start_at);
+        }
+      }
+      await notifyMasterBookingEvent(updated.id, 'updated');
+    } catch (notifyError) {
+      console.error('Error handling booking patch side-effects:', notifyError);
+    }
+
+    res.json(updated);
   } catch (error) {
     console.error('Error updating booking:', error);
     res.status(500).json({ error: 'Server error' });
@@ -755,7 +772,18 @@ router.post('/bookings', loadMaster, async (req, res) => {
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    const created = result.rows[0];
+
+    try {
+      if (created.status === 'confirmed') {
+        await createReminders(created.id, created.master_id, created.start_at);
+      }
+      await notifyMasterBookingEvent(created.id, 'created');
+    } catch (notifyError) {
+      console.error('Error handling booking create side-effects:', notifyError);
+    }
+
+    res.status(201).json(created);
   } catch (error) {
     if (error.code === '23P01') {
       return res.status(409).json({ error: 'Time slot is already taken' });
@@ -862,8 +890,21 @@ router.put('/bookings/:id', loadMaster, async (req, res) => {
        RETURNING *`,
       values
     );
+    const updated = result.rows[0];
 
-    res.json(result.rows[0]);
+    try {
+      if (['canceled', 'completed', 'no_show'].includes(updated.status)) {
+        await deleteReminders(updated.id);
+      } else if (updated.status === 'confirmed') {
+        await deleteReminders(updated.id);
+        await createReminders(updated.id, updated.master_id, updated.start_at);
+      }
+      await notifyMasterBookingEvent(updated.id, 'updated');
+    } catch (notifyError) {
+      console.error('Error handling booking edit side-effects:', notifyError);
+    }
+
+    res.json(updated);
   } catch (error) {
     if (error.code === '23P01') {
       return res.status(409).json({ error: 'Time slot is already taken' });

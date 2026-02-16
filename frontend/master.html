@@ -119,6 +119,14 @@
           <input id="availabilityStep" type="number" min="5" step="5" value="30" placeholder="Шаг, мин">
           <button class="btn-secondary" onclick="MasterApp.addAvailabilityRule()">Добавить окно</button>
         </div>
+        <div class="availability-bulk">
+          <label for="availabilityBulkInput">Быстрый ввод строками</label>
+          <textarea id="availabilityBulkInput" rows="4" placeholder="Пн 10:00-12:00, 13:00-18:00&#10;Вт 11:00-17:00"></textarea>
+          <div class="availability-form">
+            <input id="availabilityBulkStep" type="number" min="5" step="5" value="30" placeholder="Шаг, мин">
+            <button class="btn-secondary" onclick="MasterApp.addAvailabilityBulk()">Добавить из строк</button>
+          </div>
+        </div>
         <div id="availabilityRules" class="settings-list"></div>
 
         <div class="availability-exclusions">

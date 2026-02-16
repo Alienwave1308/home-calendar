@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { createReminders, deleteReminders } = require('../lib/reminders');
+const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
 
 // All client booking routes require authentication
 router.use(authenticateToken);
@@ -85,6 +87,12 @@ router.patch('/:id/cancel', async (req, res) => {
       [req.params.id]
     );
 
+    try {
+      await deleteReminders(booking.id);
+    } catch (notifyError) {
+      console.error('Error deleting reminders for canceled booking:', notifyError);
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error canceling booking:', error);
@@ -161,7 +169,19 @@ router.patch('/:id/reschedule', async (req, res) => {
       );
 
       await client.query('COMMIT');
-      res.json(result.rows[0]);
+      const updated = result.rows[0];
+
+      try {
+        await deleteReminders(updated.id);
+        if (updated.status === 'confirmed') {
+          await createReminders(updated.id, updated.master_id, updated.start_at);
+        }
+        await notifyMasterBookingEvent(updated.id, 'updated');
+      } catch (notifyError) {
+        console.error('Error handling reschedule side-effects:', notifyError);
+      }
+
+      res.json(updated);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
