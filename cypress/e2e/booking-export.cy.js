@@ -29,6 +29,13 @@ describe('Booking Mini App - Calendar Export E2E', () => {
       req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed' } });
     }).as('postBook');
 
+    cy.intercept('GET', /\/api\/client\/bookings\/1\/calendar-feed\/?$/, {
+      statusCode: 200,
+      body: {
+        feed_path: '/api/public/master/test-master/client-calendar.ics?token=test-client-token'
+      }
+    }).as('getClientCalendarFeed');
+
     cy.visit('/booking.html?slug=test-master', {
       onBeforeLoad(win) {
         win.Telegram = {
@@ -67,8 +74,9 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('#doneAppleBtn').should('be.visible');
 
     cy.get('#doneAppleBtn').click();
+    cy.wait('@getClientCalendarFeed');
     cy.get('@openLink').should('have.been.called');
-    cy.get('@openLink').its('lastCall.args.0').should('include', '/api/public/export/booking.ics');
-    cy.get('@openLink').its('lastCall.args.0').should('include', 'timezone=Asia%2FNovosibirsk');
+    cy.get('@openLink').its('lastCall.args.0').should('include', 'client-calendar.ics');
+    cy.get('@openLink').its('lastCall.args.0').should('include', 'token=test-client-token');
   });
 });
