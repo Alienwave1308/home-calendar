@@ -36,7 +36,8 @@ describe('Booking Mini App - Calendar Export E2E', () => {
             initData: 'test-init-data',
             initDataUnsafe: { user: { id: 1, username: 'client' } },
             ready() {},
-            expand() {}
+            expand() {},
+            openLink() {}
           }
         };
       }
@@ -44,8 +45,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.wait('@getMaster', { timeout: 10000 });
 
     cy.window().then((win) => {
-      cy.stub(win.URL, 'createObjectURL').returns('blob:test-ics').as('createObjectURL');
-      cy.stub(win.URL, 'revokeObjectURL').as('revokeObjectURL');
+      cy.stub(win.Telegram.WebApp, 'openLink').as('openLink');
     });
   });
 
@@ -67,8 +67,8 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('#doneAppleBtn').should('be.visible');
 
     cy.get('#doneAppleBtn').click();
-    cy.get('@createObjectURL').should('have.been.calledOnce');
-    cy.get('@createObjectURL').its('firstCall.args.0.type').should('include', 'text/calendar');
-    cy.get('@revokeObjectURL').should('have.been.calledWith', 'blob:test-ics');
+    cy.get('@openLink').should('have.been.called');
+    cy.get('@openLink').its('lastCall.args.0').should('include', '/api/public/export/booking.ics');
+    cy.get('@openLink').its('lastCall.args.0').should('include', 'timezone=Asia%2FNovosibirsk');
   });
 });
