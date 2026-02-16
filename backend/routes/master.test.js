@@ -688,4 +688,72 @@ describe('Master API', () => {
         .expect(404);
     });
   });
+
+  // === SETTINGS ===
+
+  describe('GET /api/master/settings', () => {
+    it('should return defaults when no settings exist', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [] }); // no settings row
+
+      const res = await request(app)
+        .get('/api/master/settings')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.reminder_hours).toEqual([24, 2]);
+      expect(res.body.quiet_hours_start).toBeNull();
+      expect(res.body.quiet_hours_end).toBeNull();
+    });
+
+    it('should return saved settings', async () => {
+      const settings = {
+        master_id: 1, reminder_hours: [48, 12, 1],
+        quiet_hours_start: '22:00', quiet_hours_end: '08:00'
+      };
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [settings] });
+
+      const res = await request(app)
+        .get('/api/master/settings')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.reminder_hours).toEqual([48, 12, 1]);
+      expect(res.body.quiet_hours_start).toBe('22:00');
+    });
+  });
+
+  describe('PUT /api/master/settings', () => {
+    it('should upsert settings', async () => {
+      const saved = {
+        master_id: 1, reminder_hours: [12, 1],
+        quiet_hours_start: '23:00', quiet_hours_end: '07:00'
+      };
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [saved] });
+
+      const res = await request(app)
+        .put('/api/master/settings')
+        .set('Authorization', authHeader)
+        .send({ reminder_hours: [12, 1], quiet_hours_start: '23:00', quiet_hours_end: '07:00' })
+        .expect(200);
+
+      expect(res.body.reminder_hours).toEqual([12, 1]);
+      expect(res.body.quiet_hours_start).toBe('23:00');
+    });
+
+    it('should reject non-array reminder_hours', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] });
+
+      await request(app)
+        .put('/api/master/settings')
+        .set('Authorization', authHeader)
+        .send({ reminder_hours: 'not-array' })
+        .expect(400);
+    });
+  });
 });

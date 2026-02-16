@@ -95,6 +95,10 @@ app.use('/api/dashboard', dashboardRouter);
 const masterRouter = require('./routes/master');
 app.use('/api/master', masterRouter);
 
+// Подключаем роуты клиентских бронирований
+const clientBookingsRouter = require('./routes/client-bookings');
+app.use('/api/client/bookings', clientBookingsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
