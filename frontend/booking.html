@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#667eea">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <!-- Telegram Mini App -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <title>Запись</title>
+  <link rel="stylesheet" href="booking.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Шаг 1: Выбор услуги -->
+    <section class="step" id="stepServices">
+      <div class="step-header">
+        <h1 id="masterName" class="master-name"></h1>
+        <p class="step-subtitle">Выберите услугу</p>
+      </div>
+      <div id="servicesList" class="services-list">
+        <!-- skeleton or services -->
+      </div>
+      <div id="servicesEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">📋</div>
+        <p>У мастера пока нет доступных услуг</p>
+      </div>
+    </section>
+
+    <!-- Шаг 2: Выбор даты и слота -->
+    <section class="step" id="stepSlots" style="display:none;">
+      <div class="step-header">
+        <button class="btn-back" onclick="BookingApp.goBack('stepServices')">&larr; Назад</button>
+        <h2 id="selectedServiceName"></h2>
+        <p class="step-subtitle">Выберите дату и время</p>
+      </div>
+      <div class="date-strip" id="dateStrip">
+        <!-- horizontal scrollable dates -->
+      </div>
+      <div id="slotsList" class="slots-grid">
+        <!-- skeleton or slots -->
+      </div>
+      <div id="slotsEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">🕐</div>
+        <p>Нет свободных слотов на эту дату</p>
+        <button class="btn-secondary" onclick="BookingApp.nextDate()">Попробовать другой день</button>
+      </div>
+    </section>
+
+    <!-- Шаг 3: Подтверждение -->
+    <section class="step" id="stepConfirm" style="display:none;">
+      <div class="step-header">
+        <button class="btn-back" onclick="BookingApp.goBack('stepSlots')">&larr; Назад</button>
+        <h2>Подтверждение записи</h2>
+      </div>
+      <div class="confirm-card">
+        <div class="confirm-row">
+          <span class="confirm-label">Услуга</span>
+          <span id="confirmService" class="confirm-value"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">Дата</span>
+          <span id="confirmDate" class="confirm-value"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">Время</span>
+          <span id="confirmTime" class="confirm-value"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-label">Длительность</span>
+          <span id="confirmDuration" class="confirm-value"></span>
+        </div>
+        <div class="confirm-row" id="confirmPriceRow" style="display:none;">
+          <span class="confirm-label">Стоимость</span>
+          <span id="confirmPrice" class="confirm-value confirm-price"></span>
+        </div>
+        <textarea id="confirmNote" class="confirm-note" placeholder="Комментарий к записи (необязательно)" rows="2"></textarea>
+      </div>
+      <button class="btn-primary btn-book" id="btnBook" onclick="BookingApp.confirmBooking()">
+        Записаться
+      </button>
+    </section>
+
+    <!-- Шаг 4: Готово -->
+    <section class="step" id="stepDone" style="display:none;">
+      <div class="done-card">
+        <div class="done-icon">✅</div>
+        <h2>Вы записаны!</h2>
+        <p id="doneDetails" class="done-details"></p>
+        <button class="btn-primary" onclick="BookingApp.reset()">Записаться ещё</button>
+      </div>
+    </section>
+
+    <!-- Ошибка сети (toast) -->
+    <div id="networkToast" class="network-toast" style="display:none;">
+      <span id="networkToastText"></span>
+      <button class="toast-close" onclick="BookingApp.hideToast()">&times;</button>
+    </div>
+
+    <!-- Полноэкранный лоадер -->
+    <div id="fullLoader" class="full-loader" style="display:none;">
+      <div class="loader-spinner"></div>
+    </div>
+  </div>
+
+  <script src="booking.js"></script>
+</body>
+</html>

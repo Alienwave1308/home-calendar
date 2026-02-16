@@ -103,6 +103,16 @@ app.use('/api/client/bookings', clientBookingsRouter);
 const calendarSyncRouter = require('./routes/calendar-sync');
 app.use('/api/calendar-sync', calendarSyncRouter);
 
+// Booking Mini App — serve booking.html for /book/:slug
+app.get('/book/:slug', (req, res) => {
+  res.sendFile(path.join(frontendDir, 'booking.html'));
+});
+
+// Master panel
+app.get('/master', (req, res) => {
+  res.sendFile(path.join(frontendDir, 'master.html'));
+});
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
