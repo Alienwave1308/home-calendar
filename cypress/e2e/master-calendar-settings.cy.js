@@ -101,7 +101,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
     });
 
     cy.wait('@services');
-    cy.contains('Заполнить прайс по шаблону').click();
+    cy.contains('button:visible', 'Заполнить прайс по шаблону').click();
     cy.wait('@bootstrapServices');
     cy.wait('@services');
 
