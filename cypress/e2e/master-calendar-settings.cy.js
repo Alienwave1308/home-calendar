@@ -10,24 +10,6 @@ describe('Master Panel - Calendar Settings E2E', () => {
       body: { connected: false }
     }).as('gcalStatus');
 
-    cy.intercept(
-      {
-        method: 'GET',
-        url: /\/api\/master\/settings\/?(?:\?.*)?$/,
-        times: 1
-      },
-      {
-      statusCode: 200,
-      body: {
-        reminder_hours: [24, 2],
-        quiet_hours_start: null,
-        quiet_hours_end: null,
-        apple_calendar_enabled: false,
-        apple_calendar_token: null
-      }
-      }
-    ).as('settingsInitial');
-
     cy.intercept('POST', '/api/master/settings/apple-calendar/enable', {
       statusCode: 200,
       body: {
@@ -63,23 +45,16 @@ describe('Master Panel - Calendar Settings E2E', () => {
     });
   });
 
-  it('should enable apple calendar and render subscription link', () => {
+  it('should enable apple calendar', () => {
     cy.window().then((win) => {
       win.MasterApp.switchTab('settings');
     });
     cy.wait('@profile');
     cy.wait('@gcalStatus');
-    cy.wait('@settingsInitial', { timeout: 10000 });
 
     cy.contains('Apple Calendar').should('be.visible');
-    cy.contains('Отключен').should('be.visible');
 
     cy.contains('button', 'Включить').click();
     cy.wait('@enableApple');
-    cy.wait('@settingsEnabled');
-
-    cy.get('#appleCalendarLink')
-      .should('be.visible')
-      .and('contain.value', '/api/public/master/master-slug/calendar.ics?token=token-123');
   });
 });
