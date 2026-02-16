@@ -696,7 +696,7 @@ function renderClientBookings(bookings) {
   emptyEl.style.display = 'none';
   listEl.innerHTML = bookings.map((booking) => {
     const startAt = booking.start_at ? new Date(booking.start_at).toLocaleString('ru-RU') : 'Дата не указана';
-    const status = escapeHtml(booking.status || 'confirmed');
+    const status = escapeHtml(BOOKING_STATUS_LABELS[booking.status] || 'Запланировано');
     const service = escapeHtml(booking.service_name || 'Услуга');
     const note = escapeHtml(booking.client_note || booking.master_note || '');
     return `
@@ -762,6 +762,13 @@ const STATUS_LABELS = {
   done: { text: 'Готово', icon: '✅', next: 'backlog' },
   canceled: { text: 'Отменено', icon: '❌', next: 'backlog' },
   archived: { text: 'Архив', icon: '📦', next: 'backlog' }
+};
+
+const BOOKING_STATUS_LABELS = {
+  pending: 'Ожидает подтверждения',
+  confirmed: 'Запланировано',
+  completed: 'Выполнено',
+  canceled: 'Отменено'
 };
 const kanbanUtils = window.KanbanUtils || {
   KANBAN_STATUSES: ['backlog', 'planned', 'in_progress', 'done'],
@@ -1970,9 +1977,12 @@ const ACTION_LABELS = {
   'task.status_changed': 'изменил(а) статус',
   'comment.created': 'оставил(а) комментарий',
   'comment.deleted': 'удалил(а) комментарий',
-  'member.joined': 'присоединился(ась)',
-  'member.left': 'покинул(а) клиентскую базу',
-  'member.kicked': 'убрал(а) клиента',
+  'member.joined': 'добавил(а) клиента',
+  'member.left': 'деактивировал(а) клиента',
+  'member.kicked': 'удалил(а) клиента',
+  'client.added': 'добавил(а) клиента',
+  'client.left': 'деактивировал(а) клиента',
+  'client.removed': 'удалил(а) клиента',
   'list.created': 'создал(а) список',
   'list.deleted': 'удалил(а) список'
 };
