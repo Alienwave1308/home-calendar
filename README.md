@@ -1,21 +1,21 @@
-# Home Calendar / Family Task Tracker
+# RoVa Epil Telegram Mini App
 
-Семейный таск-трекер на Node.js + Vanilla JS.
+Telegram Mini App для записи к мастеру (Node.js + Vanilla JS + PostgreSQL).
+
+## Актуальная документация
+
+- `docs/PROJECT_REFERENCE.md` — основной source of truth по архитектуре и правилам.
+- `docs/AI_COLLABORATION.md` — процесс работы и релиза (Codex + Claude Code).
+- `docs/HANDOFF_TEMPLATE.md` — шаблон передачи контекста между сессиями.
+- `docs/PROD_TG_RELEASE.md` — prod checklist/env/reset.
 
 ## Что реализовано
-- Auth, семья, роли
-- Задачи: список, фильтры, пагинация, массовые действия
-- Календарь: месяц/неделя/день
-- Канбан с drag-and-drop
-- Карточка задачи: описание (markdown preview), чек-лист, комментарии, теги, исполнители, история
-- CI: lint + backend tests + параллельные e2e по секциям + e2e coverage
-
-## Фаза 24 (полировка)
-- Глобальный banner для offline/сетевых сбоев
-- Skeleton loading для основных экранов
-- Улучшенные пустые состояния с подсказками
-- Ленивая загрузка данных по route (без раннего preload после логина)
-- PWA мета/manifest + favicon и app icons
+- Telegram-only auth
+- Роли: мастер/клиент
+- Клиентский booking flow (`/book/:slug`)
+- Панель мастера (`/master`)
+- Услуги, записи, рабочие окна, блоки, напоминания, экспорт календарей
+- CI: lint -> параллельные backend/e2e -> summary
 
 ## Telegram Mini App
 - Фронтенд поддерживает запуск внутри Telegram WebView (без открытия внешнего браузера).
