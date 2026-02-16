@@ -7,33 +7,34 @@
 }
 
 :root {
-  --primary: #667eea;
-  --primary-dark: #5a6fd6;
-  --primary-light: #eef2ff;
-  --bg: #f7f8fc;
-  --card: #ffffff;
-  --text: #2f3550;
-  --text-secondary: #6b7280;
-  --border: #e0e6ff;
-  --success: #10b981;
-  --error: #ef4444;
+  --primary: #2f9f68;
+  --primary-dark: #1f7e4f;
+  --primary-light: #e6f5ec;
+  --bg: #eaf6ee;
+  --card: #f8fdf9;
+  --text: #153628;
+  --text-secondary: #557264;
+  --border: #bddfc8;
+  --success: #2f9f68;
+  --error: #cf4a4a;
   --radius: 12px;
-  --shadow: 0 2px 12px rgba(102, 126, 234, 0.1);
+  --shadow: 0 6px 18px rgba(34, 116, 74, 0.14);
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
+  background: radial-gradient(circle at 15% 5%, #d7f0de 0%, #bfe5cb 40%, #a8d8b8 100%);
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top);
 }
 
 #app {
   max-width: 480px;
   margin: 0 auto;
   padding: 16px;
-  padding-bottom: 32px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 /* === STEP TRANSITIONS === */
@@ -305,7 +306,7 @@ body {
   display: block;
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border: none;
   border-radius: var(--radius);
@@ -342,7 +343,7 @@ body {
 
 .btn-book {
   position: sticky;
-  bottom: 16px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
 }
 
 /* === DONE SCREEN === */
@@ -374,6 +375,22 @@ body {
   color: var(--text-secondary);
   margin-bottom: 24px;
   line-height: 1.5;
+}
+
+.done-export-actions {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.done-export-btn {
+  width: 100%;
+  text-decoration: none;
+  text-align: center;
+  min-height: 44px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
 }
 
 /* === EMPTY STATE === */
@@ -410,7 +427,7 @@ body {
 .skeleton-line {
   height: 12px;
   border-radius: 6px;
-  background: linear-gradient(90deg, #eef2ff 0%, #dde5ff 50%, #eef2ff 100%);
+  background: linear-gradient(90deg, #e8f5ec 0%, #d3ebdc 50%, #e8f5ec 100%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
@@ -499,7 +516,7 @@ body {
 .full-loader {
   position: fixed;
   inset: 0;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(248, 253, 249, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -524,6 +541,7 @@ body {
 @media (max-width: 360px) {
   #app {
     padding: 12px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
   }
 
   .slots-grid {
@@ -538,6 +556,7 @@ body {
 @media (min-width: 481px) {
   #app {
     padding: 24px;
+    padding-bottom: 26px;
   }
 
   .slots-grid {

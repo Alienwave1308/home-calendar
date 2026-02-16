@@ -22,7 +22,7 @@ describe('Shopping API', () => {
   });
 
   describe('GET /api/shopping', () => {
-    it('should return 404 if user has no family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -31,7 +31,7 @@ describe('Shopping API', () => {
         .expect(404);
     });
 
-    it('should return shopping items for the family', async () => {
+    it('should return shopping items for the workspace', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ family_id: 1 }] }) // getUserFamily
         .mockResolvedValueOnce({
@@ -85,7 +85,7 @@ describe('Shopping API', () => {
         .expect(400);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -133,7 +133,7 @@ describe('Shopping API', () => {
         .expect(404);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -190,7 +190,7 @@ describe('Shopping API', () => {
         .expect(404);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -223,7 +223,7 @@ describe('Shopping API', () => {
         .expect(404);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -263,7 +263,7 @@ describe('Shopping API', () => {
         .expect(404);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)

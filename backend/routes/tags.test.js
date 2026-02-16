@@ -22,7 +22,7 @@ describe('Tags API', () => {
   });
 
   describe('GET /api/tags', () => {
-    it('should return 404 if user has no family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] }); // no family
 
       await request(app)
@@ -31,7 +31,7 @@ describe('Tags API', () => {
         .expect(404);
     });
 
-    it('should return tags for user family', async () => {
+    it('should return tags for user workspace', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ family_id: 1 }] }) // family membership
         .mockResolvedValueOnce({
@@ -103,7 +103,7 @@ describe('Tags API', () => {
         .expect(400);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)

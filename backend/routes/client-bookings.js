@@ -6,6 +6,46 @@ const { authenticateToken } = require('../middleware/auth');
 // All client booking routes require authentication
 router.use(authenticateToken);
 
+// GET /api/client/bookings
+router.get('/', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT b.*, s.name AS service_name, m.display_name AS master_name, m.timezone AS master_timezone
+       FROM bookings b
+       JOIN services s ON b.service_id = s.id
+       JOIN masters m ON b.master_id = m.id
+       WHERE b.client_id = $1
+       ORDER BY b.start_at DESC`,
+      [req.user.id]
+    );
+    return res.json(rows);
+  } catch (error) {
+    console.error('Error loading client bookings:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/client/bookings/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT b.*, s.name AS service_name, m.display_name AS master_name, m.timezone AS master_timezone
+       FROM bookings b
+       JOIN services s ON b.service_id = s.id
+       JOIN masters m ON b.master_id = m.id
+       WHERE b.id = $1 AND b.client_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    return res.json(rows[0]);
+  } catch (error) {
+    console.error('Error loading client booking:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PATCH /api/client/bookings/:id/cancel
 router.patch('/:id/cancel', async (req, res) => {
   try {

@@ -10,10 +10,10 @@ describe('Kanban utils', () => {
   it('should expose roadmap statuses and titles', () => {
     expect(KANBAN_STATUSES).toEqual(['backlog', 'planned', 'in_progress', 'done']);
     expect(KANBAN_COLUMN_TITLES).toEqual({
-      backlog: 'Backlog',
-      planned: 'Planned',
-      in_progress: 'In Progress',
-      done: 'Done'
+      backlog: 'Бэклог',
+      planned: 'Запланировано',
+      in_progress: 'В работе',
+      done: 'Выполнено'
     });
   });
 

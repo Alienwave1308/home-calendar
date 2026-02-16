@@ -3,10 +3,39 @@ const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { nanoid } = require('nanoid');
+const crypto = require('crypto');
 const { generateSlots } = require('../lib/slots');
 
 // All master routes require authentication
 router.use(authenticateToken);
+
+router.use(async (req, res, next) => {
+  if (process.env.NODE_ENV === 'test') return next();
+
+  const masterTelegramId = String(process.env.MASTER_TELEGRAM_USER_ID || '').trim();
+  if (masterTelegramId) {
+    if (req.user.username !== `tg_${masterTelegramId}`) {
+      return res.status(403).json({ error: 'Master access is restricted to configured Telegram account' });
+    }
+    return next();
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT user_id FROM masters ORDER BY id ASC LIMIT 1'
+    );
+    if (rows.length === 0) {
+      return res.status(503).json({ error: 'Master profile is not initialized yet' });
+    }
+    if (Number(rows[0].user_id) !== Number(req.user.id)) {
+      return res.status(403).json({ error: 'Master access is restricted to the first Telegram master account' });
+    }
+    return next();
+  } catch (error) {
+    console.error('Error validating master access:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // Middleware: load master profile for the authenticated user
 async function loadMaster(req, res, next) {
@@ -517,6 +546,72 @@ router.get('/calendar', loadMaster, async (req, res) => {
   }
 });
 
+// === CLIENTS (from bookings history) ===
+
+// GET /api/master/clients
+router.get('/clients', loadMaster, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         u.id AS user_id,
+         u.username,
+         CASE
+           WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
+           ELSE NULL
+         END AS telegram_user_id,
+         COUNT(b.id)::int AS bookings_total,
+         COUNT(*) FILTER (WHERE b.start_at >= NOW() AND b.status NOT IN ('canceled'))::int AS upcoming_total,
+         MAX(b.start_at) AS last_booking_at
+       FROM bookings b
+       JOIN users u ON u.id = b.client_id
+       WHERE b.master_id = $1
+       GROUP BY u.id, u.username
+       ORDER BY MAX(b.start_at) DESC`,
+      [req.master.id]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Error loading clients list:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/master/clients/:client_id/bookings
+router.get('/clients/:client_id/bookings', loadMaster, async (req, res) => {
+  try {
+    const clientId = Number(req.params.client_id);
+    if (!clientId || Number.isNaN(clientId)) {
+      return res.status(400).json({ error: 'client_id must be a valid number' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT
+         b.id,
+         b.client_id,
+         b.service_id,
+         b.start_at,
+         b.end_at,
+         b.status,
+         b.client_note,
+         b.master_note,
+         b.created_at,
+         b.updated_at,
+         s.name AS service_name
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.master_id = $1 AND b.client_id = $2
+       ORDER BY b.start_at DESC`,
+      [req.master.id, clientId]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Error loading client booking history:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PATCH /api/master/bookings/:id — change status, add notes
 router.patch('/bookings/:id', loadMaster, async (req, res) => {
   try {
@@ -569,10 +664,14 @@ router.patch('/bookings/:id', loadMaster, async (req, res) => {
 // POST /api/master/bookings — create booking manually (admin_created)
 router.post('/bookings', loadMaster, async (req, res) => {
   try {
-    const { client_id, service_id, start_at, master_note } = req.body;
+    const { client_id, service_id, start_at, master_note, status } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'canceled', 'completed', 'no_show'];
 
     if (!client_id || !service_id || !start_at) {
       return res.status(400).json({ error: 'client_id, service_id, start_at are required' });
+    }
+    if (status !== undefined && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     }
 
     // Load service to calculate end_at
@@ -590,9 +689,17 @@ router.post('/bookings', loadMaster, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO bookings (master_id, client_id, service_id, start_at, end_at, status, source, master_note)
-       VALUES ($1, $2, $3, $4, $5, 'confirmed', 'admin_created', $6)
+       VALUES ($1, $2, $3, $4, $5, $6, 'admin_created', $7)
        RETURNING *`,
-      [req.master.id, client_id, service_id, startDate.toISOString(), endDate.toISOString(), master_note || null]
+      [
+        req.master.id,
+        client_id,
+        service_id,
+        startDate.toISOString(),
+        endDate.toISOString(),
+        status || 'confirmed',
+        master_note || null
+      ]
     );
 
     res.status(201).json(result.rows[0]);
@@ -601,6 +708,114 @@ router.post('/bookings', loadMaster, async (req, res) => {
       return res.status(409).json({ error: 'Time slot is already taken' });
     }
     console.error('Error creating booking:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/master/bookings/:id — edit booking details
+router.put('/bookings/:id', loadMaster, async (req, res) => {
+  try {
+    const { client_id, service_id, start_at, status, master_note } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'canceled', 'completed', 'no_show'];
+
+    if (
+      client_id === undefined
+      && service_id === undefined
+      && start_at === undefined
+      && status === undefined
+      && master_note === undefined
+    ) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const currentRes = await pool.query(
+      `SELECT b.*, s.duration_minutes
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.id = $1 AND b.master_id = $2`,
+      [req.params.id, req.master.id]
+    );
+    if (currentRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    const current = currentRes.rows[0];
+
+    if (status !== undefined && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    if (client_id !== undefined) {
+      const clientRes = await pool.query('SELECT id FROM users WHERE id = $1', [client_id]);
+      if (clientRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+    }
+
+    let nextServiceId = current.service_id;
+    let nextDuration = current.duration_minutes;
+    if (service_id !== undefined) {
+      const svcRes = await pool.query(
+        'SELECT id, duration_minutes FROM services WHERE id = $1 AND master_id = $2 AND is_active = true',
+        [service_id, req.master.id]
+      );
+      if (svcRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      nextServiceId = service_id;
+      nextDuration = svcRes.rows[0].duration_minutes;
+    }
+
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (client_id !== undefined) {
+      updates.push(`client_id = $${idx++}`);
+      values.push(client_id);
+    }
+    if (service_id !== undefined) {
+      updates.push(`service_id = $${idx++}`);
+      values.push(nextServiceId);
+    }
+
+    if (start_at !== undefined || service_id !== undefined) {
+      const startDate = start_at !== undefined ? new Date(start_at) : new Date(current.start_at);
+      if (Number.isNaN(startDate.getTime())) {
+        return res.status(400).json({ error: 'start_at must be a valid datetime' });
+      }
+      const endDate = new Date(startDate.getTime() + nextDuration * 60000);
+      updates.push(`start_at = $${idx++}`);
+      values.push(startDate.toISOString());
+      updates.push(`end_at = $${idx++}`);
+      values.push(endDate.toISOString());
+    }
+
+    if (status !== undefined) {
+      updates.push(`status = $${idx++}`);
+      values.push(status);
+    }
+    if (master_note !== undefined) {
+      updates.push(`master_note = $${idx++}`);
+      values.push(master_note);
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(req.params.id);
+
+    const result = await pool.query(
+      `UPDATE bookings
+       SET ${updates.join(', ')}
+       WHERE id = $${idx}
+       RETURNING *`,
+      values
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23P01') {
+      return res.status(409).json({ error: 'Time slot is already taken' });
+    }
+    console.error('Error editing booking:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -710,7 +925,14 @@ router.get('/settings', loadMaster, async (req, res) => {
       [req.master.id]
     );
     if (rows.length === 0) {
-      return res.json({ master_id: req.master.id, reminder_hours: [24, 2], quiet_hours_start: null, quiet_hours_end: null });
+      return res.json({
+        master_id: req.master.id,
+        reminder_hours: [24, 2],
+        quiet_hours_start: null,
+        quiet_hours_end: null,
+        apple_calendar_enabled: false,
+        apple_calendar_token: null
+      });
     }
     res.json(rows[0]);
   } catch (error) {
@@ -722,31 +944,101 @@ router.get('/settings', loadMaster, async (req, res) => {
 // PUT /api/master/settings
 router.put('/settings', loadMaster, async (req, res) => {
   try {
-    const { reminder_hours, quiet_hours_start, quiet_hours_end } = req.body;
+    const { reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled } = req.body;
 
     if (reminder_hours !== undefined && !Array.isArray(reminder_hours)) {
       return res.status(400).json({ error: 'reminder_hours must be an array of numbers' });
     }
+    if (apple_calendar_enabled !== undefined && typeof apple_calendar_enabled !== 'boolean') {
+      return res.status(400).json({ error: 'apple_calendar_enabled must be boolean' });
+    }
 
     const result = await pool.query(
-      `INSERT INTO master_settings (master_id, reminder_hours, quiet_hours_start, quiet_hours_end)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO master_settings (
+         master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled
+       )
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (master_id) DO UPDATE SET
          reminder_hours = COALESCE($2, master_settings.reminder_hours),
          quiet_hours_start = $3,
-         quiet_hours_end = $4
+         quiet_hours_end = $4,
+         apple_calendar_enabled = COALESCE($5, master_settings.apple_calendar_enabled)
        RETURNING *`,
       [
         req.master.id,
         reminder_hours ? JSON.stringify(reminder_hours) : '[24, 2]',
         quiet_hours_start || null,
-        quiet_hours_end || null
+        quiet_hours_end || null,
+        apple_calendar_enabled
       ]
     );
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating settings:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/settings/apple-calendar/enable
+router.post('/settings/apple-calendar/enable', loadMaster, async (req, res) => {
+  try {
+    const existing = await pool.query(
+      'SELECT apple_calendar_token FROM master_settings WHERE master_id = $1',
+      [req.master.id]
+    );
+    const token = existing.rows[0]?.apple_calendar_token || crypto.randomBytes(24).toString('hex');
+
+    const result = await pool.query(
+      `INSERT INTO master_settings (master_id, reminder_hours, apple_calendar_enabled, apple_calendar_token)
+       VALUES ($1, '[24,2]'::jsonb, true, $2)
+       ON CONFLICT (master_id) DO UPDATE SET
+         apple_calendar_enabled = true,
+         apple_calendar_token = COALESCE(master_settings.apple_calendar_token, $2)
+       RETURNING master_id, apple_calendar_enabled, apple_calendar_token`,
+      [req.master.id, token]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error enabling Apple Calendar feed:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/settings/apple-calendar/rotate
+router.post('/settings/apple-calendar/rotate', loadMaster, async (req, res) => {
+  try {
+    const token = crypto.randomBytes(24).toString('hex');
+    const result = await pool.query(
+      `INSERT INTO master_settings (master_id, reminder_hours, apple_calendar_enabled, apple_calendar_token)
+       VALUES ($1, '[24,2]'::jsonb, true, $2)
+       ON CONFLICT (master_id) DO UPDATE SET
+         apple_calendar_enabled = true,
+         apple_calendar_token = $2
+       RETURNING master_id, apple_calendar_enabled, apple_calendar_token`,
+      [req.master.id, token]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error rotating Apple Calendar token:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/master/settings/apple-calendar
+router.delete('/settings/apple-calendar', loadMaster, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `INSERT INTO master_settings (master_id, reminder_hours, apple_calendar_enabled)
+       VALUES ($1, '[24,2]'::jsonb, false)
+       ON CONFLICT (master_id) DO UPDATE SET apple_calendar_enabled = false
+       RETURNING master_id, apple_calendar_enabled`,
+      [req.master.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error disabling Apple Calendar feed:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

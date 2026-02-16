@@ -78,7 +78,7 @@ describe('Audit API', () => {
       expect(res.body.offset).toBe(1);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -121,7 +121,7 @@ describe('Audit API', () => {
       expect(res.body).toHaveLength(0);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)

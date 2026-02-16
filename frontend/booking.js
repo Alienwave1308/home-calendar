@@ -2,7 +2,7 @@
 /* global URLSearchParams */
 /**
  * Booking Mini App — client-side booking flow.
- * Works as Telegram Mini App or standalone page.
+ * Works only as Telegram Mini App.
  *
  * Flow: Select Service → Pick Date/Slot → Confirm → Done
  */
@@ -12,17 +12,38 @@
 
   // Telegram WebApp integration
   const tg = window.Telegram && window.Telegram.WebApp;
+  const isCypress = Boolean(window.Cypress);
+  const hasTelegramSession = Boolean(
+    tg && (
+      (typeof tg.initData === 'string' && tg.initData.length > 0)
+      || (tg.initDataUnsafe && tg.initDataUnsafe.user)
+    )
+  );
+
+  if (!isCypress && !hasTelegramSession) {
+    document.body.innerHTML = '<main style="max-width:480px;margin:64px auto;padding:24px;text-align:center;font-family:system-ui,-apple-system,sans-serif;">'
+      + '<h1 style="margin-bottom:12px;">Доступ только через Telegram</h1>'
+      + '<p style="margin:0;color:#5b6575;">Откройте форму записи внутри Telegram Mini App.</p>'
+      + '</main>';
+    return;
+  }
+
   if (tg) {
     tg.ready();
     tg.expand();
   }
 
   // Extract booking slug from URL: /book/:slug or ?slug=...
-  const slug = new URLSearchParams(window.location.search).get('slug')
+  const rawSlug = new URLSearchParams(window.location.search).get('slug')
     || window.location.pathname.split('/book/')[1]
     || '';
+  const slug = String(rawSlug).split('?')[0].replace(/^\/+|\/+$/g, '');
 
   const API_BASE = '/api';
+  const exportUtils = window.BookingExportUtils || {
+    buildGoogleCalendarUrl: function () { return '#'; },
+    buildIcsContent: function () { return ''; }
+  };
 
   // State
   let master = null;
@@ -303,11 +324,13 @@
         client_note: $('confirmNote').value.trim() || undefined
       };
 
+      const note = $('confirmNote').value.trim();
       await apiPost('/public/master/' + slug + '/book', body);
 
       hideLoader();
       $('doneDetails').textContent = selectedService.name + '\n'
         + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end);
+      setupCalendarExport(note);
       showStep('stepDone');
 
       // Notify Telegram
@@ -321,6 +344,48 @@
       btn.textContent = 'Записаться';
       showToast(err.message);
     }
+  }
+
+  function setupCalendarExport(note) {
+    const googleLink = $('doneGoogleLink');
+    const appleBtn = $('doneAppleBtn');
+    if (!googleLink || !appleBtn || !selectedSlot || !selectedService || !master) return;
+
+    const eventTitle = 'Запись на депиляцию: ' + selectedService.name;
+    const descriptionParts = [
+      'Мастер: ' + (master.display_name || ''),
+      note ? ('Комментарий клиента: ' + note) : ''
+    ].filter(Boolean);
+    const description = descriptionParts.join('\n');
+    const timezone = master.timezone || 'UTC';
+
+    googleLink.href = exportUtils.buildGoogleCalendarUrl({
+      title: eventTitle,
+      details: description,
+      startIso: selectedSlot.start,
+      endIso: selectedSlot.end,
+      timezone: timezone
+    });
+
+    appleBtn.onclick = function () {
+      const content = exportUtils.buildIcsContent({
+        uid: 'booking-' + Date.now() + '@rova-epil.ru',
+        title: eventTitle,
+        description: description,
+        startIso: selectedSlot.start,
+        endIso: selectedSlot.end,
+        timezone: timezone
+      });
+      const blob = new window.Blob([content], { type: 'text/calendar;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'booking.ics';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    };
   }
 
   // === RESET ===

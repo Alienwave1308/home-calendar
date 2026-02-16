@@ -29,10 +29,8 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE }
 });
 
-router.use(authenticateToken);
-
 // POST /api/tasks/:id/attachments — upload a file
-router.post('/tasks/:id/attachments', upload.single('file'), async (req, res) => {
+router.post('/tasks/:id/attachments', authenticateToken, upload.single('file'), async (req, res) => {
   try {
     const taskId = parseInt(req.params.id);
 
@@ -79,7 +77,7 @@ router.post('/tasks/:id/attachments', upload.single('file'), async (req, res) =>
 });
 
 // GET /api/tasks/:id/attachments — list attachments for a task
-router.get('/tasks/:id/attachments', async (req, res) => {
+router.get('/tasks/:id/attachments', authenticateToken, async (req, res) => {
   try {
     const taskId = parseInt(req.params.id);
 
@@ -104,7 +102,7 @@ router.get('/tasks/:id/attachments', async (req, res) => {
 });
 
 // GET /api/attachments/:id — download a file
-router.get('/attachments/:id', async (req, res) => {
+router.get('/attachments/:id', authenticateToken, async (req, res) => {
   try {
     const attachmentId = parseInt(req.params.id);
 
@@ -136,7 +134,7 @@ router.get('/attachments/:id', async (req, res) => {
 });
 
 // DELETE /api/attachments/:id — delete an attachment
-router.delete('/attachments/:id', async (req, res) => {
+router.delete('/attachments/:id', authenticateToken, async (req, res) => {
   try {
     const attachmentId = parseInt(req.params.id);
 

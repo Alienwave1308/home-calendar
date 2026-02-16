@@ -427,7 +427,7 @@ describe('Tasks API', () => {
         .expect(404);
     });
 
-    it('should return 404 if caller not in family', async () => {
+    it('should return 404 if caller workspace missing', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 1 }] })
         .mockResolvedValueOnce({ rows: [] }); // no family
@@ -439,7 +439,7 @@ describe('Tasks API', () => {
         .expect(404);
     });
 
-    it('should return 404 if target not in same family', async () => {
+    it('should return 404 if target not in workspace', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 1 }] })
         .mockResolvedValueOnce({ rows: [{ family_id: 1 }] })

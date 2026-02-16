@@ -1,10 +1,10 @@
 (function (globalScope) {
   const KANBAN_STATUSES = ['backlog', 'planned', 'in_progress', 'done'];
   const KANBAN_COLUMN_TITLES = {
-    backlog: 'Backlog',
-    planned: 'Planned',
-    in_progress: 'In Progress',
-    done: 'Done'
+    backlog: 'Бэклог',
+    planned: 'Запланировано',
+    in_progress: 'В работе',
+    done: 'Выполнено'
   };
 
   function isKanbanStatus(status) {

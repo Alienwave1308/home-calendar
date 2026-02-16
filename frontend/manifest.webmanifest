@@ -1,11 +1,11 @@
 {
-  "name": "Family Task Tracker",
-  "short_name": "FamilyTasks",
-  "description": "Семейный таск-трекер с календарем, канбаном и активностью",
+  "name": "Календарь мастера",
+  "short_name": "RoVaEpil",
+  "description": "Telegram Mini App для записей мастера, клиентов и задач",
   "start_url": "/#/dashboard",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#667eea",
+  "background_color": "#e8f5eb",
+  "theme_color": "#2f9f68",
   "icons": [
     {
       "src": "/icons/icon-192.svg",

@@ -7,7 +7,7 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   min-height: 100vh;
   padding: 20px;
 }
@@ -43,7 +43,7 @@ header {
   text-align: center;
   margin-bottom: 30px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #667eea;
+  border-bottom: 2px solid #2f9f68;
 }
 
 header h1 {
@@ -71,7 +71,7 @@ header p {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
   position: sticky;
   top: 0;
@@ -127,7 +127,7 @@ header p {
 .skeleton-line {
   height: 12px;
   border-radius: 8px;
-  background: linear-gradient(90deg, #eef2ff 0%, #dde5ff 50%, #eef2ff 100%);
+  background: linear-gradient(90deg, #e7f6ec 0%, #cfe7d8 50%, #e7f6ec 100%);
   background-size: 180% 100%;
   animation: skeletonPulse 1.2s infinite linear;
 }
@@ -176,11 +176,11 @@ header p {
 }
 
 .nav-item.active {
-  color: #667eea;
+  color: #2f9f68;
 }
 
 .nav-item:hover {
-  color: #667eea;
+  color: #2f9f68;
 }
 
 /* Dashboard */
@@ -205,7 +205,7 @@ header p {
 
 .dashboard-quick-form input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .dashboard-cards {
@@ -216,7 +216,7 @@ header p {
 
 .dashboard-card {
   background: white;
-  border: 2px solid #e6ebff;
+  border: 2px solid #dcefe2;
   border-radius: 12px;
   padding: 14px;
 }
@@ -230,7 +230,7 @@ header p {
 .dashboard-count {
   font-size: 1.6em;
   font-weight: 700;
-  color: #667eea;
+  color: #2f9f68;
   margin-bottom: 8px;
 }
 
@@ -251,7 +251,7 @@ header p {
 }
 
 .dashboard-task-btn:hover {
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .dashboard-empty {
@@ -321,8 +321,8 @@ header p {
 }
 
 .kanban-column-dropzone.is-over {
-  border-color: #667eea;
-  background: #eef2ff;
+  border-color: #2f9f68;
+  background: #e7f6ec;
 }
 
 .kanban-cards {
@@ -391,7 +391,7 @@ header p {
 
 .kanban-create-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .kanban-empty {
@@ -410,7 +410,7 @@ header p {
 }
 
 .add-task h2 {
-  color: #667eea;
+  color: #2f9f68;
   margin-bottom: 20px;
   font-size: 1.5em;
 }
@@ -437,11 +437,11 @@ header p {
 
 .form-group input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
   border: none;
   padding: 12px 30px;
@@ -518,7 +518,7 @@ header p {
 }
 
 .task-item:hover {
-  border-color: #667eea;
+  border-color: #2f9f68;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
@@ -553,7 +553,7 @@ header p {
 }
 
 .task-date {
-  color: #667eea;
+  color: #2f9f68;
   font-size: 0.9em;
   font-weight: 600;
 }
@@ -614,6 +614,8 @@ header p {
 /* Авторизация */
 .auth-section {
   padding: 25px;
+  display: grid;
+  gap: 14px;
 }
 
 .auth-tabs {
@@ -625,9 +627,9 @@ header p {
 .auth-tab {
   flex: 1;
   padding: 12px;
-  border: 2px solid #667eea;
+  border: 2px solid #2f9f68;
   background: white;
-  color: #667eea;
+  color: #2f9f68;
   border-radius: 8px;
   font-size: 1em;
   font-weight: 600;
@@ -636,15 +638,29 @@ header p {
 }
 
 .auth-tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
 }
 
 .auth-error {
-  color: #f44336;
+  color: #25583d;
+  background: #dff2e6;
+  border: 1px solid #b9dfc7;
+  border-radius: 10px;
+  padding: 10px 12px;
   font-size: 0.9em;
-  margin-bottom: 10px;
-  min-height: 1.2em;
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.auth-hint {
+  color: #426554;
+  font-size: 0.95em;
+  line-height: 1.45;
+}
+
+#tgAuthRetryBtn {
+  justify-self: start;
 }
 
 .user-bar {
@@ -667,100 +683,95 @@ header p {
   background: #757575;
 }
 
-/* Секция семьи */
-.family-section {
-  background: #f0f4ff;
+.clients-section {
+  background: #eaf7ee;
   padding: 20px 25px;
   border-radius: 15px;
   margin-bottom: 30px;
-  border: 2px solid #d0d8ff;
+  border: 2px solid var(--border-soft);
 }
 
-.family-section h2 {
-  color: #667eea;
-  margin-bottom: 10px;
-  font-size: 1.3em;
+.clients-section h2,
+.clients-header h2 {
+  color: var(--accent-2);
 }
 
-.family-hint {
-  color: #888;
+.clients-hint {
+  color: var(--text-muted);
   font-size: 0.95em;
   margin-bottom: 15px;
 }
 
-.family-actions {
+.clients-list {
+  display: grid;
+  gap: 10px;
+}
+
+.client-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+  color: var(--text-main);
+}
+
+.client-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(47, 159, 104, 0.16);
+}
+
+.client-card-title {
+  font-weight: 700;
+}
+
+.client-card-meta {
+  color: var(--text-muted);
+  font-size: 0.92em;
+}
+
+.client-bookings-section {
+  margin-top: 16px;
+}
+
+.bookings-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.booking-history-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.booking-history-main {
   display: flex;
-  gap: 15px;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.family-create,
-.family-join {
-  display: flex;
-  gap: 8px;
-  flex: 1;
-  min-width: 200px;
+.booking-history-meta {
+  margin-top: 8px;
+  color: var(--text-muted);
 }
 
-.family-create input,
-.family-join input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 2px solid #d0d8ff;
-  border-radius: 6px;
-  font-size: 0.95em;
+.booking-history-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.85em;
+  color: var(--accent-2);
+  background: #ddf2e4;
 }
 
-.family-create input:focus,
-.family-join input:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
-.family-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.family-info {
-  margin-bottom: 15px;
-}
-
-.invite-code {
-  background: #e8edff;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.95em;
-  color: #555;
-}
-
-.invite-code strong {
-  color: #667eea;
-  font-family: monospace;
-  font-size: 1.1em;
-  letter-spacing: 1px;
-}
-
-.family-members {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.family-member {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e0e0e0;
-}
-
-.family-member small {
-  color: #999;
+.booking-history-note {
+  margin-top: 6px;
 }
 
 /* Табы задач (мои / семейные) */
@@ -773,9 +784,9 @@ header p {
 .tasks-tab {
   flex: 1;
   padding: 10px;
-  border: 2px solid #667eea;
+  border: 2px solid #2f9f68;
   background: white;
-  color: #667eea;
+  color: #2f9f68;
   border-radius: 8px;
   font-size: 0.95em;
   font-weight: 600;
@@ -785,14 +796,14 @@ header p {
 }
 
 .tasks-tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2f9f68 0%, #1f7e4f 100%);
   color: white;
 }
 
 /* Метка автора задачи */
 .task-owner {
   background: #e8edff;
-  color: #667eea;
+  color: #2f9f68;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.85em;
@@ -823,8 +834,8 @@ header p {
 }
 
 .calendar-view-btn.active {
-  background: #667eea;
-  border-color: #667eea;
+  background: #2f9f68;
+  border-color: #2f9f68;
   color: white;
 }
 
@@ -848,7 +859,7 @@ header p {
 }
 
 .btn-nav {
-  background: #667eea;
+  background: #2f9f68;
   color: white;
   font-size: 1.2em;
   width: 36px;
@@ -861,13 +872,13 @@ header p {
 }
 
 .btn-nav:hover {
-  background: #764ba2;
+  background: #1f7e4f;
 }
 
 .btn-today {
   background: none;
-  border: 1.5px solid #667eea;
-  color: #667eea;
+  border: 1.5px solid #2f9f68;
+  color: #2f9f68;
   padding: 4px 12px;
   border-radius: 6px;
   font-size: 0.85em;
@@ -877,7 +888,7 @@ header p {
 }
 
 .btn-today:hover {
-  background: #667eea;
+  background: #2f9f68;
   color: white;
 }
 
@@ -887,7 +898,7 @@ header p {
   text-align: center;
   font-weight: 700;
   font-size: 0.85em;
-  color: #667eea;
+  color: #2f9f68;
   margin-bottom: 5px;
   padding: 8px 0;
   border-bottom: 2px solid #f0f0f0;
@@ -919,7 +930,7 @@ header p {
 }
 
 .week-day-column.today {
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .week-day-header {
@@ -1000,7 +1011,7 @@ header p {
 }
 
 .calendar-day.today {
-  background: #667eea;
+  background: #2f9f68;
   border-radius: 10px;
 }
 
@@ -1034,7 +1045,7 @@ header p {
 }
 
 .task-dot.backlog { background: #9e9e9e; }
-.task-dot.planned { background: #667eea; }
+.task-dot.planned { background: #2f9f68; }
 .task-dot.in_progress { background: #ff9800; }
 .task-dot.done { background: #4caf50; }
 .task-dot.canceled { background: #f44336; }
@@ -1081,7 +1092,7 @@ header p {
   align-items: baseline;
   gap: 8px;
   padding: 12px 15px;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid #2f9f68;
   margin-bottom: 12px;
   background: #f8f9ff;
   border-radius: 0 10px 10px 0;
@@ -1090,7 +1101,7 @@ header p {
 
 .activity-user {
   font-weight: 700;
-  color: #667eea;
+  color: #2f9f68;
   font-size: 0.95em;
 }
 
@@ -1183,7 +1194,7 @@ header p {
 }
 
 .modal-task:hover {
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .modal-task.completed {
@@ -1230,7 +1241,7 @@ header p {
 
 .modal-add input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #2f9f68;
 }
 
 .task-detail-overlay {
@@ -1426,24 +1437,14 @@ header p {
     min-height: 44px;
   }
 
-  /* Family */
-  .family-section {
+  /* Clients */
+  .clients-section {
     padding: 15px;
     margin-bottom: 20px;
   }
 
-  .family-actions {
-    flex-direction: column;
-  }
-
-  .family-create,
-  .family-join {
-    min-width: 100%;
-  }
-
-  .family-create .btn-small,
-  .family-join .btn-small {
-    min-height: 44px;
+  .clients-list {
+    gap: 8px;
   }
 
   /* Calendar */
@@ -1520,11 +1521,7 @@ header p {
   }
 
   .kanban-board {
-    grid-auto-columns: minmax(250px, 85vw);
-  }
-
-  .kanban-column {
-    min-height: 380px;
+    grid-auto-columns: minmax(90vw, 90vw);
   }
 
   .task-detail-modal {
@@ -1618,7 +1615,7 @@ header p {
     min-height: 42px;
   }
 
-  .family-section h2 {
+  .clients-section h2 {
     font-size: 1.1em;
   }
 
@@ -1660,5 +1657,351 @@ header p {
 @media (max-width: 1024px) {
   .calendar-week-view {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* TG Mini App green theme and mobile hardening */
+:root {
+  --bg-main: #e8f5eb;
+  --bg-soft: #d6f0dd;
+  --card-bg: #f5fbf6;
+  --accent: #2f9f68;
+  --accent-2: #1e7c4f;
+  --accent-3: #8dd8ae;
+  --mint: #6ecf9a;
+  --text-main: #173425;
+  --text-muted: #466455;
+  --border-soft: #b9dfc6;
+  --danger: #d94a4a;
+}
+
+body {
+  background: radial-gradient(circle at 18% 10%, #d6f0dd 0%, #bfe7cc 35%, #a2d9b5 100%);
+  color: var(--text-main);
+  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  overflow-x: hidden;
+}
+
+.network-banner {
+  background: #f6fff7;
+  border-color: var(--border-soft);
+  color: var(--text-main);
+}
+
+.container {
+  background: rgba(245, 251, 246, 0.94);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 20px 45px rgba(19, 58, 39, 0.18);
+}
+
+header {
+  border-bottom-color: var(--mint);
+}
+
+header h1,
+header p {
+  color: var(--text-main);
+}
+
+#appScreen {
+  background: transparent;
+}
+
+.app-header {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  padding-top: calc(10px + env(safe-area-inset-top));
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+.app-content {
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  overflow-x: clip;
+  min-width: 0;
+}
+
+.bottom-nav {
+  background: rgba(245, 251, 246, 0.98);
+  border-top: 1px solid var(--border-soft);
+  backdrop-filter: blur(12px);
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+.nav-item {
+  color: var(--text-muted);
+  min-height: 62px;
+}
+
+.nav-item.active,
+.nav-item:hover {
+  color: var(--accent-2);
+}
+
+.nav-item .nav-label {
+  font-size: 0.72em;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  box-shadow: 0 8px 18px rgba(33, 116, 74, 0.25);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 10px 22px rgba(33, 116, 74, 0.35);
+}
+
+.btn-small {
+  border-radius: 10px;
+}
+
+.btn-delete {
+  background: var(--danger);
+}
+
+.dashboard-card,
+.task-item,
+.kanban-card,
+.week-task-item,
+.day-task-item,
+.task-detail-section,
+.modal-task {
+  background: var(--card-bg);
+  border-color: var(--border-soft);
+}
+
+.dashboard-count,
+.activity-user,
+.calendar-weekdays,
+.calendar-view-btn.active,
+.task-date {
+  color: var(--accent-2);
+}
+
+.dashboard-task-btn {
+  background: #edf8ef;
+  border-color: var(--border-soft);
+}
+
+.dashboard-task-btn:hover {
+  border-color: var(--accent);
+}
+
+.add-task,
+.kanban-column,
+.week-day-column,
+.activity-item,
+.task-detail-section {
+  background: #eaf7ee;
+  border-color: var(--border-soft);
+}
+
+.add-task h2,
+.kanban-column-header h3 {
+  color: var(--accent-2);
+}
+
+.kanban-column-dropzone.is-over {
+  border-color: var(--accent);
+  background: #ddf2e4;
+}
+
+.kanban-count,
+.task-owner {
+  background: #d9efde;
+  color: var(--accent-2);
+}
+
+.calendar-view-btn {
+  border-color: var(--border-soft);
+  color: var(--accent-2);
+}
+
+.calendar-view-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-nav {
+  background: var(--accent);
+}
+
+.btn-nav:hover {
+  background: var(--accent-2);
+}
+
+.btn-today {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+
+.btn-today:hover {
+  background: var(--accent);
+}
+
+.calendar-day.today {
+  background: var(--accent);
+}
+
+.calendar-day:hover {
+  background: #dff2e5;
+}
+
+.activity-item {
+  border-left-color: var(--accent);
+}
+
+.activity-action,
+.activity-time {
+  color: var(--text-muted);
+}
+
+.modal {
+  background: #f4fbf6;
+  border: 1px solid var(--border-soft);
+}
+
+.modal-header {
+  border-bottom-color: var(--border-soft);
+}
+
+.detail-tag-chip {
+  background: #dcefe2;
+  color: var(--accent-2);
+}
+
+.tasks-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tasks-filters select,
+.form-row select,
+.form-group input,
+.modal-add input,
+.detail-inline input,
+.detail-inline select,
+#taskDetailDescription {
+  border-color: var(--border-soft);
+  background: #fbfffc;
+}
+
+.screen {
+  min-width: 0;
+}
+
+.kanban-board {
+  width: 100%;
+  overscroll-behavior-x: contain;
+}
+
+.kanban-column {
+  min-width: 0;
+}
+
+.task-actions {
+  flex-wrap: wrap;
+}
+
+.booking-history-main strong,
+.booking-history-main span {
+  overflow-wrap: anywhere;
+}
+
+.calendar-title-group h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.form-row {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .app-header {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .app-header-right {
+    gap: 8px;
+    font-size: 0.78em;
+  }
+
+  .app-header-right #currentUser {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-content {
+    padding: 14px;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
+
+  .tasks-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .tasks-bulk-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  #tasksSelectedCount {
+    grid-column: 1 / -1;
+  }
+
+  .tasks-bulk-actions .btn-small {
+    min-height: 42px;
+    width: 100%;
+    margin: 0;
+    white-space: normal;
+  }
+
+  .kanban-board {
+    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+    grid-auto-columns: 100%;
+    overflow-x: visible;
+  }
+
+  .kanban-create-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .kanban-create-form .btn-small {
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .calendar-header {
+    gap: 8px;
+  }
+
+  .calendar-title-group {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .calendar-header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .tasks-bulk-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    flex-direction: column;
   }
 }

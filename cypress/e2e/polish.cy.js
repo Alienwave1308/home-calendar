@@ -1,4 +1,4 @@
-describe('Home Calendar - Polish E2E', () => {
+describe('TG Mini App - Polish E2E', () => {
   const unique = Date.now();
   const testUser = `cypressuser-polish-${unique}`;
   const testPass = 'cypress123';

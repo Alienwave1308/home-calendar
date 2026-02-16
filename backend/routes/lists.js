@@ -2,25 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { getUserWorkspaceId } = require('../lib/workspace');
 
 // All list routes require authentication
 router.use(authenticateToken);
 
-// Helper: get user's family_id or null
-async function getUserFamilyId(userId) {
-  const result = await pool.query(
-    'SELECT family_id FROM family_members WHERE user_id = $1',
-    [userId]
-  );
-  return result.rows.length > 0 ? result.rows[0].family_id : null;
-}
-
-// GET /api/lists — get all lists for user's family
+// GET /api/lists — get all lists for current workspace
 router.get('/', async (req, res) => {
   try {
-    const familyId = await getUserFamilyId(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
@@ -30,7 +22,7 @@ router.get('/', async (req, res) => {
        JOIN users u ON u.id = tl.created_by
        WHERE tl.family_id = $1
        ORDER BY tl.name`,
-      [familyId]
+      [workspaceId]
     );
 
     res.json(result.rows);
@@ -57,14 +49,14 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Color must be a valid hex color (e.g. #ff0000)' });
     }
 
-    const familyId = await getUserFamilyId(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
       'INSERT INTO task_lists (family_id, name, description, color, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [familyId, name.trim(), description || null, color || '#6c5ce7', req.user.id]
+      [workspaceId, name.trim(), description || null, color || '#6c5ce7', req.user.id]
     );
 
     res.status(201).json(result.rows[0]);
@@ -88,15 +80,15 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Color must be a valid hex color (e.g. #ff0000)' });
     }
 
-    const familyId = await getUserFamilyId(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
-    // Check list exists and belongs to user's family
+    // Check list exists and belongs to current workspace
     const existing = await pool.query(
       'SELECT * FROM task_lists WHERE id = $1 AND family_id = $2',
-      [listId, familyId]
+      [listId, workspaceId]
     );
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'List not found' });
@@ -124,14 +116,14 @@ router.delete('/:id', async (req, res) => {
   try {
     const listId = parseInt(req.params.id);
 
-    const familyId = await getUserFamilyId(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
       'DELETE FROM task_lists WHERE id = $1 AND family_id = $2 RETURNING *',
-      [listId, familyId]
+      [listId, workspaceId]
     );
 
     if (result.rows.length === 0) {
