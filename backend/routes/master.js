@@ -439,4 +439,265 @@ router.get('/availability/preview', loadMaster, async (req, res) => {
   }
 });
 
+// === BOOKINGS (Master management) ===
+
+// GET /api/master/bookings?status=&date_from=&date_to=
+router.get('/bookings', loadMaster, async (req, res) => {
+  try {
+    const { status, date_from, date_to } = req.query;
+    let query = `
+      SELECT b.*, s.name AS service_name, s.duration_minutes,
+             u.username AS client_name
+      FROM bookings b
+      JOIN services s ON b.service_id = s.id
+      JOIN users u ON b.client_id = u.id
+      WHERE b.master_id = $1`;
+    const values = [req.master.id];
+    let idx = 2;
+
+    if (status) {
+      query += ` AND b.status = $${idx++}`;
+      values.push(status);
+    }
+    if (date_from) {
+      query += ` AND b.start_at >= $${idx++}`;
+      values.push(date_from);
+    }
+    if (date_to) {
+      query += ` AND b.start_at <= $${idx++}`;
+      values.push(date_to);
+    }
+
+    query += ' ORDER BY b.start_at';
+
+    const { rows } = await pool.query(query, values);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error listing master bookings:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/master/calendar?date_from=&date_to=
+router.get('/calendar', loadMaster, async (req, res) => {
+  try {
+    const { date_from, date_to } = req.query;
+
+    if (!date_from || !date_to) {
+      return res.status(400).json({ error: 'date_from and date_to are required' });
+    }
+
+    const [bookingsRes, blocksRes] = await Promise.all([
+      pool.query(
+        `SELECT b.*, s.name AS service_name, s.duration_minutes,
+                u.username AS client_name
+         FROM bookings b
+         JOIN services s ON b.service_id = s.id
+         JOIN users u ON b.client_id = u.id
+         WHERE b.master_id = $1 AND b.status != 'canceled'
+           AND b.start_at < $3 AND b.end_at > $2
+         ORDER BY b.start_at`,
+        [req.master.id, date_from, date_to]
+      ),
+      pool.query(
+        `SELECT * FROM master_blocks
+         WHERE master_id = $1 AND start_at < $3 AND end_at > $2
+         ORDER BY start_at`,
+        [req.master.id, date_from, date_to]
+      )
+    ]);
+
+    res.json({
+      bookings: bookingsRes.rows,
+      blocks: blocksRes.rows
+    });
+  } catch (error) {
+    console.error('Error loading master calendar:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /api/master/bookings/:id — change status, add notes
+router.patch('/bookings/:id', loadMaster, async (req, res) => {
+  try {
+    const { status, master_note } = req.body;
+
+    const booking = await pool.query(
+      'SELECT * FROM bookings WHERE id = $1 AND master_id = $2',
+      [req.params.id, req.master.id]
+    );
+    if (booking.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const validStatuses = ['pending', 'confirmed', 'canceled', 'completed', 'no_show'];
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (status !== undefined) {
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      }
+      updates.push(`status = $${idx++}`);
+      values.push(status);
+    }
+    if (master_note !== undefined) {
+      updates.push(`master_note = $${idx++}`);
+      values.push(master_note);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(req.params.id);
+
+    const result = await pool.query(
+      `UPDATE bookings SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating booking:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/bookings — create booking manually (admin_created)
+router.post('/bookings', loadMaster, async (req, res) => {
+  try {
+    const { client_id, service_id, start_at, master_note } = req.body;
+
+    if (!client_id || !service_id || !start_at) {
+      return res.status(400).json({ error: 'client_id, service_id, start_at are required' });
+    }
+
+    // Load service to calculate end_at
+    const svc = await pool.query(
+      'SELECT * FROM services WHERE id = $1 AND master_id = $2 AND is_active = true',
+      [service_id, req.master.id]
+    );
+    if (svc.rows.length === 0) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+
+    const service = svc.rows[0];
+    const startDate = new Date(start_at);
+    const endDate = new Date(startDate.getTime() + service.duration_minutes * 60000);
+
+    const result = await pool.query(
+      `INSERT INTO bookings (master_id, client_id, service_id, start_at, end_at, status, source, master_note)
+       VALUES ($1, $2, $3, $4, $5, 'confirmed', 'admin_created', $6)
+       RETURNING *`,
+      [req.master.id, client_id, service_id, startDate.toISOString(), endDate.toISOString(), master_note || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23P01') {
+      return res.status(409).json({ error: 'Time slot is already taken' });
+    }
+    console.error('Error creating booking:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// === BLOCKS (Master busy time) ===
+
+// GET /api/master/blocks
+router.get('/blocks', loadMaster, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM master_blocks WHERE master_id = $1 ORDER BY start_at',
+      [req.master.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error listing blocks:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/blocks
+router.post('/blocks', loadMaster, async (req, res) => {
+  try {
+    const { start_at, end_at, title } = req.body;
+
+    if (!start_at || !end_at) {
+      return res.status(400).json({ error: 'start_at and end_at are required' });
+    }
+    if (new Date(start_at) >= new Date(end_at)) {
+      return res.status(400).json({ error: 'start_at must be before end_at' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO master_blocks (master_id, start_at, end_at, title)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.master.id, start_at, end_at, title || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating block:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/master/blocks/:id
+router.put('/blocks/:id', loadMaster, async (req, res) => {
+  try {
+    const { start_at, end_at, title } = req.body;
+
+    const block = await pool.query(
+      'SELECT id FROM master_blocks WHERE id = $1 AND master_id = $2',
+      [req.params.id, req.master.id]
+    );
+    if (block.rows.length === 0) {
+      return res.status(404).json({ error: 'Block not found' });
+    }
+
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (start_at !== undefined) { updates.push(`start_at = $${idx++}`); values.push(start_at); }
+    if (end_at !== undefined) { updates.push(`end_at = $${idx++}`); values.push(end_at); }
+    if (title !== undefined) { updates.push(`title = $${idx++}`); values.push(title); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE master_blocks SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating block:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/master/blocks/:id
+router.delete('/blocks/:id', loadMaster, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM master_blocks WHERE id = $1 AND master_id = $2 RETURNING id',
+      [req.params.id, req.master.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Block not found' });
+    }
+    res.json({ message: 'Block deleted' });
+  } catch (error) {
+    console.error('Error deleting block:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
