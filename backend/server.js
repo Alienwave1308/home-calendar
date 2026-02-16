@@ -103,6 +103,10 @@ app.use('/api/shopping', shoppingRouter);
 const notificationsRouter = require('./routes/notifications');
 app.use('/api/notifications', notificationsRouter);
 
+// Подключаем роуты для профиля пользователя (требуют авторизации)
+const usersRouter = require('./routes/users');
+app.use('/api/users', usersRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
