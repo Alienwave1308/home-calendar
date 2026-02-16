@@ -1664,6 +1664,7 @@ body {
   color: var(--text-main);
   padding: 0;
   padding-top: env(safe-area-inset-top);
+  overflow-x: hidden;
 }
 
 .network-banner {
@@ -1700,6 +1701,8 @@ header p {
 
 .app-content {
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  overflow-x: clip;
+  min-width: 0;
 }
 
 .bottom-nav {
@@ -1867,6 +1870,37 @@ header p {
   background: #fbfffc;
 }
 
+.screen {
+  min-width: 0;
+}
+
+.kanban-board {
+  width: 100%;
+  overscroll-behavior-x: contain;
+}
+
+.kanban-column {
+  min-width: 0;
+}
+
+.task-actions {
+  flex-wrap: wrap;
+}
+
+.booking-history-main strong,
+.booking-history-main span {
+  overflow-wrap: anywhere;
+}
+
+.calendar-title-group h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.form-row {
+  flex-wrap: wrap;
+}
+
 @media (max-width: 600px) {
   .app-header {
     padding-left: 14px;
@@ -1949,5 +1983,9 @@ header p {
 @media (max-width: 420px) {
   .tasks-bulk-actions {
     grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    flex-direction: column;
   }
 }
