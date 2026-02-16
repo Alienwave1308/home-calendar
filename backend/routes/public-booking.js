@@ -49,6 +49,57 @@ async function loadService(masterId, serviceId) {
   return rows[0] || null;
 }
 
+// GET /api/public/export/booking.ics?title=&details=&start_at=&end_at=&timezone=
+router.get('/export/booking.ics', async (req, res) => {
+  try {
+    const title = String(req.query.title || 'Запись на процедуру');
+    const details = String(req.query.details || '');
+    const timezone = String(req.query.timezone || 'UTC');
+    const startAt = String(req.query.start_at || '');
+    const endAt = String(req.query.end_at || '');
+
+    if (!startAt || !endAt) {
+      return res.status(400).json({ error: 'start_at and end_at are required' });
+    }
+
+    const startDate = new Date(startAt);
+    const endDate = new Date(endAt);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: 'start_at and end_at must be valid ISO datetime' });
+    }
+    if (endDate <= startDate) {
+      return res.status(400).json({ error: 'end_at must be after start_at' });
+    }
+
+    const dtStamp = toUtcIcsDate(new Date().toISOString());
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//RoVa Epil//Booking Export//RU',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      `X-WR-TIMEZONE:${escapeIcsText(timezone)}`,
+      'BEGIN:VEVENT',
+      `UID:export-${Date.now()}@rova-epil.ru`,
+      `DTSTAMP:${dtStamp}`,
+      `DTSTART:${toUtcIcsDate(startDate.toISOString())}`,
+      `DTEND:${toUtcIcsDate(endDate.toISOString())}`,
+      `SUMMARY:${escapeIcsText(title)}`,
+      details ? `DESCRIPTION:${escapeIcsText(details)}` : '',
+      'END:VEVENT',
+      'END:VCALENDAR',
+      ''
+    ].filter(Boolean).join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="booking.ics"');
+    return res.status(200).send(ics);
+  } catch (error) {
+    console.error('Error generating booking export ics:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/public/master/:slug
 router.get('/master/:slug', async (req, res) => {
   try {

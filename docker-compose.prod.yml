@@ -21,6 +21,10 @@ services:
       - DATABASE_URL=postgresql://calendar:calendar123@db:5432/home_calendar
       - JWT_SECRET=${JWT_SECRET}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ALLOW_PASSWORD_AUTH=${ALLOW_PASSWORD_AUTH:-false}
+      - MASTER_TIMEZONE=${MASTER_TIMEZONE:-Asia/Novosibirsk}
+      - MASTER_TELEGRAM_USER_ID=${MASTER_TELEGRAM_USER_ID}
+      - MASTER_DISPLAY_NAME=${MASTER_DISPLAY_NAME}
     depends_on:
       - db
 
