@@ -119,6 +119,10 @@ app.use('/api/master', masterRouter);
 const clientBookingsRouter = require('./routes/client-bookings');
 app.use('/api/client/bookings', clientBookingsRouter);
 
+// Подключаем роуты синхронизации с Google Calendar
+const calendarSyncRouter = require('./routes/calendar-sync');
+app.use('/api/calendar-sync', calendarSyncRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
