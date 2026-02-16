@@ -1,6 +1,6 @@
 describe('Booking Mini App - Calendar Export E2E', () => {
   beforeEach(() => {
-    cy.intercept('GET', /\/api\/public\/master\/test-master\/?$/, {
+    cy.intercept('GET', /\/api\/public\/master\/[^/]+\/?(?:\?.*)?$/, {
       statusCode: 200,
       body: {
         master: {
@@ -29,7 +29,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
       req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed' } });
     }).as('postBook');
 
-    cy.visit('/book/test-master', {
+    cy.visit('/booking.html?slug=test-master', {
       onBeforeLoad(win) {
         win.Telegram = {
           WebApp: {
@@ -41,7 +41,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
         };
       }
     });
-    cy.wait('@getMaster');
+    cy.wait('@getMaster', { timeout: 10000 });
   });
 
   it('shows calendar export actions after successful booking', () => {

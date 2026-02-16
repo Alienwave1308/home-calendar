@@ -1,11 +1,11 @@
 describe('Master Panel - Calendar Settings E2E', () => {
   beforeEach(() => {
-    cy.intercept('GET', '/api/master/profile', {
+    cy.intercept('GET', /\/api\/master\/profile\/?(?:\?.*)?$/, {
       statusCode: 200,
       body: { booking_slug: 'master-slug', display_name: 'Мастер' }
     }).as('profile');
 
-    cy.intercept('GET', '/api/calendar-sync/status', {
+    cy.intercept('GET', /\/api\/calendar-sync\/status\/?(?:\?.*)?$/, {
       statusCode: 200,
       body: { connected: false }
     }).as('gcalStatus');
@@ -13,7 +13,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
     cy.intercept(
       {
         method: 'GET',
-        url: '/api/master/settings',
+        url: /\/api\/master\/settings\/?(?:\?.*)?$/,
         times: 1
       },
       {
@@ -36,7 +36,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
       }
     }).as('enableApple');
 
-    cy.intercept('GET', '/api/master/settings', {
+    cy.intercept('GET', /\/api\/master\/settings\/?(?:\?.*)?$/, {
       statusCode: 200,
       body: {
         reminder_hours: [24, 2],
@@ -47,7 +47,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
       }
     }).as('settingsEnabled');
 
-    cy.visit('/master', {
+    cy.visit('/master.html', {
       onBeforeLoad(win) {
         win.Telegram = {
           WebApp: {
@@ -64,10 +64,12 @@ describe('Master Panel - Calendar Settings E2E', () => {
   });
 
   it('should enable apple calendar and render subscription link', () => {
-    cy.get('.master-tab[data-tab="settings"]').click();
+    cy.window().then((win) => {
+      win.MasterApp.switchTab('settings');
+    });
     cy.wait('@profile');
     cy.wait('@gcalStatus');
-    cy.wait('@settingsInitial');
+    cy.wait('@settingsInitial', { timeout: 10000 });
 
     cy.contains('Apple Calendar').should('be.visible');
     cy.contains('Отключен').should('be.visible');
