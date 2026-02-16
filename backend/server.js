@@ -111,6 +111,10 @@ app.use('/api/users', usersRouter);
 const attachmentsRouter = require('./routes/attachments');
 app.use('/api', attachmentsRouter);
 
+// Подключаем роуты мастера (booking system)
+const masterRouter = require('./routes/master');
+app.use('/api/master', masterRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
