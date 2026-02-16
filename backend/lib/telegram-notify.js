@@ -128,10 +128,42 @@ async function notifyClientReminder(reminder) {
   return sendTelegramMessage(clientTelegramId, text);
 }
 
+async function notifyClientBookingEvent(bookingId, eventType) {
+  try {
+    const data = await loadBookingNotificationData(bookingId);
+    if (!data) return { ok: false, skipped: true, retryable: false };
+
+    const clientTelegramId = parseTelegramUserId(data.client_username);
+    if (!clientTelegramId) return { ok: false, skipped: true, retryable: false };
+
+    const isCanceled = eventType === 'canceled';
+    const lines = [
+      isCanceled ? '❌ Ваша запись отменена мастером' : '✏️ Ваша запись была изменена мастером',
+      `Услуга: ${data.service_name}`,
+      `Адрес: ${SALON_ADDRESS}`,
+      `Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)} (${data.master_timezone || 'Asia/Novosibirsk'})`,
+      `Мастер: ${data.master_name || 'Лера'}`
+    ];
+
+    if (data.client_note) {
+      lines.push(`Комментарий: ${data.client_note}`);
+    }
+    if (isCanceled) {
+      lines.push('По вопросам и для подбора нового времени: @RoVVVVa');
+    }
+
+    return await sendTelegramMessage(clientTelegramId, lines.join('\n'));
+  } catch (error) {
+    console.error('Error notifying client booking event:', error);
+    return { ok: false, skipped: false, retryable: true };
+  }
+}
+
 module.exports = {
   parseTelegramUserId,
   formatBookingTime,
   sendTelegramMessage,
   notifyMasterBookingEvent,
-  notifyClientReminder
+  notifyClientReminder,
+  notifyClientBookingEvent
 };

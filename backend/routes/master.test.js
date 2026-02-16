@@ -22,7 +22,8 @@ jest.mock('../lib/reminders', () => ({
 }));
 
 jest.mock('../lib/telegram-notify', () => ({
-  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
+  notifyClientBookingEvent: jest.fn().mockResolvedValue({ ok: true })
 }));
 
 const token = jwt.sign({ id: 1, username: 'master1' }, JWT_SECRET);

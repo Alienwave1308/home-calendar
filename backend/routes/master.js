@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { generateSlots } = require('../lib/slots');
 const { DEFAULT_SERVICES, toDescription } = require('../lib/default-services');
 const { createReminders, deleteReminders } = require('../lib/reminders');
-const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
+const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
 
 // All master routes require authentication
 router.use(authenticateToken);
@@ -798,6 +798,9 @@ router.patch('/bookings/:id', loadMaster, async (req, res) => {
         }
       }
       await notifyMasterBookingEvent(updated.id, 'updated');
+      if (status !== undefined || master_note !== undefined) {
+        await notifyClientBookingEvent(updated.id, updated.status === 'canceled' ? 'canceled' : 'updated');
+      }
     } catch (notifyError) {
       console.error('Error handling booking patch side-effects:', notifyError);
     }
@@ -978,6 +981,7 @@ router.put('/bookings/:id', loadMaster, async (req, res) => {
         await createReminders(updated.id, updated.master_id, updated.start_at);
       }
       await notifyMasterBookingEvent(updated.id, 'updated');
+      await notifyClientBookingEvent(updated.id, updated.status === 'canceled' ? 'canceled' : 'updated');
     } catch (notifyError) {
       console.error('Error handling booking edit side-effects:', notifyError);
     }

@@ -31,12 +31,13 @@
     const details = params.details || '';
     const timezone = params.timezone || 'UTC';
     const location = params.location || '';
+    const calendarName = params.calendarName || 'RoVa Epil';
     const start = toGoogleDateTime(params.startIso);
     const end = toGoogleDateTime(params.endIso);
     const url = new URL('https://calendar.google.com/calendar/render');
     url.searchParams.set('action', 'TEMPLATE');
     url.searchParams.set('text', title);
-    url.searchParams.set('details', details);
+    url.searchParams.set('details', (details ? details + '\n' : '') + 'Календарь: ' + calendarName);
     if (location) url.searchParams.set('location', location);
     url.searchParams.set('dates', start + '/' + end);
     url.searchParams.set('ctz', timezone);

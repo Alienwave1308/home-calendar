@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
     return res.json(rows);
   } catch (error) {
     console.error('Error loading client bookings:', error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Не удалось загрузить ваши записи. Попробуйте ещё раз чуть позже.' });
   }
 });
 
@@ -77,12 +77,12 @@ router.get('/:id', async (req, res) => {
       [req.params.id, req.user.id]
     );
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
+      return res.status(404).json({ error: 'Запись не найдена' });
     }
     return res.json(rows[0]);
   } catch (error) {
     console.error('Error loading client booking:', error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Не удалось загрузить запись. Попробуйте ещё раз чуть позже.' });
   }
 });
 
@@ -99,23 +99,23 @@ router.patch('/:id/cancel', async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
+      return res.status(404).json({ error: 'Запись не найдена' });
     }
 
     const booking = rows[0];
 
     if (booking.status === 'canceled') {
-      return res.status(400).json({ error: 'Booking is already canceled' });
+      return res.status(400).json({ error: 'Эта запись уже отменена' });
     }
     if (booking.status === 'completed') {
-      return res.status(400).json({ error: 'Cannot cancel a completed booking' });
+      return res.status(400).json({ error: 'Нельзя отменить уже завершённую запись' });
     }
 
     // Check cancel policy: must be at least X hours before start
     const hoursUntilStart = (new Date(booking.start_at) - Date.now()) / 3600000;
     if (hoursUntilStart < booking.cancel_policy_hours) {
       return res.status(403).json({
-        error: `Cannot cancel less than ${booking.cancel_policy_hours} hours before the appointment`
+        error: `Отменить запись онлайн можно не позднее, чем за ${booking.cancel_policy_hours} часов. Пожалуйста, напишите в Telegram: @RoVVVVa`
       });
     }
 
@@ -134,7 +134,7 @@ router.patch('/:id/cancel', async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error canceling booking:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Не удалось отменить запись. Попробуйте ещё раз чуть позже.' });
   }
 });
 
@@ -144,7 +144,7 @@ router.patch('/:id/reschedule', async (req, res) => {
     const { new_start_at } = req.body;
 
     if (!new_start_at) {
-      return res.status(400).json({ error: 'new_start_at is required' });
+      return res.status(400).json({ error: 'Выберите новое время записи' });
     }
 
     // Load booking with master's cancel policy and service duration
@@ -158,20 +158,20 @@ router.patch('/:id/reschedule', async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
+      return res.status(404).json({ error: 'Запись не найдена' });
     }
 
     const booking = rows[0];
 
     if (booking.status === 'canceled' || booking.status === 'completed') {
-      return res.status(400).json({ error: `Cannot reschedule a ${booking.status} booking` });
+      return res.status(400).json({ error: 'Перенести можно только активную запись' });
     }
 
     // Check cancel policy
     const hoursUntilStart = (new Date(booking.start_at) - Date.now()) / 3600000;
     if (hoursUntilStart < booking.cancel_policy_hours) {
       return res.status(403).json({
-        error: `Cannot reschedule less than ${booking.cancel_policy_hours} hours before the appointment`
+        error: `Перенести запись онлайн можно не позднее, чем за ${booking.cancel_policy_hours} часов. Пожалуйста, напишите в Telegram: @RoVVVVa`
       });
     }
 
@@ -197,7 +197,7 @@ router.patch('/:id/reschedule', async (req, res) => {
 
       if (conflict.rows.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'New time slot is already taken' });
+        return res.status(409).json({ error: 'Это время уже занято, выберите другой слот' });
       }
 
       const result = await client.query(
@@ -228,10 +228,10 @@ router.patch('/:id/reschedule', async (req, res) => {
     }
   } catch (error) {
     if (error.code === '23P01') {
-      return res.status(409).json({ error: 'New time slot is already taken' });
+      return res.status(409).json({ error: 'Это время уже занято, выберите другой слот' });
     }
     console.error('Error rescheduling booking:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Не удалось перенести запись. Попробуйте ещё раз чуть позже.' });
   }
 });
 

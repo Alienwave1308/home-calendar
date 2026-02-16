@@ -21,6 +21,8 @@
   --shadow: 0 6px 18px rgba(34, 116, 74, 0.14);
 }
 
+@import url('https://fonts.googleapis.com/css2?family=Marck+Script&display=swap');
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: radial-gradient(circle at 15% 5%, #d7f0de 0%, #bfe5cb 40%, #a8d8b8 100%);
@@ -580,14 +582,37 @@ body {
 .step-header-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
-.step-header-row .master-name {
+.studio-brand-wrap {
+  min-width: 0;
+}
+
+.studio-brand {
+  font-family: 'Marck Script', cursive;
+  font-size: 2.2em;
+  line-height: 0.95;
+  color: #6d5a53;
+  letter-spacing: 0.02em;
+}
+
+.studio-subtitle {
+  font-size: 1.05em;
+  color: #7f6a62;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+.studio-brand-wrap .master-name {
+  margin-top: 4px;
   margin-bottom: 0;
   min-width: 0;
   word-break: break-word;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .btn-my-bookings {
@@ -663,6 +688,21 @@ body {
 .my-booking-meta {
   font-size: 0.88em;
   color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.my-booking-meta span {
+  display: block;
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+.my-booking-meta span:first-child {
+  margin-top: 0;
+}
+
+.my-booking-price s {
+  opacity: 0.75;
 }
 
 .my-booking-actions {

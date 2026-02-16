@@ -156,6 +156,12 @@
     }).format(d);
   }
 
+  function formatPriceRub(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '';
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(num));
+  }
+
   function toDateStr(date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -207,7 +213,7 @@
       masterSettings = data.settings || masterSettings;
       services = data.services || [];
 
-      $('masterName').textContent = master.display_name;
+      $('masterName').textContent = 'Лера';
       try {
         const bookings = await apiFetch('/client/bookings');
         isFirstVisitClient = Array.isArray(bookings) && bookings.filter(function (b) {
@@ -495,6 +501,7 @@
     if (!googleLink || !appleBtn || !selectedSlot || !selectedService || !master) return;
 
     const address = 'Мкр Околица д.1, квартира 60';
+    const calendarName = 'RoVa Epil';
     const eventTitle = 'Запись на депиляцию: ' + selectedService.name;
     const descriptionParts = [
       'Услуга: ' + selectedService.name,
@@ -509,6 +516,7 @@
       title: eventTitle,
       details: description,
       location: address,
+      calendarName: calendarName,
       startIso: selectedSlot.start,
       endIso: selectedSlot.end,
       timezone: timezone
@@ -525,6 +533,7 @@
       appleUrl.searchParams.set('title', eventTitle);
       appleUrl.searchParams.set('details', description);
       appleUrl.searchParams.set('location', address);
+      appleUrl.searchParams.set('calendar_name', calendarName);
       appleUrl.searchParams.set('start_at', selectedSlot.start);
       appleUrl.searchParams.set('end_at', selectedSlot.end);
       appleUrl.searchParams.set('timezone', timezone);
@@ -588,10 +597,10 @@
           + '<div class="my-booking-meta">'
           + '<span>' + dateStr + ', ' + timeStr + (endTimeStr ? ' — ' + endTimeStr : '') + '</span>'
           + (b.service_price !== null && b.service_price !== undefined
-            ? '<span>Стоимость: '
+            ? '<span class="my-booking-price">Стоимость: '
               + (b.discount_percent > 0
-                ? '<s>' + b.service_price + ' ₽</s> → ' + b.final_price + ' ₽ (скидка ' + b.discount_percent + '%)'
-                : b.final_price + ' ₽')
+                ? '<s>' + formatPriceRub(b.service_price) + ' ₽</s> → ' + formatPriceRub(b.final_price) + ' ₽ (скидка ' + b.discount_percent + '%)'
+                : formatPriceRub(b.final_price) + ' ₽')
               + '</span>'
             : '')
           + '</div>'

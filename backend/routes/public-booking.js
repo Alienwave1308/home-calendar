@@ -98,12 +98,13 @@ function resolveMasterTimezone(master) {
   return process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
 }
 
-// GET /api/public/export/booking.ics?title=&details=&location=&start_at=&end_at=&timezone=
+// GET /api/public/export/booking.ics?title=&details=&location=&calendar_name=&start_at=&end_at=&timezone=
 router.get('/export/booking.ics', async (req, res) => {
   try {
     const title = String(req.query.title || 'Запись на процедуру');
     const details = String(req.query.details || '');
     const location = String(req.query.location || 'Мкр Околица д.1, квартира 60');
+    const calendarName = String(req.query.calendar_name || 'RoVa Epil');
     const timezone = String(req.query.timezone || 'UTC');
     const startAt = String(req.query.start_at || '');
     const endAt = String(req.query.end_at || '');
@@ -128,6 +129,7 @@ router.get('/export/booking.ics', async (req, res) => {
       'PRODID:-//RoVa Epil//Booking Export//RU',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
+      `X-WR-CALNAME:${escapeIcsText(calendarName)}`,
       `X-WR-TIMEZONE:${escapeIcsText(timezone)}`,
       'BEGIN:VEVENT',
       `UID:export-${Date.now()}@rova-epil.ru`,

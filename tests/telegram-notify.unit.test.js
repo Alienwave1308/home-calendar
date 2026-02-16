@@ -6,7 +6,8 @@ const { pool } = require('../backend/db');
 const {
   parseTelegramUserId,
   formatBookingTime,
-  notifyClientReminder
+  notifyClientReminder,
+  notifyClientBookingEvent
 } = require('../backend/lib/telegram-notify');
 
 describe('telegram-notify helpers', () => {
@@ -60,5 +61,24 @@ describe('telegram-notify helpers', () => {
     expect(result.skipped).toBe(true);
     expect(global.fetch).not.toHaveBeenCalled();
     expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('sends client update notification when booking changed by master', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{
+        id: 77,
+        start_at: '2026-02-20T09:00:00.000Z',
+        client_note: 'Зона бикини',
+        service_name: 'Сахар: Бёдра',
+        master_name: 'Лера',
+        master_timezone: 'Asia/Novosibirsk',
+        master_username: 'tg_111',
+        client_username: 'tg_555'
+      }]
+    });
+
+    const result = await notifyClientBookingEvent(77, 'updated');
+    expect(result.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });
