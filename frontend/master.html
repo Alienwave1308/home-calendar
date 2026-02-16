@@ -100,32 +100,30 @@
       <div class="settings-card">
         <h3>Напоминания</h3>
         <div id="reminderSettings"></div>
+        <div class="availability-form">
+          <input id="reminderHoursFirst" type="number" min="1" max="168" value="24" placeholder="Первое, часов">
+          <input id="reminderHoursSecond" type="number" min="1" max="168" value="2" placeholder="Второе, часов">
+          <button class="btn-secondary" onclick="MasterApp.saveReminderSettings()">Сохранить напоминания</button>
+        </div>
+        <div class="availability-form">
+          <input id="minBookingNoticeMinutes" type="number" min="0" max="1440" value="60" placeholder="Минимум до записи, минут">
+          <input id="firstVisitDiscountPercent" type="number" min="0" max="90" value="15" placeholder="Скидка на первый визит, %">
+          <button class="btn-secondary" onclick="MasterApp.savePricingSettings()">Сохранить ограничения и скидку</button>
+        </div>
       </div>
       <div class="settings-card">
         <h3>Свободные окна для записи</h3>
-        <p class="settings-hint">Добавьте рабочие интервалы по дням недели. Клиенты будут видеть слоты только в этих окнах.</p>
+        <p class="settings-hint">Добавьте рабочие интервалы по конкретным датам. Шаг записи фиксирован: 10 минут.</p>
         <div class="availability-form">
-          <select id="availabilityDay">
-            <option value="1">Понедельник</option>
-            <option value="2">Вторник</option>
-            <option value="3">Среда</option>
-            <option value="4">Четверг</option>
-            <option value="5">Пятница</option>
-            <option value="6">Суббота</option>
-            <option value="0">Воскресенье</option>
-          </select>
+          <input id="availabilityDate" type="date">
           <input id="availabilityStart" type="time" value="10:00">
           <input id="availabilityEnd" type="time" value="20:00">
-          <input id="availabilityStep" type="number" min="5" step="5" value="30" placeholder="Шаг, мин">
           <button class="btn-secondary" onclick="MasterApp.addAvailabilityRule()">Добавить окно</button>
         </div>
         <div class="availability-bulk">
           <label for="availabilityBulkInput">Быстрый ввод строками</label>
-          <textarea id="availabilityBulkInput" rows="4" placeholder="Пн 10:00-12:00, 13:00-18:00&#10;Вт 11:00-17:00"></textarea>
-          <div class="availability-form">
-            <input id="availabilityBulkStep" type="number" min="5" step="5" value="30" placeholder="Шаг, мин">
-            <button class="btn-secondary" onclick="MasterApp.addAvailabilityBulk()">Добавить из строк</button>
-          </div>
+          <textarea id="availabilityBulkInput" rows="4" placeholder="2026-02-20 10:00-13:00, 14:00-19:00&#10;2026-02-21 12:00-18:00"></textarea>
+          <button class="btn-secondary" onclick="MasterApp.addAvailabilityBulk()">Добавить из строк</button>
         </div>
         <div id="availabilityRules" class="settings-list"></div>
 

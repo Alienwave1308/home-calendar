@@ -20,6 +20,9 @@
         <h1 id="masterName" class="master-name"></h1>
         <p class="step-subtitle">Выберите услугу</p>
       </div>
+      <div id="firstVisitBanner" class="empty-state" style="display:none; margin-bottom:12px;">
+        <p id="firstVisitBannerText" style="margin:0;"></p>
+      </div>
       <div id="servicesList" class="services-list">
         <!-- skeleton or services -->
       </div>
@@ -75,6 +78,14 @@
         <div class="confirm-row" id="confirmPriceRow" style="display:none;">
           <span class="confirm-label">Стоимость</span>
           <span id="confirmPrice" class="confirm-value confirm-price"></span>
+        </div>
+        <div class="confirm-row" id="confirmDiscountRow" style="display:none;">
+          <span class="confirm-label">Скидка</span>
+          <span id="confirmDiscount" class="confirm-value"></span>
+        </div>
+        <div class="confirm-row" id="confirmFinalPriceRow" style="display:none;">
+          <span class="confirm-label">Итого</span>
+          <span id="confirmFinalPrice" class="confirm-value confirm-price"></span>
         </div>
         <textarea id="confirmNote" class="confirm-note" placeholder="Комментарий к записи (необязательно)" rows="2"></textarea>
       </div>

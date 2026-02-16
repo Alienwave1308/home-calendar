@@ -33,6 +33,9 @@ describe('Public Booking API', () => {
       })
       .mockResolvedValueOnce({
         rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], first_visit_discount_percent: 15, min_booking_notice_minutes: 60 }]
       });
 
     const res = await request(app)
@@ -86,10 +89,19 @@ describe('Public Booking API', () => {
     const startAt = '2026-03-05T10:00:00.000Z';
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Europe/Moscow', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
       })
       .mockResolvedValueOnce({
         rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], first_visit_discount_percent: 15, min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 1 }]
+      })
+      .mockResolvedValueOnce({
+        rows: []
       })
       .mockResolvedValueOnce({
         rows: [{ id: 99, master_id: 3, client_id: 42, service_id: 11, start_at: startAt, status: 'confirmed' }]
@@ -102,7 +114,8 @@ describe('Public Booking API', () => {
       .expect(201);
 
     expect(res.body.id).toBe(99);
-    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(pool.query).toHaveBeenCalledTimes(6);
+    expect(res.body.pricing.first_visit_discount_percent).toBe(15);
   });
 
   it('should return 403 for apple calendar feed with invalid token', async () => {

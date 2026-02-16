@@ -69,7 +69,7 @@ router.post('/setup', async (req, res) => {
     }
 
     const booking_slug = nanoid(10);
-    const tz = timezone || 'Europe/Moscow';
+    const tz = timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
 
     const result = await pool.query(
       `INSERT INTO masters (user_id, display_name, timezone, booking_slug)
@@ -464,6 +464,84 @@ router.delete('/availability/exclusions/:id', loadMaster, async (req, res) => {
     res.json({ message: 'Exclusion deleted' });
   } catch (error) {
     console.error('Error deleting exclusion:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// === DATE-BASED AVAILABILITY WINDOWS ===
+
+// GET /api/master/availability/windows?date_from=&date_to=
+router.get('/availability/windows', loadMaster, async (req, res) => {
+  try {
+    const { date_from, date_to } = req.query;
+    const values = [req.master.id];
+    let where = 'master_id = $1';
+
+    if (date_from) {
+      values.push(date_from);
+      where += ` AND date >= $${values.length}`;
+    }
+    if (date_to) {
+      values.push(date_to);
+      where += ` AND date <= $${values.length}`;
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, master_id, date, start_time, end_time, created_at
+       FROM availability_windows
+       WHERE ${where}
+       ORDER BY date ASC, start_time ASC`,
+      values
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error listing availability windows:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/availability/windows
+router.post('/availability/windows', loadMaster, async (req, res) => {
+  try {
+    const { date, start_time, end_time } = req.body;
+    if (!date || !start_time || !end_time) {
+      return res.status(400).json({ error: 'date, start_time and end_time are required' });
+    }
+    if (String(start_time) >= String(end_time)) {
+      return res.status(400).json({ error: 'start_time must be earlier than end_time' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO availability_windows (master_id, date, start_time, end_time)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (master_id, date, start_time, end_time) DO NOTHING
+       RETURNING id, master_id, date, start_time, end_time, created_at`,
+      [req.master.id, date, start_time, end_time]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({ error: 'Window already exists' });
+    }
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating availability window:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/master/availability/windows/:id
+router.delete('/availability/windows/:id', loadMaster, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM availability_windows WHERE id = $1 AND master_id = $2 RETURNING id',
+      [req.params.id, req.master.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Window not found' });
+    }
+    res.json({ message: 'Window deleted' });
+  } catch (error) {
+    console.error('Error deleting availability window:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1024,6 +1102,8 @@ router.get('/settings', loadMaster, async (req, res) => {
         reminder_hours: [24, 2],
         quiet_hours_start: null,
         quiet_hours_end: null,
+        first_visit_discount_percent: 15,
+        min_booking_notice_minutes: 60,
         apple_calendar_enabled: false,
         apple_calendar_token: null
       });
@@ -1038,32 +1118,59 @@ router.get('/settings', loadMaster, async (req, res) => {
 // PUT /api/master/settings
 router.put('/settings', loadMaster, async (req, res) => {
   try {
-    const { reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled } = req.body;
+    const {
+      reminder_hours,
+      quiet_hours_start,
+      quiet_hours_end,
+      apple_calendar_enabled,
+      first_visit_discount_percent,
+      min_booking_notice_minutes
+    } = req.body;
 
     if (reminder_hours !== undefined && !Array.isArray(reminder_hours)) {
       return res.status(400).json({ error: 'reminder_hours must be an array of numbers' });
     }
+    if (reminder_hours !== undefined && reminder_hours.length !== 2) {
+      return res.status(400).json({ error: 'reminder_hours must contain exactly 2 values' });
+    }
     if (apple_calendar_enabled !== undefined && typeof apple_calendar_enabled !== 'boolean') {
       return res.status(400).json({ error: 'apple_calendar_enabled must be boolean' });
+    }
+    if (
+      first_visit_discount_percent !== undefined
+      && (!Number.isInteger(Number(first_visit_discount_percent)) || Number(first_visit_discount_percent) < 0 || Number(first_visit_discount_percent) > 90)
+    ) {
+      return res.status(400).json({ error: 'first_visit_discount_percent must be between 0 and 90' });
+    }
+    if (
+      min_booking_notice_minutes !== undefined
+      && (!Number.isInteger(Number(min_booking_notice_minutes)) || Number(min_booking_notice_minutes) < 0 || Number(min_booking_notice_minutes) > 1440)
+    ) {
+      return res.status(400).json({ error: 'min_booking_notice_minutes must be between 0 and 1440' });
     }
 
     const result = await pool.query(
       `INSERT INTO master_settings (
-         master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled
+         master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled,
+         first_visit_discount_percent, min_booking_notice_minutes
        )
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (master_id) DO UPDATE SET
          reminder_hours = COALESCE($2, master_settings.reminder_hours),
          quiet_hours_start = $3,
          quiet_hours_end = $4,
-         apple_calendar_enabled = COALESCE($5, master_settings.apple_calendar_enabled)
+         apple_calendar_enabled = COALESCE($5, master_settings.apple_calendar_enabled),
+         first_visit_discount_percent = COALESCE($6, master_settings.first_visit_discount_percent),
+         min_booking_notice_minutes = COALESCE($7, master_settings.min_booking_notice_minutes)
        RETURNING *`,
       [
         req.master.id,
-        reminder_hours ? JSON.stringify(reminder_hours) : '[24, 2]',
+        reminder_hours ? JSON.stringify(reminder_hours.map(Number)) : '[24, 2]',
         quiet_hours_start || null,
         quiet_hours_end || null,
-        apple_calendar_enabled
+        apple_calendar_enabled,
+        first_visit_discount_percent !== undefined ? Number(first_visit_discount_percent) : null,
+        min_booking_notice_minutes !== undefined ? Number(min_booking_notice_minutes) : null
       ]
     );
 

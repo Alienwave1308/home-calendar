@@ -31,16 +31,6 @@
   let token = localStorage.getItem('token') || '';
   let bookingsCache = [];
   let currentMasterSlug = '';
-  const DAY_LABELS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-  const DAY_ALIASES = {
-    'пн': 1, 'понедельник': 1,
-    'вт': 2, 'вторник': 2,
-    'ср': 3, 'среда': 3,
-    'чт': 4, 'четверг': 4,
-    'пт': 5, 'пятница': 5,
-    'сб': 6, 'суббота': 6,
-    'вс': 0, 'воскресенье': 0
-  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -429,12 +419,17 @@
       $('gcalStatus').textContent = 'Не удалось проверить';
     }
 
-    // Reminder settings
+    // Reminder and pricing settings
     try {
       let settings = await apiFetch('/settings');
       appleSettings = settings;
       $('reminderSettings').innerHTML = 'Напоминания за: <strong>' + (settings.reminder_hours || [24, 2]).join(', ') + '</strong> ч.'
-        + (settings.quiet_hours_start ? '<br>Тихие часы: ' + settings.quiet_hours_start + ' — ' + settings.quiet_hours_end : '');
+        + '<br>Минимум до записи: <strong>' + (settings.min_booking_notice_minutes || 60) + '</strong> мин'
+        + '<br>Скидка на первый визит: <strong>' + (settings.first_visit_discount_percent || 15) + '%</strong>';
+      $('reminderHoursFirst').value = Number((settings.reminder_hours || [24, 2])[0] || 24);
+      $('reminderHoursSecond').value = Number((settings.reminder_hours || [24, 2])[1] || 2);
+      $('minBookingNoticeMinutes').value = Number(settings.min_booking_notice_minutes || 60);
+      $('firstVisitDiscountPercent').value = Number(settings.first_visit_discount_percent || 15);
     } catch (_) {
       $('reminderSettings').textContent = 'Не удалось загрузить';
     }
@@ -453,7 +448,7 @@
 
     try {
       const [rules, exclusions] = await Promise.all([
-        apiFetch('/availability'),
+        apiFetch('/availability/windows'),
         apiFetch('/availability/exclusions')
       ]);
 
@@ -461,11 +456,11 @@
         rulesEl.innerHTML = '<p class="settings-hint">Пока нет рабочих окон. Добавьте первое окно выше.</p>';
       } else {
         rulesEl.innerHTML = rules.map(function (rule) {
+          const dateText = String(rule.date).slice(0, 10);
           return '<div class="settings-list-item">'
             + '<div>'
-            + '<strong>' + DAY_LABELS[rule.day_of_week] + '</strong>'
-            + '<div class="settings-hint">' + rule.start_time.slice(0, 5) + ' - ' + rule.end_time.slice(0, 5)
-            + ' · шаг ' + rule.slot_granularity_minutes + ' мин</div>'
+            + '<strong>' + dateText + '</strong>'
+            + '<div class="settings-hint">' + rule.start_time.slice(0, 5) + ' - ' + rule.end_time.slice(0, 5) + '</div>'
             + '</div>'
             + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityRule(' + rule.id + ')">Удалить</button>'
             + '</div>';
@@ -492,21 +487,19 @@
 
   async function addAvailabilityRule() {
     try {
-      const day = Number($('availabilityDay').value);
+      const date = $('availabilityDate').value;
       const start = $('availabilityStart').value;
       const end = $('availabilityEnd').value;
-      const step = Number($('availabilityStep').value || 30);
 
-      if (!start || !end) {
-        showToast('Выберите время начала и конца');
+      if (!date || !start || !end) {
+        showToast('Выберите дату и время');
         return;
       }
 
-      await apiMethod('POST', '/availability', {
-        day_of_week: day,
+      await apiMethod('POST', '/availability/windows', {
+        date: date,
         start_time: start,
-        end_time: end,
-        slot_granularity_minutes: step
+        end_time: end
       });
       await loadAvailabilitySettings();
       showToast('Окно добавлено');
@@ -515,7 +508,7 @@
     }
   }
 
-  function parseAvailabilityBulk(text, step) {
+  function parseAvailabilityBulk(text) {
     const lines = String(text || '')
       .split('\n')
       .map(function (line) { return line.trim(); })
@@ -523,15 +516,11 @@
 
     const result = [];
     for (const line of lines) {
-      const match = line.match(/^([а-яА-Яa-zA-Z]+)\s+(.+)$/);
+      const match = line.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
       if (!match) {
         throw new Error('Неверный формат строки: ' + line);
       }
-      const dayToken = match[1].toLowerCase();
-      const dayOfWeek = DAY_ALIASES[dayToken];
-      if (dayOfWeek === undefined) {
-        throw new Error('Неизвестный день недели: ' + match[1]);
-      }
+      const date = match[1];
 
       const ranges = match[2]
         .split(',')
@@ -544,10 +533,9 @@
           throw new Error('Неверный диапазон времени: ' + range);
         }
         result.push({
-          day_of_week: dayOfWeek,
+          date: date,
           start_time: rangeMatch[1],
-          end_time: rangeMatch[2],
-          slot_granularity_minutes: step
+          end_time: rangeMatch[2]
         });
       }
     }
@@ -557,15 +545,14 @@
   async function addAvailabilityBulk() {
     try {
       const text = $('availabilityBulkInput').value;
-      const step = Number($('availabilityBulkStep').value || 30);
-      const rules = parseAvailabilityBulk(text, step);
+      const rules = parseAvailabilityBulk(text);
       if (!rules.length) {
         showToast('Добавьте хотя бы одну строку');
         return;
       }
 
       for (const rule of rules) {
-        await apiMethod('POST', '/availability', rule);
+        await apiMethod('POST', '/availability/windows', rule);
       }
       $('availabilityBulkInput').value = '';
       await loadAvailabilitySettings();
@@ -577,9 +564,38 @@
 
   async function deleteAvailabilityRule(ruleId) {
     try {
-      await apiMethod('DELETE', '/availability/' + ruleId);
+      await apiMethod('DELETE', '/availability/windows/' + ruleId);
       await loadAvailabilitySettings();
       showToast('Окно удалено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function saveReminderSettings() {
+    try {
+      const first = Number($('reminderHoursFirst').value || 24);
+      const second = Number($('reminderHoursSecond').value || 2);
+      await apiMethod('PUT', '/settings', {
+        reminder_hours: [first, second]
+      });
+      await loadSettings();
+      showToast('Напоминания сохранены');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function savePricingSettings() {
+    try {
+      const minMinutes = Number($('minBookingNoticeMinutes').value || 60);
+      const discount = Number($('firstVisitDiscountPercent').value || 15);
+      await apiMethod('PUT', '/settings', {
+        min_booking_notice_minutes: minMinutes,
+        first_visit_discount_percent: discount
+      });
+      await loadSettings();
+      showToast('Ограничения и скидка сохранены');
     } catch (err) {
       showToast(err.message);
     }
@@ -775,6 +791,8 @@
     enableAppleCalendar: enableAppleCalendar,
     rotateAppleCalendar: rotateAppleCalendar,
     disableAppleCalendar: disableAppleCalendar,
+    saveReminderSettings: saveReminderSettings,
+    savePricingSettings: savePricingSettings,
     addAvailabilityRule: addAvailabilityRule,
     addAvailabilityBulk: addAvailabilityBulk,
     deleteAvailabilityRule: deleteAvailabilityRule,

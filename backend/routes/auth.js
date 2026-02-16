@@ -62,7 +62,7 @@ function getConfiguredMasterTelegramId() {
 }
 
 async function ensureMasterProfileForUser(user, rawUser) {
-  const defaultTimezone = process.env.MASTER_TIMEZONE || 'Europe/Moscow';
+  const defaultTimezone = process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
   const defaultDisplayName = process.env.MASTER_DISPLAY_NAME || rawUser?.first_name || rawUser?.username || 'Мастер';
   const masterByUser = await pool.query(
     'SELECT id, booking_slug FROM masters WHERE user_id = $1',

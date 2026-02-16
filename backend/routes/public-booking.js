@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
-const { generateSlots } = require('../lib/slots');
+const { generateSlotsFromWindows, localDateTimeToUtcMs } = require('../lib/slots');
 const { createReminders } = require('../lib/reminders');
 const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
 
@@ -30,6 +30,31 @@ function escapeIcsText(text) {
     .replace(/;/g, '\\;');
 }
 
+function dateInTimezone(date, timezone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function timeInTimezone(date, timezone) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+  const hour = parts.find((p) => p.type === 'hour')?.value || '00';
+  const minute = parts.find((p) => p.type === 'minute')?.value || '00';
+  return `${hour}:${minute}`;
+}
+
 async function loadMasterBySlug(slug) {
   const { rows } = await pool.query(
     `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
@@ -49,6 +74,23 @@ async function loadService(masterId, serviceId) {
     [serviceId, masterId]
   );
   return rows[0] || null;
+}
+
+async function loadMasterSettings(masterId) {
+  const { rows } = await pool.query(
+    `SELECT reminder_hours, first_visit_discount_percent, min_booking_notice_minutes
+     FROM master_settings
+     WHERE master_id = $1`,
+    [masterId]
+  );
+  if (!rows.length) {
+    return {
+      reminder_hours: [24, 2],
+      first_visit_discount_percent: 15,
+      min_booking_notice_minutes: 60
+    };
+  }
+  return rows[0];
 }
 
 // GET /api/public/export/booking.ics?title=&details=&start_at=&end_at=&timezone=
@@ -123,11 +165,12 @@ router.get('/master/:slug', async (req, res) => {
       master: {
         id: master.id,
         display_name: master.display_name,
-        timezone: master.timezone,
+        timezone: master.timezone || 'Asia/Novosibirsk',
         booking_slug: master.booking_slug,
         cancel_policy_hours: master.cancel_policy_hours
       },
-      services: services.rows
+      services: services.rows,
+      settings: await loadMasterSettings(master.id)
     });
   } catch (error) {
     console.error('Error loading public master profile:', error);
@@ -153,31 +196,40 @@ router.get('/master/:slug/slots', async (req, res) => {
       return res.status(404).json({ error: 'Service not found' });
     }
 
-    const [rules, exclusions, bookings, blocks] = await Promise.all([
-      pool.query('SELECT * FROM availability_rules WHERE master_id = $1', [master.id]),
-      pool.query('SELECT date FROM availability_exclusions WHERE master_id = $1', [master.id]),
+    const timezone = master.timezone || 'Asia/Novosibirsk';
+    const settings = await loadMasterSettings(master.id);
+    const queryStartUtc = new Date(localDateTimeToUtcMs(date_from, '00:00:00', timezone)).toISOString();
+    const queryEndUtc = new Date(localDateTimeToUtcMs(date_to, '23:59:59', timezone)).toISOString();
+
+    const [windows, bookings, blocks] = await Promise.all([
+      pool.query(
+        `SELECT id, date, start_time, end_time
+         FROM availability_windows
+         WHERE master_id = $1 AND date >= $2 AND date <= $3
+         ORDER BY date, start_time`,
+        [master.id, date_from, date_to]
+      ),
       pool.query(
         `SELECT start_at, end_at FROM bookings
          WHERE master_id = $1 AND status NOT IN ('canceled')
            AND start_at < $3 AND end_at > $2`,
-        [master.id, date_from, date_to]
+        [master.id, queryStartUtc, queryEndUtc]
       ),
       pool.query(
         `SELECT start_at, end_at FROM master_blocks
          WHERE master_id = $1 AND start_at < $3 AND end_at > $2`,
-        [master.id, date_from, date_to]
+        [master.id, queryStartUtc, queryEndUtc]
       )
     ]);
 
-    const slots = generateSlots({
+    const slots = generateSlotsFromWindows({
       service,
-      rules: rules.rows,
-      exclusions: exclusions.rows.map((item) => item.date),
+      windows: windows.rows,
       bookings: bookings.rows,
       blocks: blocks.rows,
-      dateFrom: date_from,
-      dateTo: date_to,
-      timezone: master.timezone
+      timezone,
+      stepMinutes: 10,
+      minLeadMinutes: settings.min_booking_notice_minutes || 60
     });
 
     return res.json({ slots });
@@ -284,11 +336,55 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     if (!service) {
       return res.status(404).json({ error: 'Service not found' });
     }
+    const settings = await loadMasterSettings(master.id);
+    const timezone = master.timezone || 'Asia/Novosibirsk';
 
     const startDate = new Date(start_at);
     if (Number.isNaN(startDate.getTime())) {
       return res.status(400).json({ error: 'start_at must be valid ISO datetime' });
     }
+    const minute = startDate.getUTCMinutes();
+    if (minute % 10 !== 0) {
+      return res.status(400).json({ error: 'Start time must be aligned to 10 minutes' });
+    }
+    const minNoticeMinutes = Number(settings.min_booking_notice_minutes || 60);
+    if (startDate.getTime() < Date.now() + minNoticeMinutes * 60000) {
+      return res.status(400).json({ error: `Booking is allowed at least ${minNoticeMinutes} minutes in advance` });
+    }
+
+    const localDate = dateInTimezone(startDate, timezone);
+    const windowCoverage = await pool.query(
+      `SELECT id
+       FROM availability_windows
+       WHERE master_id = $1
+         AND date = $2
+         AND start_time <= $3::time
+         AND end_time >= $4::time
+       LIMIT 1`,
+      [
+        master.id,
+        localDate,
+        timeInTimezone(startDate, timezone),
+        timeInTimezone(new Date(startDate.getTime() + service.duration_minutes * 60000), timezone)
+      ]
+    );
+    if (!windowCoverage.rows.length) {
+      return res.status(409).json({ error: 'Selected time is outside available windows' });
+    }
+
+    const firstBookingCheck = await pool.query(
+      `SELECT id
+       FROM bookings
+       WHERE master_id = $1 AND client_id = $2 AND status NOT IN ('canceled')
+       LIMIT 1`,
+      [master.id, req.user.id]
+    );
+    const isFirstVisit = firstBookingCheck.rows.length === 0;
+    const discountPercent = isFirstVisit ? Number(settings.first_visit_discount_percent || 0) : 0;
+    const basePrice = Number(service.price || 0);
+    const discountAmount = Math.round(basePrice * discountPercent) / 100;
+    const finalPrice = Math.max(0, basePrice - discountAmount);
+
     const endDate = new Date(startDate.getTime() + service.duration_minutes * 60000);
 
     const result = await pool.query(
@@ -306,7 +402,14 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       console.error('Error handling public booking side-effects:', notifyError);
     }
 
-    return res.status(201).json(created);
+    return res.status(201).json({
+      ...created,
+      pricing: {
+        base_price: basePrice,
+        first_visit_discount_percent: discountPercent,
+        final_price: finalPrice
+      }
+    });
   } catch (error) {
     if (error.code === '23P01') {
       return res.status(409).json({ error: 'Time slot is already taken' });
