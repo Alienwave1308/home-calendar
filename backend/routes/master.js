@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { nanoid } = require('nanoid');
 const crypto = require('crypto');
 const { generateSlots } = require('../lib/slots');
+const { DEFAULT_SERVICES, toDescription } = require('../lib/default-services');
 
 // All master routes require authentication
 router.use(authenticateToken);
@@ -257,6 +258,58 @@ router.delete('/services/:id', loadMaster, async (req, res) => {
   } catch (error) {
     console.error('Error deactivating service:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/services/bootstrap-default
+router.post('/services/bootstrap-default', loadMaster, async (req, res) => {
+  const overwrite = Boolean(req.body && req.body.overwrite);
+
+  try {
+    const existing = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1 AND is_active = true',
+      [req.master.id]
+    );
+    const activeCount = Number(existing.rows[0]?.total || 0);
+
+    if (activeCount > 0 && !overwrite) {
+      return res.status(409).json({
+        error: 'Services already exist. Pass { overwrite: true } to replace them.',
+        active_services: activeCount
+      });
+    }
+
+    await pool.query('BEGIN');
+
+    if (overwrite) {
+      await pool.query(
+        'UPDATE services SET is_active = false WHERE master_id = $1 AND is_active = true',
+        [req.master.id]
+      );
+    }
+
+    const inserted = [];
+    for (const item of DEFAULT_SERVICES) {
+      const result = await pool.query(
+        `INSERT INTO services (master_id, name, duration_minutes, price, description,
+                               buffer_before_minutes, buffer_after_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [req.master.id, item.name, item.duration_minutes, item.price, toDescription(item), 0, 0]
+      );
+      inserted.push(result.rows[0]);
+    }
+
+    await pool.query('COMMIT');
+    return res.status(201).json({
+      inserted_count: inserted.length,
+      overwrite,
+      services: inserted
+    });
+  } catch (error) {
+    await pool.query('ROLLBACK').catch(() => {});
+    console.error('Error bootstrapping default services:', error);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

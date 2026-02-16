@@ -231,6 +231,62 @@ describe('Master API', () => {
     });
   });
 
+  describe('POST /api/master/services/bootstrap-default', () => {
+    it('should seed default services for empty master catalog', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ total: 0 }] }) // existing count
+        .mockResolvedValueOnce({ rows: [] }) // BEGIN
+        .mockResolvedValue({
+          rows: [{ id: 100, master_id: 1, name: 'Сахар: Бёдра', duration_minutes: 40, price: 900, is_active: true }]
+        }); // inserts + COMMIT
+
+      const res = await request(app)
+        .post('/api/master/services/bootstrap-default')
+        .set('Authorization', authHeader)
+        .send({})
+        .expect(201);
+
+      expect(res.body.inserted_count).toBeGreaterThan(20);
+      expect(res.body.overwrite).toBe(false);
+      expect(Array.isArray(res.body.services)).toBe(true);
+    });
+
+    it('should return 409 when services already exist without overwrite', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ total: 2 }] }); // existing count
+
+      const res = await request(app)
+        .post('/api/master/services/bootstrap-default')
+        .set('Authorization', authHeader)
+        .send({})
+        .expect(409);
+
+      expect(res.body.active_services).toBe(2);
+    });
+
+    it('should overwrite existing services when overwrite=true', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ total: 3 }] }) // existing count
+        .mockResolvedValueOnce({ rows: [] }) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }) // deactivate old
+        .mockResolvedValue({
+          rows: [{ id: 101, master_id: 1, name: 'Воск: Ноги полностью', duration_minutes: 60, price: 2000, is_active: true }]
+        }); // inserts + COMMIT
+
+      const res = await request(app)
+        .post('/api/master/services/bootstrap-default')
+        .set('Authorization', authHeader)
+        .send({ overwrite: true })
+        .expect(201);
+
+      expect(res.body.overwrite).toBe(true);
+      expect(res.body.inserted_count).toBeGreaterThan(20);
+    });
+  });
+
   // === AVAILABILITY ===
 
   describe('POST /api/master/availability', () => {

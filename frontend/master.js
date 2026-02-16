@@ -379,6 +379,19 @@
     }
   }
 
+  async function bootstrapDefaultServices() {
+    try {
+      const overwrite = window.confirm('Загрузить прайс по шаблону?\n\nЕсли услуги уже есть, они будут заменены.');
+      if (!overwrite) return;
+
+      const result = await apiMethod('POST', '/services/bootstrap-default', { overwrite: true });
+      await loadServices();
+      showToast('Прайс загружен: ' + result.inserted_count + ' услуг');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
   // === SETTINGS ===
 
   async function loadSettings() {
@@ -567,6 +580,7 @@
     saveBookingForm: saveBookingForm,
     showAddService: showAddService,
     saveService: saveService,
+    bootstrapDefaultServices: bootstrapDefaultServices,
     copyLink: copyLink,
     copyAppleLink: copyAppleLink,
     openAppleCalendar: openAppleCalendar,
