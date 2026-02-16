@@ -2066,7 +2066,7 @@ if (tgState.enabled) {
   telegramMiniApp.onBackButton(handleMiniAppBack);
 }
 
-// Bootstrap auth state (Telegram mini app only)
+// Инициализация состояния авторизации (только Telegram Mini App)
 (async () => {
   await tryTelegramAutoLogin();
   checkAuth();
