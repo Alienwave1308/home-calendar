@@ -93,6 +93,10 @@ async function loadMasterSettings(masterId) {
   return rows[0];
 }
 
+function resolveMasterTimezone() {
+  return process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
+}
+
 // GET /api/public/export/booking.ics?title=&details=&start_at=&end_at=&timezone=
 router.get('/export/booking.ics', async (req, res) => {
   try {
@@ -161,11 +165,12 @@ router.get('/master/:slug', async (req, res) => {
       [master.id]
     );
 
+    const timezone = resolveMasterTimezone();
     return res.json({
       master: {
         id: master.id,
         display_name: master.display_name,
-        timezone: master.timezone || 'Asia/Novosibirsk',
+        timezone: timezone,
         booking_slug: master.booking_slug,
         cancel_policy_hours: master.cancel_policy_hours
       },
@@ -196,7 +201,7 @@ router.get('/master/:slug/slots', async (req, res) => {
       return res.status(404).json({ error: 'Service not found' });
     }
 
-    const timezone = master.timezone || 'Asia/Novosibirsk';
+    const timezone = resolveMasterTimezone();
     const settings = await loadMasterSettings(master.id);
     const queryStartUtc = new Date(localDateTimeToUtcMs(date_from, '00:00:00', timezone)).toISOString();
     const queryEndUtc = new Date(localDateTimeToUtcMs(date_to, '23:59:59', timezone)).toISOString();
@@ -337,7 +342,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Service not found' });
     }
     const settings = await loadMasterSettings(master.id);
-    const timezone = master.timezone || 'Asia/Novosibirsk';
+    const timezone = resolveMasterTimezone();
 
     const startDate = new Date(start_at);
     if (Number.isNaN(startDate.getTime())) {
