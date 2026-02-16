@@ -700,4 +700,55 @@ router.delete('/blocks/:id', loadMaster, async (req, res) => {
   }
 });
 
+// === REMINDER SETTINGS ===
+
+// GET /api/master/settings
+router.get('/settings', loadMaster, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM master_settings WHERE master_id = $1',
+      [req.master.id]
+    );
+    if (rows.length === 0) {
+      return res.json({ master_id: req.master.id, reminder_hours: [24, 2], quiet_hours_start: null, quiet_hours_end: null });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/master/settings
+router.put('/settings', loadMaster, async (req, res) => {
+  try {
+    const { reminder_hours, quiet_hours_start, quiet_hours_end } = req.body;
+
+    if (reminder_hours !== undefined && !Array.isArray(reminder_hours)) {
+      return res.status(400).json({ error: 'reminder_hours must be an array of numbers' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO master_settings (master_id, reminder_hours, quiet_hours_start, quiet_hours_end)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (master_id) DO UPDATE SET
+         reminder_hours = COALESCE($2, master_settings.reminder_hours),
+         quiet_hours_start = $3,
+         quiet_hours_end = $4
+       RETURNING *`,
+      [
+        req.master.id,
+        reminder_hours ? JSON.stringify(reminder_hours) : '[24, 2]',
+        quiet_hours_start || null,
+        quiet_hours_end || null
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
