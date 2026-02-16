@@ -12,6 +12,15 @@ const polishUtils = window.PolishUtils || {
     `<div class="skeleton-list">${Array.from({ length: count }, () => '<div class="skeleton-line"></div>').join('')}</div>`
   )
 };
+const telegramMiniApp = window.TelegramMiniApp || {
+  init: () => false,
+  onBackButton: () => {},
+  setBackButtonVisible: () => {},
+  confirm: async (message) => window.confirm(message),
+  alert: async (message) => window.alert(message),
+  isMiniApp: () => false,
+  getInitData: () => ''
+};
 
 // Auth state
 let authToken = localStorage.getItem('authToken');
@@ -92,6 +101,39 @@ let taskDetailAssignees = [];
 let taskDetailMembers = [];
 let taskDetailHistory = [];
 const loadedRoutes = new Set();
+const tgState = {
+  enabled: false
+};
+
+function isDayModalOpen() {
+  const modal = document.getElementById('dayModal');
+  return Boolean(modal && modal.style.display !== 'none');
+}
+
+function isTaskDetailOpen() {
+  const modal = document.getElementById('taskDetailModal');
+  return Boolean(modal && modal.style.display !== 'none');
+}
+
+function syncMiniAppBackButton() {
+  if (!tgState.enabled) return;
+  const shouldShow = isDayModalOpen() || isTaskDetailOpen() || getRouteFromHash() !== 'dashboard';
+  telegramMiniApp.setBackButtonVisible(shouldShow);
+}
+
+function handleMiniAppBack() {
+  if (isTaskDetailOpen()) {
+    closeTaskDetailModal();
+    return;
+  }
+  if (isDayModalOpen()) {
+    closeDayModal();
+    return;
+  }
+  if (getRouteFromHash() !== 'dashboard') {
+    navigateTo('dashboard');
+  }
+}
 
 // Helper: add auth header to fetch requests
 function authHeaders() {
@@ -203,6 +245,7 @@ function handleRoute() {
   }
 
   loadedRoutes.add(route);
+  syncMiniAppBackButton();
 }
 
 window.addEventListener('hashchange', handleRoute);
@@ -213,6 +256,38 @@ const authScreen = document.getElementById('authScreen');
 const appScreen = document.getElementById('appScreen');
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
+
+async function tryTelegramAutoLogin() {
+  if (authToken && currentUser) return true;
+  if (!tgState.enabled) return false;
+
+  const initData = telegramMiniApp.getInitData();
+  if (!initData) return false;
+
+  const loginError = document.getElementById('loginError');
+  if (loginError) loginError.textContent = '';
+
+  try {
+    const response = await fetch(`${AUTH_URL}/telegram`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData })
+    });
+
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    if (!data.token || !data.user) return false;
+
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('authToken', authToken);
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Show correct screen on load
 function checkAuth() {
@@ -226,9 +301,11 @@ function checkAuth() {
     } else {
       handleRoute();
     }
+    syncMiniAppBackButton();
   } else {
     authScreen.style.display = 'block';
     appScreen.style.display = 'none';
+    syncMiniAppBackButton();
   }
 }
 
@@ -563,7 +640,7 @@ async function leaveFamily() {
     ? 'Вы владелец. Семья будет удалена для всех. Продолжить?'
     : 'Вы уверены, что хотите покинуть семью?';
 
-  if (!confirm(action)) return;
+  if (!await telegramMiniApp.confirm(action)) return;
 
   try {
     const response = await fetch(`${FAMILY_URL}/leave`, {
@@ -584,7 +661,7 @@ async function leaveFamily() {
 
 // eslint-disable-next-line no-unused-vars
 async function kickMember(userId) {
-  if (!confirm('Убрать этого участника из семьи?')) return;
+  if (!await telegramMiniApp.confirm('Убрать этого участника из семьи?')) return;
 
   try {
     const response = await fetch(`${FAMILY_URL}/members/${userId}`, {
@@ -915,7 +992,7 @@ taskForm.addEventListener('submit', async (e) => {
   };
 
   if (!newTask.title || !newTask.date) {
-    alert('Пожалуйста, заполните все поля!');
+    await telegramMiniApp.alert('Пожалуйста, заполните все поля!');
     return;
   }
 
@@ -933,11 +1010,11 @@ taskForm.addEventListener('submit', async (e) => {
       if (taskPriority) taskPriority.value = 'medium';
       loadTasks();
     } else {
-      alert('Ошибка при добавлении задачи');
+      await telegramMiniApp.alert('Ошибка при добавлении задачи');
     }
   } catch (error) {
     console.error('Ошибка:', error);
-    alert('Ошибка при добавлении задачи');
+    await telegramMiniApp.alert('Ошибка при добавлении задачи');
   }
 });
 
@@ -991,7 +1068,7 @@ async function bulkUpdateStatus(nextStatus) {
 
 async function bulkDeleteTasks() {
   if (selectedTaskIds.size === 0) return;
-  if (!confirm(`Удалить задач: ${selectedTaskIds.size}?`)) return;
+  if (!await telegramMiniApp.confirm(`Удалить задач: ${selectedTaskIds.size}?`)) return;
   await Promise.all(Array.from(selectedTaskIds).map((id) => (
     fetch(`${API_URL}/${id}`, {
       method: 'DELETE',
@@ -1151,18 +1228,18 @@ async function cycleStatus(id, currentStatus) {
     if (response.ok) {
       loadTasks();
     } else {
-      alert('Ошибка при обновлении задачи');
+      await telegramMiniApp.alert('Ошибка при обновлении задачи');
     }
   } catch (error) {
     console.error('Ошибка:', error);
-    alert('Ошибка при обновлении задачи');
+    await telegramMiniApp.alert('Ошибка при обновлении задачи');
   }
 }
 
 // Delete task
 // eslint-disable-next-line no-unused-vars
 async function deleteTask(id) {
-  if (!confirm('Вы уверены, что хотите удалить эту задачу?')) {
+  if (!await telegramMiniApp.confirm('Вы уверены, что хотите удалить эту задачу?')) {
     return;
   }
 
@@ -1175,11 +1252,11 @@ async function deleteTask(id) {
     if (response.ok) {
       loadTasks();
     } else {
-      alert('Ошибка при удалении задачи');
+      await telegramMiniApp.alert('Ошибка при удалении задачи');
     }
   } catch (error) {
     console.error('Ошибка:', error);
-    alert('Ошибка при удалении задачи');
+    await telegramMiniApp.alert('Ошибка при удалении задачи');
   }
 }
 
@@ -1407,6 +1484,7 @@ function openDayModal(dateStr) {
   document.getElementById('modalTaskTitle').value = '';
   renderModalTasks();
   modal.style.display = 'flex';
+  syncMiniAppBackButton();
 }
 
 function closeDayModal(event) {
@@ -1414,6 +1492,7 @@ function closeDayModal(event) {
   if (event && event.target !== event.currentTarget) return;
   document.getElementById('dayModal').style.display = 'none';
   modalDate = null;
+  syncMiniAppBackButton();
 }
 
 function renderModalTasks() {
@@ -1499,7 +1578,7 @@ async function cycleStatusModal(id, currentStatus) {
 
 // eslint-disable-next-line no-unused-vars
 async function deleteTaskModal(id) {
-  if (!confirm('Удалить задачу?')) return;
+  if (!await telegramMiniApp.confirm('Удалить задачу?')) return;
   try {
     const response = await fetch(`${API_URL}/${id}`, {
       method: 'DELETE',
@@ -1670,6 +1749,7 @@ function openTaskDetail(taskId) {
   if (!modal) return;
   modal.style.display = 'flex';
   loadTaskDetail(taskId);
+  syncMiniAppBackButton();
 }
 
 function closeTaskDetailModal(event) {
@@ -1679,6 +1759,7 @@ function closeTaskDetailModal(event) {
   modal.style.display = 'none';
   taskDetailId = null;
   taskDetailData = null;
+  syncMiniAppBackButton();
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -1787,7 +1868,7 @@ async function editTaskDetailComment(commentId) {
 
 // eslint-disable-next-line no-unused-vars
 async function deleteTaskDetailComment(commentId) {
-  if (!confirm('Удалить комментарий?')) return;
+  if (!await telegramMiniApp.confirm('Удалить комментарий?')) return;
   const response = await fetch(`${COMMENTS_URL}/${commentId}`, {
     method: 'DELETE',
     headers: authHeaders()
@@ -1991,5 +2072,13 @@ document.getElementById('networkRetryBtn')?.addEventListener('click', () => {
 });
 updateNetworkBanner();
 
-// Check auth and load tasks on page load
-checkAuth();
+tgState.enabled = telegramMiniApp.init();
+if (tgState.enabled) {
+  telegramMiniApp.onBackButton(handleMiniAppBack);
+}
+
+// Bootstrap auth state (Telegram mini app autologin first, then fallback to classic auth)
+(async () => {
+  await tryTelegramAutoLogin();
+  checkAuth();
+})();

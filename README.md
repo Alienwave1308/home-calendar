@@ -17,6 +17,16 @@
 - Ленивая загрузка данных по route (без раннего preload после логина)
 - PWA мета/manifest + favicon и app icons
 
+## Telegram Mini App
+- Фронтенд поддерживает запуск внутри Telegram WebView (без открытия внешнего браузера).
+- Включены: `Telegram.WebApp.ready()`, `expand()`, обработка `BackButton`, popup-confirm/alert внутри Telegram, применение `themeParams`.
+- Добавлен backend endpoint `POST /api/auth/telegram` для автологина по `initData` (подпись и срок валидируются на сервере).
+- Обязательная переменная окружения для backend: `TELEGRAM_BOT_TOKEN`.
+- Для публикации в Telegram:
+  1. Укажи production URL через `@BotFather` -> `/setdomain` (домен должен быть с HTTPS).
+  2. Настрой кнопку запуска Web App (`/setmenubutton`) или inline-кнопку `web_app`.
+  3. Открывай приложение только через эту кнопку бота, тогда оно запустится как Mini App внутри Telegram.
+
 ## Локальный запуск
 ```bash
 npm install
@@ -32,3 +42,17 @@ node backend/server.js
 ```bash
 docker-compose up --build
 ```
+
+## Production HTTPS (Telegram Mini App)
+Production deploy now uses `docker-compose.prod.yml` + Caddy (automatic Let's Encrypt TLS).
+
+Required GitHub repository secrets for Deploy workflow:
+- `APP_DOMAIN` (example: `app.example.com`)
+- `LETSENCRYPT_EMAIL`
+- `JWT_SECRET`
+- `TELEGRAM_BOT_TOKEN`
+- existing: `DEPLOY_HOST`, `DEPLOY_SSH_KEY`
+
+Also required:
+- DNS `A` record for `APP_DOMAIN` must point to your VPS public IP.
+- Ports `80` and `443` must be open on VPS firewall/security group.
