@@ -107,6 +107,10 @@ app.use('/api/notifications', notificationsRouter);
 const usersRouter = require('./routes/users');
 app.use('/api/users', usersRouter);
 
+// Подключаем роуты для вложений (требуют авторизации)
+const attachmentsRouter = require('./routes/attachments');
+app.use('/api', attachmentsRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
