@@ -31,6 +31,11 @@
   let token = localStorage.getItem('token') || '';
   let bookingsCache = [];
   let currentMasterSlug = '';
+  let servicesCache = [];
+  let filteredServices = [];
+  let serviceMethodFilter = 'all';
+  let serviceCategoryFilter = 'all';
+  let editingServiceId = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -101,7 +106,18 @@
   }
 
   function toIsoDateTime(inputValue) {
-    return new Date(inputValue).toISOString();
+    // datetime-local gives "YYYY-MM-DDTHH:MM" without timezone
+    // Treat it as local time by appending timezone offset
+    let d = new Date(inputValue);
+    if (isNaN(d.getTime())) {
+      // Fallback: parse manually
+      let parts = inputValue.split('T');
+      let dateParts = parts[0].split('-');
+      let timeParts = (parts[1] || '00:00').split(':');
+      d = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]),
+                    Number(timeParts[0]), Number(timeParts[1]));
+    }
+    return d.toISOString();
   }
 
   // === TABS ===
@@ -322,38 +338,107 @@
 
     try {
       let services = await apiFetch('/services');
-
+      servicesCache = services;
       if (services.length === 0) {
         container.innerHTML = '';
         $('servicesEmpty').style.display = '';
         return;
       }
-
-      container.innerHTML = services.map(function (s) {
-        return '<div class="service-card">'
-          + '<div class="service-info">'
-          + '<h3>' + escapeHtml(s.name) + '</h3>'
-          + '<span class="service-meta">' + s.duration_minutes + ' мин'
-          + (s.price ? ' · ' + s.price + ' ₽' : '') + '</span>'
-          + '</div>'
-          + '</div>';
-      }).join('');
+      renderServices();
     } catch (err) {
       container.innerHTML = '';
       showToast(err.message);
     }
   }
 
+  function parseServiceTaxonomy(service) {
+    const name = String(service && service.name ? service.name : '');
+    const description = String(service && service.description ? service.description : '');
+    const source = (name + ' ' + description).toLowerCase();
+    const method = source.includes('воск') || source.includes('wax') ? 'wax' : 'sugar';
+    const category = description.includes('Комплексы') || /комплекс/i.test(name) ? 'Комплексы' : 'Услуги';
+    return { method: method, category: category };
+  }
+
+  function renderServices() {
+    const container = $('servicesList');
+    const emptyEl = $('servicesEmpty');
+    filteredServices = servicesCache.filter(function (s) {
+      const tax = parseServiceTaxonomy(s);
+      const passMethod = serviceMethodFilter === 'all' || tax.method === serviceMethodFilter;
+      const passCategory = serviceCategoryFilter === 'all' || tax.category === serviceCategoryFilter;
+      return passMethod && passCategory;
+    });
+
+    if (!filteredServices.length) {
+      container.innerHTML = '';
+      emptyEl.style.display = '';
+      emptyEl.querySelector('p').textContent = 'По выбранным фильтрам услуг нет';
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    container.innerHTML = filteredServices.map(function (s) {
+      const tax = parseServiceTaxonomy(s);
+      return '<div class="service-card">'
+        + '<div class="service-info">'
+        + '<h3>' + escapeHtml(s.name) + '</h3>'
+        + '<span class="service-meta">' + tax.category + ' · ' + s.duration_minutes + ' мин'
+        + (s.price ? ' · ' + s.price + ' ₽' : '') + '</span>'
+        + '</div>'
+        + '<div class="service-card-actions">'
+        + '<button class="btn-small btn-edit" onclick="event.stopPropagation();MasterApp.editService(' + s.id + ')">Изменить</button>'
+        + '<button class="btn-small btn-cancel" onclick="event.stopPropagation();MasterApp.deleteService(' + s.id + ')">Удалить</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function setServiceMethodFilter(next) {
+    serviceMethodFilter = next;
+    document.querySelectorAll('#tabServices .service-tab[data-method]').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.method === next);
+    });
+    renderServices();
+  }
+
+  function setServiceCategoryFilter(next) {
+    serviceCategoryFilter = next;
+    document.querySelectorAll('#tabServices .service-tab[data-category]').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.category === next);
+    });
+    renderServices();
+  }
+
   function showAddService() {
-    // Bottom sheet form
+    editingServiceId = null;
+    showServiceForm({ name: '', duration_minutes: 60, price: '' });
+  }
+
+  async function editService(serviceId) {
+    let s = servicesCache.find(function (item) { return item.id === serviceId; });
+    if (!s) {
+      try {
+        let all = await apiFetch('/services');
+        s = all.find(function (item) { return item.id === serviceId; });
+      } catch (_) {
+        // ignore and show fallback message below
+      }
+    }
+    if (!s) { showToast('Услуга не найдена'); return; }
+    editingServiceId = serviceId;
+    showServiceForm(s);
+  }
+
+  function showServiceForm(s) {
     let overlay = document.createElement('div');
     overlay.className = 'service-form-overlay';
     overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
     overlay.innerHTML = '<div class="service-form-sheet">'
-      + '<h3>Новая услуга</h3>'
-      + '<div class="form-field"><label>Название</label><input id="newServiceName" placeholder="Маникюр"></div>'
-      + '<div class="form-field"><label>Длительность (мин)</label><input id="newServiceDuration" type="number" value="60"></div>'
-      + '<div class="form-field"><label>Цена (₽, необязательно)</label><input id="newServicePrice" type="number" placeholder="0"></div>'
+      + '<h3>' + (editingServiceId ? 'Редактировать услугу' : 'Новая услуга') + '</h3>'
+      + '<div class="form-field"><label>Название</label><input id="newServiceName" value="' + escapeHtml(s.name || '') + '" placeholder="Маникюр"></div>'
+      + '<div class="form-field"><label>Длительность (мин)</label><input id="newServiceDuration" type="number" value="' + (s.duration_minutes || 60) + '"></div>'
+      + '<div class="form-field"><label>Цена (₽, необязательно)</label><input id="newServicePrice" type="number" value="' + (s.price || '') + '" placeholder="0"></div>'
       + '<button class="btn-primary" style="margin-top:12px;" onclick="MasterApp.saveService()">Сохранить</button>'
       + '</div>';
     document.body.appendChild(overlay);
@@ -367,13 +452,30 @@
 
       if (!name) { showToast('Введите название услуги'); return; }
 
-      await apiMethod('POST', '/services', { name: name, duration_minutes: duration, price: price || undefined });
+      if (editingServiceId) {
+        await apiMethod('PUT', '/services/' + editingServiceId, { name: name, duration_minutes: duration, price: price || null });
+      } else {
+        await apiMethod('POST', '/services', { name: name, duration_minutes: duration, price: price || undefined });
+      }
+      const wasEditing = Boolean(editingServiceId);
 
-      // Remove form
       let overlay = document.querySelector('.service-form-overlay');
       if (overlay) overlay.remove();
+      editingServiceId = null;
 
       loadServices();
+      showToast(wasEditing ? 'Услуга обновлена' : 'Услуга добавлена');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deleteService(serviceId) {
+    if (!window.confirm('Удалить эту услугу?')) return;
+    try {
+      await apiMethod('DELETE', '/services/' + serviceId);
+      loadServices();
+      showToast('Услуга удалена');
     } catch (err) {
       showToast(err.message);
     }
@@ -508,60 +610,6 @@
     }
   }
 
-  function parseAvailabilityBulk(text) {
-    const lines = String(text || '')
-      .split('\n')
-      .map(function (line) { return line.trim(); })
-      .filter(Boolean);
-
-    const result = [];
-    for (const line of lines) {
-      const match = line.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
-      if (!match) {
-        throw new Error('Неверный формат строки: ' + line);
-      }
-      const date = match[1];
-
-      const ranges = match[2]
-        .split(',')
-        .map(function (item) { return item.trim(); })
-        .filter(Boolean);
-
-      for (const range of ranges) {
-        const rangeMatch = range.match(/^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/);
-        if (!rangeMatch) {
-          throw new Error('Неверный диапазон времени: ' + range);
-        }
-        result.push({
-          date: date,
-          start_time: rangeMatch[1],
-          end_time: rangeMatch[2]
-        });
-      }
-    }
-    return result;
-  }
-
-  async function addAvailabilityBulk() {
-    try {
-      const text = $('availabilityBulkInput').value;
-      const rules = parseAvailabilityBulk(text);
-      if (!rules.length) {
-        showToast('Добавьте хотя бы одну строку');
-        return;
-      }
-
-      for (const rule of rules) {
-        await apiMethod('POST', '/availability/windows', rule);
-      }
-      $('availabilityBulkInput').value = '';
-      await loadAvailabilitySettings();
-      showToast('Добавлено окон: ' + rules.length);
-    } catch (err) {
-      showToast(err.message);
-    }
-  }
-
   async function deleteAvailabilityRule(ruleId) {
     try {
       await apiMethod('DELETE', '/availability/windows/' + ruleId);
@@ -576,6 +624,10 @@
     try {
       const first = Number($('reminderHoursFirst').value || 24);
       const second = Number($('reminderHoursSecond').value || 2);
+      if (!Number.isInteger(first) || !Number.isInteger(second) || first < 1 || second < 1) {
+        showToast('Введите корректные часы напоминаний');
+        return;
+      }
       await apiMethod('PUT', '/settings', {
         reminder_hours: [first, second]
       });
@@ -782,6 +834,10 @@
     closeBookingForm: closeBookingForm,
     saveBookingForm: saveBookingForm,
     showAddService: showAddService,
+    setServiceMethodFilter: setServiceMethodFilter,
+    setServiceCategoryFilter: setServiceCategoryFilter,
+    editService: editService,
+    deleteService: deleteService,
     saveService: saveService,
     bootstrapDefaultServices: bootstrapDefaultServices,
     copyLink: copyLink,
@@ -794,7 +850,6 @@
     saveReminderSettings: saveReminderSettings,
     savePricingSettings: savePricingSettings,
     addAvailabilityRule: addAvailabilityRule,
-    addAvailabilityBulk: addAvailabilityBulk,
     deleteAvailabilityRule: deleteAvailabilityRule,
     addAvailabilityExclusion: addAvailabilityExclusion,
     deleteAvailabilityExclusion: deleteAvailabilityExclusion,

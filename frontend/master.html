@@ -54,6 +54,16 @@
 
     <!-- Tab: Services -->
     <section class="tab-panel" id="tabServices" style="display:none;">
+      <div class="service-tabs">
+        <button class="service-tab active" data-method="all" onclick="MasterApp.setServiceMethodFilter('all')">Все</button>
+        <button class="service-tab" data-method="sugar" onclick="MasterApp.setServiceMethodFilter('sugar')">Сахар</button>
+        <button class="service-tab" data-method="wax" onclick="MasterApp.setServiceMethodFilter('wax')">Воск</button>
+      </div>
+      <div class="service-tabs service-subtabs">
+        <button class="service-tab active" data-category="all" onclick="MasterApp.setServiceCategoryFilter('all')">Все</button>
+        <button class="service-tab" data-category="Услуги" onclick="MasterApp.setServiceCategoryFilter('Услуги')">Зоны</button>
+        <button class="service-tab" data-category="Комплексы" onclick="MasterApp.setServiceCategoryFilter('Комплексы')">Комплексы</button>
+      </div>
       <div id="servicesList" class="services-list"></div>
       <div id="servicesEmpty" class="empty-state" style="display:none;">
         <div class="empty-icon">💇</div>
@@ -119,11 +129,6 @@
           <input id="availabilityStart" type="time" value="10:00">
           <input id="availabilityEnd" type="time" value="20:00">
           <button class="btn-secondary" onclick="MasterApp.addAvailabilityRule()">Добавить окно</button>
-        </div>
-        <div class="availability-bulk">
-          <label for="availabilityBulkInput">Быстрый ввод строками</label>
-          <textarea id="availabilityBulkInput" rows="4" placeholder="2026-02-20 10:00-13:00, 14:00-19:00&#10;2026-02-21 12:00-18:00"></textarea>
-          <button class="btn-secondary" onclick="MasterApp.addAvailabilityBulk()">Добавить из строк</button>
         </div>
         <div id="availabilityRules" class="settings-list"></div>
 

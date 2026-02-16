@@ -93,15 +93,17 @@ async function loadMasterSettings(masterId) {
   return rows[0];
 }
 
-function resolveMasterTimezone() {
+function resolveMasterTimezone(master) {
+  if (master && master.timezone) return master.timezone;
   return process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
 }
 
-// GET /api/public/export/booking.ics?title=&details=&start_at=&end_at=&timezone=
+// GET /api/public/export/booking.ics?title=&details=&location=&start_at=&end_at=&timezone=
 router.get('/export/booking.ics', async (req, res) => {
   try {
     const title = String(req.query.title || 'Запись на процедуру');
     const details = String(req.query.details || '');
+    const location = String(req.query.location || 'Мкр Околица д.1, квартира 60');
     const timezone = String(req.query.timezone || 'UTC');
     const startAt = String(req.query.start_at || '');
     const endAt = String(req.query.end_at || '');
@@ -134,6 +136,7 @@ router.get('/export/booking.ics', async (req, res) => {
       `DTEND:${toUtcIcsDate(endDate.toISOString())}`,
       `SUMMARY:${escapeIcsText(title)}`,
       details ? `DESCRIPTION:${escapeIcsText(details)}` : '',
+      location ? `LOCATION:${escapeIcsText(location)}` : '',
       'END:VEVENT',
       'END:VCALENDAR',
       ''
@@ -165,7 +168,7 @@ router.get('/master/:slug', async (req, res) => {
       [master.id]
     );
 
-    const timezone = resolveMasterTimezone();
+    const timezone = resolveMasterTimezone(master);
     return res.json({
       master: {
         id: master.id,
@@ -201,7 +204,7 @@ router.get('/master/:slug/slots', async (req, res) => {
       return res.status(404).json({ error: 'Service not found' });
     }
 
-    const timezone = resolveMasterTimezone();
+    const timezone = resolveMasterTimezone(master);
     const settings = await loadMasterSettings(master.id);
     const queryStartUtc = new Date(localDateTimeToUtcMs(date_from, '00:00:00', timezone)).toISOString();
     const queryEndUtc = new Date(localDateTimeToUtcMs(date_to, '23:59:59', timezone)).toISOString();
@@ -298,6 +301,7 @@ router.get('/master/:slug/calendar.ics', async (req, res) => {
         `DTEND:${toUtcIcsDate(b.end_at)}`,
         `SUMMARY:${escapeIcsText('Запись: ' + (b.service_name || 'Услуга'))}`,
         `DESCRIPTION:${escapeIcsText(description)}`,
+        `LOCATION:${escapeIcsText('Мкр Околица д.1, квартира 60')}`,
         'END:VEVENT'
       ].join('\r\n');
     });
@@ -342,7 +346,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Service not found' });
     }
     const settings = await loadMasterSettings(master.id);
-    const timezone = resolveMasterTimezone();
+    const timezone = resolveMasterTimezone(master);
 
     const startDate = new Date(start_at);
     if (Number.isNaN(startDate.getTime())) {
@@ -380,7 +384,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const firstBookingCheck = await pool.query(
       `SELECT id
        FROM bookings
-       WHERE master_id = $1 AND client_id = $2 AND status NOT IN ('canceled')
+       WHERE master_id = $1 AND client_id = $2
        LIMIT 1`,
       [master.id, req.user.id]
     );

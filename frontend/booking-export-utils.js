@@ -30,12 +30,14 @@
     const title = params.title || 'Запись на процедуру';
     const details = params.details || '';
     const timezone = params.timezone || 'UTC';
+    const location = params.location || '';
     const start = toGoogleDateTime(params.startIso);
     const end = toGoogleDateTime(params.endIso);
     const url = new URL('https://calendar.google.com/calendar/render');
     url.searchParams.set('action', 'TEMPLATE');
     url.searchParams.set('text', title);
     url.searchParams.set('details', details);
+    if (location) url.searchParams.set('location', location);
     url.searchParams.set('dates', start + '/' + end);
     url.searchParams.set('ctz', timezone);
     return url.toString();
@@ -45,6 +47,7 @@
     const uid = params.uid || ('booking-' + Date.now() + '@miniapp');
     const title = escapeIcsText(params.title || 'Запись на процедуру');
     const description = escapeIcsText(params.description || '');
+    const location = escapeIcsText(params.location || '');
     const timezone = params.timezone || 'UTC';
     const dtStamp = toGoogleDateTime(new Date().toISOString());
     const dtStart = toGoogleDateTime(params.startIso);
@@ -64,6 +67,7 @@
       'DTEND:' + dtEnd,
       'SUMMARY:' + title,
       description ? ('DESCRIPTION:' + description) : '',
+      location ? ('LOCATION:' + location) : '',
       'END:VEVENT',
       'END:VCALENDAR'
     ].filter(Boolean).join('\r\n');

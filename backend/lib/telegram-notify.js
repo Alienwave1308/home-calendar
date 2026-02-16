@@ -1,4 +1,5 @@
 const { pool } = require('../db');
+const SALON_ADDRESS = 'Мкр Околица д.1, квартира 60';
 
 function parseTelegramUserId(username) {
   if (!username || typeof username !== 'string') return null;
@@ -9,7 +10,7 @@ function parseTelegramUserId(username) {
 function formatBookingTime(iso, timezone) {
   const date = new Date(iso);
   return new Intl.DateTimeFormat('ru-RU', {
-    timeZone: timezone || 'Europe/Moscow',
+    timeZone: timezone || 'Asia/Novosibirsk',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -93,7 +94,8 @@ async function notifyMasterBookingEvent(bookingId, eventType) {
     }
 
     lines.push(`Услуга: ${data.service_name}`);
-    lines.push(`Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)} (${data.master_timezone || 'Europe/Moscow'})`);
+    lines.push(`Адрес: ${SALON_ADDRESS}`);
+    lines.push(`Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)} (${data.master_timezone || 'Asia/Novosibirsk'})`);
     if (data.client_note) {
       lines.push(`Комментарий: ${data.client_note}`);
     }
@@ -118,7 +120,8 @@ async function notifyClientReminder(reminder) {
   const text = [
     `⏰ Напоминание о записи (${label})`,
     `Услуга: ${booking.service_name || 'Услуга'}`,
-    `Дата и время: ${formatBookingTime(booking.start_at, booking.timezone)} (${booking.timezone || 'Europe/Moscow'})`,
+    `Адрес: ${SALON_ADDRESS}`,
+    `Дата и время: ${formatBookingTime(booking.start_at, booking.timezone)} (${booking.timezone || 'Asia/Novosibirsk'})`,
     `Мастер: ${booking.master_name || 'Мастер'}`
   ].join('\n');
 

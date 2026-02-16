@@ -142,7 +142,13 @@ async function pushBookingToCalendar(userId, booking) {
     start: { dateTime: new Date(booking.start_at).toISOString() },
     end: { dateTime: new Date(booking.end_at).toISOString() },
     status: booking.status === 'canceled' ? 'cancelled' : 'confirmed',
-    description: `Booking #${booking.id}\nStatus: ${booking.status}`
+    location: 'Мкр Околица д.1, квартира 60',
+    description: [
+      `Услуга: ${booking.service_name || 'Услуга'}`,
+      `Клиент: ${booking.client_name || 'Клиент'}`,
+      `Статус: ${booking.status}`,
+      booking.client_note ? `Комментарий клиента: ${booking.client_note}` : ''
+    ].filter(Boolean).join('\n')
   };
 
   if (mappings.length > 0) {

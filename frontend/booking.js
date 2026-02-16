@@ -49,11 +49,15 @@
   let master = null;
   let masterSettings = { first_visit_discount_percent: 15, min_booking_notice_minutes: 60 };
   let services = [];
+  let visibleServices = [];
   let selectedService = null;
   let selectedDate = null;
   let selectedSlot = null;
   let selectedPricing = null;
   let isFirstVisitClient = false;
+  let methodFilter = 'all';
+  let categoryFilter = 'all';
+  let rescheduleBookingId = null;
   let currentDateOffset = 0; // days from today
   const DAYS_TO_SHOW = 14;
 
@@ -121,6 +125,15 @@
 
   // Format date helpers
   let DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+  function parseServiceTaxonomy(service) {
+    const name = String(service && service.name ? service.name : '');
+    const description = String(service && service.description ? service.description : '');
+    const source = (name + ' ' + description).toLowerCase();
+    const method = source.includes('воск') || source.includes('wax') ? 'wax' : 'sugar';
+    const category = description.includes('Комплексы') || /комплекс/i.test(name) ? 'Комплексы' : 'Услуги';
+    return { method: method, category: category };
+  }
 
   function formatDate(dateStr) {
     let d = new Date(dateStr);
@@ -197,7 +210,9 @@
       $('masterName').textContent = master.display_name;
       try {
         const bookings = await apiFetch('/client/bookings');
-        isFirstVisitClient = Array.isArray(bookings) && bookings.filter(function (b) { return b.status !== 'canceled'; }).length === 0;
+        isFirstVisitClient = Array.isArray(bookings) && bookings.filter(function (b) {
+          return Number(b.master_id) === Number(master.id);
+        }).length === 0;
       } catch (_) {
         isFirstVisitClient = false;
       }
@@ -216,29 +231,69 @@
         return;
       }
 
-      let html = '';
-      services.forEach(function (s) {
-        let priceText = s.price ? s.price + ' ₽' : '';
-        let discountedText = '';
-        if (isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
-          const finalPrice = Math.max(0, Number(s.price) - (Number(s.price) * Number(masterSettings.first_visit_discount_percent) / 100));
-          discountedText = '<span class="service-meta">Первый визит: ' + Math.round(finalPrice) + ' ₽</span>';
-        }
-        html += '<div class="service-card" data-id="' + s.id + '" onclick="BookingApp.selectService(' + s.id + ')">'
-          + '<div class="service-info">'
-          + '<h3>' + escapeHtml(s.name) + '</h3>'
-          + '<span class="service-meta">' + s.duration_minutes + ' мин</span>'
-          + discountedText
-          + '</div>'
-          + (priceText ? '<span class="service-price">' + priceText + '</span>' : '')
-          + '</div>';
-      });
-      $('servicesList').innerHTML = html;
+      $('serviceMethodTabs').style.display = '';
+      $('serviceCategoryTabs').style.display = '';
+      setMethodFilter('all', true);
+      setCategoryFilter('all', true);
+      renderServices();
 
     } catch (err) {
       $('servicesList').innerHTML = '';
       showToast('Не удалось загрузить данные: ' + err.message);
     }
+  }
+
+  function renderServices() {
+    visibleServices = services.filter(function (s) {
+      const tax = parseServiceTaxonomy(s);
+      const passMethod = methodFilter === 'all' || tax.method === methodFilter;
+      const passCategory = categoryFilter === 'all' || tax.category === categoryFilter;
+      return passMethod && passCategory;
+    });
+
+    if (!visibleServices.length) {
+      $('servicesList').innerHTML = '';
+      $('servicesEmpty').style.display = '';
+      $('servicesEmpty').querySelector('p').textContent = 'По выбранным фильтрам услуг нет';
+      return;
+    }
+
+    $('servicesEmpty').style.display = 'none';
+    let html = '';
+    visibleServices.forEach(function (s) {
+      let priceText = s.price ? s.price + ' ₽' : '';
+      let discountedText = '';
+      const tax = parseServiceTaxonomy(s);
+      if (isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
+        const finalPrice = Math.max(0, Number(s.price) - (Number(s.price) * Number(masterSettings.first_visit_discount_percent) / 100));
+        discountedText = '<span class="service-meta">Первый визит: ' + Math.round(finalPrice) + ' ₽</span>';
+      }
+      html += '<div class="service-card" data-id="' + s.id + '" onclick="BookingApp.selectService(' + s.id + ')">'
+        + '<div class="service-info">'
+        + '<h3>' + escapeHtml(s.name) + '</h3>'
+        + '<span class="service-meta">' + tax.category + ' · ' + s.duration_minutes + ' мин</span>'
+        + discountedText
+        + '</div>'
+        + (priceText ? '<span class="service-price">' + priceText + '</span>' : '')
+        + '</div>';
+    });
+    $('servicesList').innerHTML = html;
+  }
+
+  function setMethodFilter(next, silent) {
+    methodFilter = next;
+    document.querySelectorAll('#serviceMethodTabs .service-tab').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.method === next);
+    });
+    if (!silent) renderServices();
+  }
+
+  function setCategoryFilter(next, silent) {
+    categoryFilter = next;
+    document.querySelectorAll('#serviceCategoryTabs .service-tab').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.category === next);
+    });
+    if (!silent) renderServices();
   }
 
   function selectService(serviceId) {
@@ -320,6 +375,11 @@
     };
     selectedPricing = null;
 
+    if (rescheduleBookingId) {
+      confirmReschedule();
+      return;
+    }
+
     // Go to confirm
     $('confirmService').textContent = selectedService.name;
     $('confirmDate').textContent = formatDate(selectedSlot.start);
@@ -348,6 +408,29 @@
 
     $('confirmNote').value = '';
     showStep('stepConfirm');
+  }
+
+  async function confirmReschedule() {
+    if (!selectedSlot || !rescheduleBookingId) return;
+    try {
+      const token = localStorage.getItem('token') || '';
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = 'Bearer ' + token;
+      const res = await fetch(API_BASE + '/client/bookings/' + rescheduleBookingId + '/reschedule', {
+        method: 'PATCH',
+        headers: headers,
+        body: JSON.stringify({ new_start_at: selectedSlot.start })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(function () { return {}; });
+        throw new Error(data.error || 'Не удалось перенести запись');
+      }
+      rescheduleBookingId = null;
+      showToast('Запись перенесена');
+      await showMyBookings();
+    } catch (err) {
+      showToast(err.message);
+    }
   }
 
   function nextDate() {
@@ -382,15 +465,20 @@
       hideLoader();
       $('doneDetails').textContent = selectedService.name + '\n'
         + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end)
+        + '\nАдрес: Мкр Околица д.1, квартира 60'
         + (selectedPricing && selectedPricing.first_visit_discount_percent
           ? '\nСкидка: ' + selectedPricing.first_visit_discount_percent + '%, итог: ' + selectedPricing.final_price + ' ₽'
+            + '\nПри отмене первой записи скидка аннулируется.'
           : '');
       setupCalendarExport(note);
       showStep('stepDone');
 
       // Notify Telegram
       if (tg) {
-        tg.showAlert('Вы успешно записаны!');
+        const alertText = selectedPricing && selectedPricing.first_visit_discount_percent
+          ? 'Вы успешно записаны! Первая запись со скидкой. При отмене первой записи скидка аннулируется.'
+          : 'Вы успешно записаны!';
+        tg.showAlert(alertText);
       }
 
     } catch (err) {
@@ -406,9 +494,12 @@
     const appleBtn = $('doneAppleBtn');
     if (!googleLink || !appleBtn || !selectedSlot || !selectedService || !master) return;
 
+    const address = 'Мкр Околица д.1, квартира 60';
     const eventTitle = 'Запись на депиляцию: ' + selectedService.name;
     const descriptionParts = [
+      'Услуга: ' + selectedService.name,
       'Мастер: ' + (master.display_name || ''),
+      'Адрес: ' + address,
       note ? ('Комментарий клиента: ' + note) : ''
     ].filter(Boolean);
     const description = descriptionParts.join('\n');
@@ -417,6 +508,7 @@
     const googleUrl = exportUtils.buildGoogleCalendarUrl({
       title: eventTitle,
       details: description,
+      location: address,
       startIso: selectedSlot.start,
       endIso: selectedSlot.end,
       timezone: timezone
@@ -432,6 +524,7 @@
       const appleUrl = new window.URL(window.location.origin + '/api/public/export/booking.ics');
       appleUrl.searchParams.set('title', eventTitle);
       appleUrl.searchParams.set('details', description);
+      appleUrl.searchParams.set('location', address);
       appleUrl.searchParams.set('start_at', selectedSlot.start);
       appleUrl.searchParams.set('end_at', selectedSlot.end);
       appleUrl.searchParams.set('timezone', timezone);
@@ -445,16 +538,140 @@
     };
   }
 
+  // === MY BOOKINGS ===
+
+  let STATUS_LABELS = {
+    pending: 'Ожидает',
+    confirmed: 'Запланировано',
+    completed: 'Выполнено',
+    canceled: 'Отменено'
+  };
+
+  async function showMyBookings() {
+    showStep('stepMyBookings');
+    $('myBookingsList').innerHTML = renderServiceSkeletons();
+    $('myBookingsEmpty').style.display = 'none';
+
+    try {
+      let bookings = await apiFetch('/client/bookings');
+
+      if (!bookings.length) {
+        $('myBookingsList').innerHTML = '';
+        $('myBookingsEmpty').style.display = '';
+        return;
+      }
+
+      let html = '';
+      bookings.forEach(function (b) {
+        let tz = b.master_timezone || (master && master.timezone) || 'Asia/Novosibirsk';
+        let startDate = new Date(b.start_at);
+        let dateStr = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, day: '2-digit', month: 'short' }).format(startDate);
+        let timeStr = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(startDate);
+        let endTimeStr = b.end_at ? new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(b.end_at)) : '';
+
+        let statusClass = b.status || 'pending';
+        let statusLabel = STATUS_LABELS[b.status] || b.status;
+
+        let actions = '';
+        if (b.status === 'confirmed' || b.status === 'pending') {
+          actions = '<div class="my-booking-actions">'
+            + '<button class="btn-secondary" onclick="BookingApp.startReschedule(' + b.id + ')">Перенести запись</button>'
+            + '<button class="btn-secondary btn-cancel-booking" onclick="BookingApp.cancelBooking(' + b.id + ')">Отменить запись</button>'
+            + '</div>';
+        }
+
+        html += '<div class="my-booking-card">'
+          + '<div class="my-booking-header">'
+          + '<strong>' + escapeHtml(b.service_name || 'Услуга') + '</strong>'
+          + '<span class="booking-status-badge ' + statusClass + '">' + statusLabel + '</span>'
+          + '</div>'
+          + '<div class="my-booking-meta">'
+          + '<span>' + dateStr + ', ' + timeStr + (endTimeStr ? ' — ' + endTimeStr : '') + '</span>'
+          + (b.service_price !== null && b.service_price !== undefined
+            ? '<span>Стоимость: '
+              + (b.discount_percent > 0
+                ? '<s>' + b.service_price + ' ₽</s> → ' + b.final_price + ' ₽ (скидка ' + b.discount_percent + '%)'
+                : b.final_price + ' ₽')
+              + '</span>'
+            : '')
+          + '</div>'
+          + actions
+          + '</div>';
+      });
+      $('myBookingsList').innerHTML = html;
+    } catch (err) {
+      $('myBookingsList').innerHTML = '';
+      showToast('Ошибка загрузки записей: ' + err.message);
+    }
+  }
+
+  async function cancelBooking(bookingId) {
+    if (!window.confirm('Вы уверены, что хотите отменить запись?')) return;
+
+    try {
+      let token = localStorage.getItem('token') || '';
+      let headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      let res = await fetch(API_BASE + '/client/bookings/' + bookingId + '/cancel', {
+        method: 'PATCH',
+        headers: headers
+      });
+      if (!res.ok) {
+        let data = await res.json().catch(function () { return {}; });
+        throw new Error(data.error || 'Ошибка отмены');
+      }
+      showToast('Запись отменена');
+      showMyBookings();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function startReschedule(bookingId) {
+    try {
+      const bookings = await apiFetch('/client/bookings');
+      const booking = (bookings || []).find(function (b) { return Number(b.id) === Number(bookingId); });
+      if (!booking) {
+        showToast('Запись не найдена');
+        return;
+      }
+      const service = services.find(function (s) { return Number(s.id) === Number(booking.service_id); });
+      if (!service) {
+        showToast('Услуга записи больше недоступна');
+        return;
+      }
+      rescheduleBookingId = booking.id;
+      selectedService = service;
+      $('selectedServiceName').textContent = service.name;
+      showStep('stepSlots');
+      renderDateStrip();
+      selectDate(toDateStr(new Date()));
+      showToast('Выберите новый слот для переноса');
+    } catch (err) {
+      showToast('Ошибка загрузки записи: ' + err.message);
+    }
+  }
+
   // === RESET ===
 
   function reset() {
     selectedService = null;
     selectedDate = null;
     selectedSlot = null;
+    rescheduleBookingId = null;
     showStep('stepServices');
   }
 
   function goBack(toStepId) {
+    if (toStepId === 'stepServices') {
+      if (rescheduleBookingId) {
+        rescheduleBookingId = null;
+        showMyBookings();
+        return;
+      }
+      rescheduleBookingId = null;
+    }
     showStep(toStepId);
     if (toStepId === 'stepSlots' && selectedDate) {
       renderDateStrip();
@@ -487,6 +704,11 @@
     selectSlot: selectSlot,
     nextDate: nextDate,
     confirmBooking: confirmBooking,
+    showMyBookings: showMyBookings,
+    cancelBooking: cancelBooking,
+    startReschedule: startReschedule,
+    setMethodFilter: setMethodFilter,
+    setCategoryFilter: setCategoryFilter,
     reset: reset,
     goBack: goBack,
     hideToast: hideToast

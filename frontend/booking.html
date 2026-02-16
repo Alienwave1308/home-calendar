@@ -17,11 +17,24 @@
     <!-- Шаг 1: Выбор услуги -->
     <section class="step" id="stepServices">
       <div class="step-header">
-        <h1 id="masterName" class="master-name"></h1>
+        <div class="step-header-row">
+          <h1 id="masterName" class="master-name"></h1>
+          <button class="btn-my-bookings" onclick="BookingApp.showMyBookings()">Мои записи</button>
+        </div>
         <p class="step-subtitle">Выберите услугу</p>
       </div>
       <div id="firstVisitBanner" class="empty-state" style="display:none; margin-bottom:12px;">
         <p id="firstVisitBannerText" style="margin:0;"></p>
+      </div>
+      <div class="service-tabs" id="serviceMethodTabs" style="display:none;">
+        <button class="service-tab active" data-method="all" onclick="BookingApp.setMethodFilter('all')">Все</button>
+        <button class="service-tab" data-method="sugar" onclick="BookingApp.setMethodFilter('sugar')">Сахар</button>
+        <button class="service-tab" data-method="wax" onclick="BookingApp.setMethodFilter('wax')">Воск</button>
+      </div>
+      <div class="service-tabs service-subtabs" id="serviceCategoryTabs" style="display:none;">
+        <button class="service-tab active" data-category="all" onclick="BookingApp.setCategoryFilter('all')">Все</button>
+        <button class="service-tab" data-category="Услуги" onclick="BookingApp.setCategoryFilter('Услуги')">Зоны</button>
+        <button class="service-tab" data-category="Комплексы" onclick="BookingApp.setCategoryFilter('Комплексы')">Комплексы</button>
       </div>
       <div id="servicesList" class="services-list">
         <!-- skeleton or services -->
@@ -109,6 +122,20 @@
           </button>
         </div>
         <button class="btn-primary" onclick="BookingApp.reset()">Записаться ещё</button>
+      </div>
+    </section>
+
+    <!-- Мои записи -->
+    <section class="step" id="stepMyBookings" style="display:none;">
+      <div class="step-header">
+        <button class="btn-back" onclick="BookingApp.goBack('stepServices')">&larr; Назад к услугам</button>
+        <h2>Мои записи</h2>
+      </div>
+      <div id="myBookingsList" class="bookings-list"></div>
+      <div id="myBookingsEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">📅</div>
+        <p>У вас пока нет записей</p>
+        <button class="btn-primary" style="margin-top:12px;" onclick="BookingApp.reset()">Записаться</button>
       </div>
     </section>
 

@@ -1126,12 +1126,21 @@ router.put('/settings', loadMaster, async (req, res) => {
       first_visit_discount_percent,
       min_booking_notice_minutes
     } = req.body;
+    let reminderHoursValue = null;
 
     if (reminder_hours !== undefined && !Array.isArray(reminder_hours)) {
       return res.status(400).json({ error: 'reminder_hours must be an array of numbers' });
     }
     if (reminder_hours !== undefined && reminder_hours.length !== 2) {
       return res.status(400).json({ error: 'reminder_hours must contain exactly 2 values' });
+    }
+    if (reminder_hours !== undefined) {
+      const parsed = reminder_hours.map((v) => Number(v));
+      const valid = parsed.every((v) => Number.isInteger(v) && v > 0 && v <= 168);
+      if (!valid) {
+        return res.status(400).json({ error: 'reminder_hours values must be integers from 1 to 168' });
+      }
+      reminderHoursValue = JSON.stringify(parsed);
     }
     if (apple_calendar_enabled !== undefined && typeof apple_calendar_enabled !== 'boolean') {
       return res.status(400).json({ error: 'apple_calendar_enabled must be boolean' });
@@ -1154,9 +1163,9 @@ router.put('/settings', loadMaster, async (req, res) => {
          master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled,
          first_visit_discount_percent, min_booking_notice_minutes
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, $5, $6, $7)
        ON CONFLICT (master_id) DO UPDATE SET
-         reminder_hours = COALESCE($2, master_settings.reminder_hours),
+         reminder_hours = COALESCE($2::jsonb, master_settings.reminder_hours),
          quiet_hours_start = $3,
          quiet_hours_end = $4,
          apple_calendar_enabled = COALESCE($5, master_settings.apple_calendar_enabled),
@@ -1165,7 +1174,7 @@ router.put('/settings', loadMaster, async (req, res) => {
        RETURNING *`,
       [
         req.master.id,
-        reminder_hours ? JSON.stringify(reminder_hours.map(Number)) : '[24, 2]',
+        reminderHoursValue,
         quiet_hours_start || null,
         quiet_hours_end || null,
         apple_calendar_enabled,
