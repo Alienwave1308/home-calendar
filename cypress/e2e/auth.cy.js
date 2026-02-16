@@ -16,6 +16,14 @@ describe('Home Calendar - Auth E2E', () => {
   it('auto logins through Telegram and opens app', () => {
     cy.visit('/', {
       onBeforeLoad(win) {
+        win.Telegram = {
+          WebApp: {
+            initData: 'query_id=autologin&user=%7B%22id%22%3A101%7D&auth_date=1700000000&hash=test',
+            initDataUnsafe: { user: { id: 101, username: 'tg_client' } },
+            ready() {},
+            expand() {}
+          }
+        };
         win.localStorage.setItem('authToken', 'tg-token');
         win.localStorage.setItem('token', 'tg-token');
         win.localStorage.setItem('currentUser', JSON.stringify({ id: 101, username: 'tg_client' }));
@@ -30,6 +38,14 @@ describe('Home Calendar - Auth E2E', () => {
   it('logs out back to telegram-only auth screen', () => {
     cy.visit('/', {
       onBeforeLoad(win) {
+        win.Telegram = {
+          WebApp: {
+            initData: 'query_id=logout&user=%7B%22id%22%3A102%7D&auth_date=1700000001&hash=test',
+            initDataUnsafe: { user: { id: 102, username: 'tg_client_logout' } },
+            ready() {},
+            expand() {}
+          }
+        };
         win.localStorage.setItem('authToken', 'tg-token');
         win.localStorage.setItem('token', 'tg-token');
         win.localStorage.setItem('currentUser', JSON.stringify({ id: 102, username: 'tg_client_logout' }));
