@@ -398,4 +398,294 @@ describe('Master API', () => {
       expect(res.body.slots.length).toBeGreaterThan(0);
     });
   });
+
+  // === BOOKINGS (Master management) ===
+
+  describe('GET /api/master/bookings', () => {
+    it('should list bookings', async () => {
+      const bookings = [
+        { id: 1, status: 'confirmed', service_name: 'Маникюр', client_name: 'client1' },
+        { id: 2, status: 'pending', service_name: 'Педикюр', client_name: 'client2' }
+      ];
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: bookings });
+
+      const res = await request(app)
+        .get('/api/master/bookings')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(2);
+    });
+
+    it('should filter bookings by status', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, status: 'confirmed' }] });
+
+      const res = await request(app)
+        .get('/api/master/bookings?status=confirmed')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+    });
+  });
+
+  describe('GET /api/master/calendar', () => {
+    it('should return bookings and blocks', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ id: 1, status: 'confirmed' }] }) // bookings
+        .mockResolvedValueOnce({ rows: [{ id: 1, title: 'Обед' }] }); // blocks
+
+      const res = await request(app)
+        .get('/api/master/calendar?date_from=2026-03-02&date_to=2026-03-08')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.bookings).toHaveLength(1);
+      expect(res.body.blocks).toHaveLength(1);
+    });
+
+    it('should return 400 without dates', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] });
+
+      await request(app)
+        .get('/api/master/calendar')
+        .set('Authorization', authHeader)
+        .expect(400);
+    });
+  });
+
+  describe('PATCH /api/master/bookings/:id', () => {
+    it('should update booking status', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ id: 1, status: 'pending' }] }) // find booking
+        .mockResolvedValueOnce({ rows: [{ id: 1, status: 'confirmed' }] }); // update
+
+      const res = await request(app)
+        .patch('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({ status: 'confirmed' })
+        .expect(200);
+
+      expect(res.body.status).toBe('confirmed');
+    });
+
+    it('should return 404 for unknown booking', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .patch('/api/master/bookings/999')
+        .set('Authorization', authHeader)
+        .send({ status: 'confirmed' })
+        .expect(404);
+    });
+
+    it('should reject invalid status', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
+      await request(app)
+        .patch('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({ status: 'invalid' })
+        .expect(400);
+    });
+
+    it('should update master_note', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, master_note: 'Заметка' }] });
+
+      const res = await request(app)
+        .patch('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({ master_note: 'Заметка' })
+        .expect(200);
+
+      expect(res.body.master_note).toBe('Заметка');
+    });
+
+    it('should return 400 if no fields', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
+      await request(app)
+        .patch('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({})
+        .expect(400);
+    });
+  });
+
+  describe('POST /api/master/bookings', () => {
+    it('should create booking manually', async () => {
+      const service = { id: 1, duration_minutes: 60 };
+      const booking = { id: 1, master_id: 1, client_id: 2, status: 'confirmed', source: 'admin_created' };
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [service] }) // service
+        .mockResolvedValueOnce({ rows: [booking] }); // insert
+
+      const res = await request(app)
+        .post('/api/master/bookings')
+        .set('Authorization', authHeader)
+        .send({ client_id: 2, service_id: 1, start_at: '2026-03-02T10:00:00Z' })
+        .expect(201);
+
+      expect(res.body.source).toBe('admin_created');
+      expect(res.body.status).toBe('confirmed');
+    });
+
+    it('should return 400 if fields are missing', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] });
+
+      await request(app)
+        .post('/api/master/bookings')
+        .set('Authorization', authHeader)
+        .send({ client_id: 2 })
+        .expect(400);
+    });
+
+    it('should return 404 for unknown service', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .post('/api/master/bookings')
+        .set('Authorization', authHeader)
+        .send({ client_id: 2, service_id: 999, start_at: '2026-03-02T10:00:00Z' })
+        .expect(404);
+    });
+
+    it('should return 409 on time conflict', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, duration_minutes: 60 }] })
+        .mockRejectedValueOnce({ code: '23P01' }); // exclusion constraint
+
+      await request(app)
+        .post('/api/master/bookings')
+        .set('Authorization', authHeader)
+        .send({ client_id: 2, service_id: 1, start_at: '2026-03-02T10:00:00Z' })
+        .expect(409);
+    });
+  });
+
+  // === BLOCKS ===
+
+  describe('GET /api/master/blocks', () => {
+    it('should list blocks', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, title: 'Обед' }, { id: 2, title: 'Личное' }] });
+
+      const res = await request(app)
+        .get('/api/master/blocks')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(2);
+    });
+  });
+
+  describe('POST /api/master/blocks', () => {
+    it('should create a block', async () => {
+      const block = { id: 1, master_id: 1, title: 'Обед', start_at: '2026-03-02T12:00:00Z', end_at: '2026-03-02T13:00:00Z' };
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [block] });
+
+      const res = await request(app)
+        .post('/api/master/blocks')
+        .set('Authorization', authHeader)
+        .send({ start_at: '2026-03-02T12:00:00Z', end_at: '2026-03-02T13:00:00Z', title: 'Обед' })
+        .expect(201);
+
+      expect(res.body.title).toBe('Обед');
+    });
+
+    it('should return 400 if times missing', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] });
+
+      await request(app)
+        .post('/api/master/blocks')
+        .set('Authorization', authHeader)
+        .send({ title: 'Обед' })
+        .expect(400);
+    });
+
+    it('should reject if start >= end', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] });
+
+      await request(app)
+        .post('/api/master/blocks')
+        .set('Authorization', authHeader)
+        .send({ start_at: '2026-03-02T13:00:00Z', end_at: '2026-03-02T12:00:00Z' })
+        .expect(400);
+    });
+  });
+
+  describe('PUT /api/master/blocks/:id', () => {
+    it('should update a block', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // find
+        .mockResolvedValueOnce({ rows: [{ id: 1, title: 'Новый' }] });
+
+      const res = await request(app)
+        .put('/api/master/blocks/1')
+        .set('Authorization', authHeader)
+        .send({ title: 'Новый' })
+        .expect(200);
+
+      expect(res.body.title).toBe('Новый');
+    });
+
+    it('should return 404 for unknown block', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .put('/api/master/blocks/999')
+        .set('Authorization', authHeader)
+        .send({ title: 'X' })
+        .expect(404);
+    });
+  });
+
+  describe('DELETE /api/master/blocks/:id', () => {
+    it('should delete a block', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
+      await request(app)
+        .delete('/api/master/blocks/1')
+        .set('Authorization', authHeader)
+        .expect(200);
+    });
+
+    it('should return 404 for unknown block', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .delete('/api/master/blocks/999')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
 });
