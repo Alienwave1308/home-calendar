@@ -37,7 +37,8 @@ function loginWithApi(username, password) {
 
 // Кастомная команда: логин (по умолчанию через API bootstrap)
 Cypress.Commands.add('login', (username, password, options = {}) => {
-  const mode = options.mode || Cypress.env('AUTH_MODE') || 'api';
+  const modeFromConfig = Cypress.config('env')?.AUTH_MODE;
+  const mode = options.mode || modeFromConfig || 'api';
   if (mode === 'ui') {
     loginWithUi(username, password);
     return;
