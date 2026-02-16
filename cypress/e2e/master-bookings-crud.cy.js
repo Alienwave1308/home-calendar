@@ -33,12 +33,6 @@ describe('Master Panel - Booking CRUD E2E', () => {
     }).as('getServices');
 
     cy.intercept('POST', '/api/master/bookings', (req) => {
-      expect(req.body).to.include({
-        client_id: 2,
-        service_id: 10,
-        status: 'confirmed'
-      });
-      expect(req.body.start_at).to.be.a('string');
       const created = {
         id: 202,
         client_id: 2,
@@ -109,11 +103,19 @@ describe('Master Panel - Booking CRUD E2E', () => {
     cy.wait('@getClients');
     cy.wait('@getServices');
 
+    cy.get('#bookingFormClient').select('2');
+    cy.get('#bookingFormService').select('10');
+    cy.get('#bookingFormStatus').select('confirmed');
     cy.get('#bookingFormStart').clear().type('2026-03-11T13:00');
     cy.get('#bookingFormNote').clear().type('Первичная консультация');
     cy.contains('.sheet-actions button', 'Сохранить').click();
 
-    cy.wait('@createBooking');
+    cy.wait('@createBooking').then((interception) => {
+      expect(interception.request.body.client_id).to.equal(2);
+      expect(interception.request.body.service_id).to.equal(10);
+      expect(interception.request.body.status).to.equal('confirmed');
+      expect(interception.request.body.start_at).to.be.a('string');
+    });
     cy.wait('@getBookings');
     cy.contains('.booking-card', 'Первичная консультация').should('be.visible');
 
@@ -123,7 +125,10 @@ describe('Master Panel - Booking CRUD E2E', () => {
     cy.get('#bookingFormNote').clear().type('Комментарий обновлен');
     cy.contains('.sheet-actions button', 'Сохранить').click();
 
-    cy.wait('@updateBooking');
+    cy.wait('@updateBooking').then((interception) => {
+      expect(interception.request.body.master_note).to.equal('Комментарий обновлен');
+      expect(interception.request.body.status).to.equal('confirmed');
+    });
     cy.wait('@getBookings');
     cy.contains('.booking-card', 'Комментарий обновлен').should('be.visible');
 
@@ -131,7 +136,9 @@ describe('Master Panel - Booking CRUD E2E', () => {
       .contains('button', 'Отменить')
       .click();
 
-    cy.wait('@patchBooking');
+    cy.wait('@patchBooking').then((interception) => {
+      expect(interception.request.body.status).to.equal('canceled');
+    });
     cy.wait('@getBookings');
     cy.contains('.booking-card', 'Отменено').should('be.visible');
   });
