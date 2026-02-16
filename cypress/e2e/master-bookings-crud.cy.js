@@ -95,9 +95,10 @@ describe('Master Panel - Booking CRUD E2E', () => {
       win.MasterApp.switchTab('bookings');
     });
 
+    cy.get('#tabBookings').should('be.visible');
     cy.wait('@getBookings');
-    cy.contains('.booking-card', 'Тест-клиент').should('be.visible');
-    cy.contains('.booking-card', 'Запланировано').should('be.visible');
+    cy.get('#tabBookings').contains('.booking-card', 'Тест-клиент').should('be.visible');
+    cy.get('#tabBookings').contains('.booking-card', 'Запланировано').should('be.visible');
 
     cy.contains('button', 'Создать запись').click();
     cy.wait('@getClients');
@@ -117,9 +118,9 @@ describe('Master Panel - Booking CRUD E2E', () => {
       expect(interception.request.body.start_at).to.be.a('string');
     });
     cy.wait('@getBookings');
-    cy.contains('.booking-card', 'Первичная консультация').should('be.visible');
+    cy.get('#tabBookings').contains('.booking-card', 'Первичная консультация').should('be.visible');
 
-    cy.contains('.booking-card', 'Первичная консультация')
+    cy.get('#tabBookings').contains('.booking-card', 'Первичная консультация')
       .contains('button', 'Редактировать')
       .click();
     cy.get('#bookingFormNote').clear().type('Комментарий обновлен');
@@ -130,9 +131,9 @@ describe('Master Panel - Booking CRUD E2E', () => {
       expect(interception.request.body.status).to.equal('confirmed');
     });
     cy.wait('@getBookings');
-    cy.contains('.booking-card', 'Комментарий обновлен').should('be.visible');
+    cy.get('#tabBookings').contains('.booking-card', 'Комментарий обновлен').should('be.visible');
 
-    cy.contains('.booking-card', 'Комментарий обновлен')
+    cy.get('#tabBookings').contains('.booking-card', 'Комментарий обновлен')
       .contains('button', 'Отменить')
       .click();
 
@@ -140,6 +141,6 @@ describe('Master Panel - Booking CRUD E2E', () => {
       expect(interception.request.body.status).to.equal('canceled');
     });
     cy.wait('@getBookings');
-    cy.contains('.booking-card', 'Отменено').should('be.visible');
+    cy.get('#tabBookings').contains('.booking-card', 'Отменено').should('be.visible');
   });
 });

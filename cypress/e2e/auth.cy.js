@@ -44,12 +44,31 @@ describe('Home Calendar - Auth E2E', () => {
   });
 
   it('logs out back to telegram-only auth screen', () => {
-    cy.window().then((win) => {
-      win.localStorage.setItem('authToken', 'mock-token');
-      win.localStorage.setItem('token', 'mock-token');
-      win.localStorage.setItem('currentUser', JSON.stringify({ id: 7, username: 'mock-user' }));
+    cy.intercept('POST', '/api/auth/telegram', {
+      statusCode: 200,
+      body: {
+        token: 'tg-token',
+        user: { id: 102, username: 'tg_client_logout' },
+        role: 'client',
+        booking_slug: 'wife-master'
+      }
+    }).as('telegramAuthLogout');
+
+    cy.visit('/', {
+      onBeforeLoad(win) {
+        win.Telegram = {
+          WebApp: {
+            initData: 'query_id=logout&user=%7B%22id%22%3A778%7D&auth_date=1700000001&hash=test',
+            initDataUnsafe: { user: { id: 778, username: 'telegram_user_logout' } },
+            ready() {},
+            expand() {}
+          }
+        };
+      }
     });
-    cy.visit('/');
+
+    cy.wait('@telegramAuthLogout');
+    cy.get('#appScreen').should('be.visible');
     cy.contains('Выйти').click();
     cy.get('#authScreen').should('be.visible');
     cy.get('#appScreen').should('not.be.visible');
