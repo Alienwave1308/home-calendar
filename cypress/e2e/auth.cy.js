@@ -1,6 +1,15 @@
 describe('Home Calendar - Auth E2E', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
+    cy.intercept('GET', '/api/dashboard', {
+      statusCode: 200,
+      body: {
+        stats: { today_count: 0, overdue_count: 0, upcoming_count: 0, done_week: 0 },
+        today: [],
+        overdue: [],
+        upcoming: []
+      }
+    }).as('dashboard');
   });
 
   it('shows telegram-only auth state without web forms', () => {
@@ -31,6 +40,7 @@ describe('Home Calendar - Auth E2E', () => {
     });
 
     cy.get('#appScreen').should('be.visible');
+    cy.wait('@dashboard');
     cy.location('hash').should('eq', '#/dashboard');
     cy.contains('tg_client');
   });
@@ -53,6 +63,7 @@ describe('Home Calendar - Auth E2E', () => {
     });
 
     cy.get('#appScreen').should('be.visible');
+    cy.wait('@dashboard');
     cy.contains('Выйти').click();
     cy.get('#authScreen').should('be.visible');
     cy.get('#appScreen').should('not.be.visible');
