@@ -95,6 +95,10 @@ app.use('/api/dashboard', dashboardRouter);
 const recurrenceRouter = require('./routes/recurrence');
 app.use('/api', recurrenceRouter);
 
+// Подключаем роуты для списка покупок (требуют авторизации)
+const shoppingRouter = require('./routes/shopping');
+app.use('/api/shopping', shoppingRouter);
+
 // Роут для проверки здоровья сервера
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
