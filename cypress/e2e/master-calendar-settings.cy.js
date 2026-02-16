@@ -7,21 +7,24 @@ describe('Master Panel - Calendar Settings E2E', () => {
       body: { bookings: [], blocks: [] }
     }).as('calendar');
 
-    cy.intercept('GET', /\/api\/master\/services\/?(?:\?.*)?$/, () => {
+    cy.intercept('GET', /\/api\/master\/services\/?(?:\?.*)?$/, (req) => {
       if (!seeded) {
-        return {
+        req.alias = 'servicesEmpty';
+        req.reply({
           statusCode: 200,
           body: []
-        };
+        });
+        return;
       }
-      return {
+      req.alias = 'servicesSeeded';
+      req.reply({
         statusCode: 200,
         body: [
           { id: 1, name: 'Сахар: Бёдра', duration_minutes: 40, price: 900, is_active: true },
           { id: 2, name: 'Воск: Ноги полностью', duration_minutes: 60, price: 2000, is_active: true }
         ]
-      };
-    }).as('services');
+      });
+    });
 
     cy.intercept('POST', '/api/master/services/bootstrap-default', (req) => {
       expect(req.body).to.deep.equal({ overwrite: true });
@@ -100,10 +103,10 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('services');
     });
 
-    cy.wait('@services');
+    cy.wait('@servicesEmpty');
     cy.contains('button:visible', 'Заполнить прайс по шаблону').click();
     cy.wait('@bootstrapServices');
-    cy.wait('@services');
+    cy.wait('@servicesSeeded').its('response.body').should('have.length', 2);
 
     cy.contains('.service-card', 'Сахар: Бёдра').should('be.visible');
     cy.contains('.service-card', 'Воск: Ноги полностью').should('be.visible');
