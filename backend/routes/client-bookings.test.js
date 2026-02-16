@@ -27,6 +27,42 @@ describe('Client Bookings API', () => {
     jest.clearAllMocks();
   });
 
+  describe('GET /api/client/bookings', () => {
+    it('should return client bookings list', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [bookingRow] });
+
+      const res = await request(app)
+        .get('/api/client/bookings')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe(bookingRow.id);
+    });
+  });
+
+  describe('GET /api/client/bookings/:id', () => {
+    it('should return one booking for current client', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [bookingRow] });
+
+      const res = await request(app)
+        .get('/api/client/bookings/1')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.id).toBe(1);
+    });
+
+    it('should return 404 for unknown booking', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .get('/api/client/bookings/404')
+        .set('Authorization', authHeader)
+        .expect(404);
+    });
+  });
+
   // === CANCEL ===
 
   describe('PATCH /api/client/bookings/:id/cancel', () => {

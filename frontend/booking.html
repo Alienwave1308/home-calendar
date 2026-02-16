@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#667eea">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2f9f68">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
@@ -89,6 +89,14 @@
         <div class="done-icon">✅</div>
         <h2>Вы записаны!</h2>
         <p id="doneDetails" class="done-details"></p>
+        <div class="done-export-actions">
+          <a id="doneGoogleLink" class="btn-secondary done-export-btn" href="#" target="_blank" rel="noopener noreferrer">
+            Экспорт в Google Calendar
+          </a>
+          <button id="doneAppleBtn" class="btn-secondary done-export-btn" type="button">
+            Экспорт в Apple Calendar (.ics)
+          </button>
+        </div>
         <button class="btn-primary" onclick="BookingApp.reset()">Записаться ещё</button>
       </div>
     </section>
@@ -105,6 +113,7 @@
     </div>
   </div>
 
+  <script src="booking-export-utils.js"></script>
   <script src="booking.js"></script>
 </body>
 </html>

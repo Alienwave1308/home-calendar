@@ -459,6 +459,59 @@ describe('Master API', () => {
     });
   });
 
+  describe('GET /api/master/clients', () => {
+    it('should return clients aggregated from bookings', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{
+            user_id: 2,
+            username: 'tg_123456',
+            telegram_user_id: 123456,
+            bookings_total: 4,
+            upcoming_total: 1,
+            last_booking_at: '2026-03-02T10:00:00.000Z'
+          }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/clients')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].telegram_user_id).toBe(123456);
+      expect(res.body[0].bookings_total).toBe(4);
+    });
+  });
+
+  describe('GET /api/master/clients/:client_id/bookings', () => {
+    it('should return selected client booking history', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, client_id: 2, service_name: 'Шугаринг', status: 'confirmed' }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/clients/2/bookings')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].service_name).toBe('Шугаринг');
+    });
+
+    it('should reject invalid client_id', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] }); // loadMaster
+
+      await request(app)
+        .get('/api/master/clients/abc/bookings')
+        .set('Authorization', authHeader)
+        .expect(400);
+    });
+  });
+
   describe('PATCH /api/master/bookings/:id', () => {
     it('should update booking status', async () => {
       pool.query
@@ -578,6 +631,100 @@ describe('Master API', () => {
         .post('/api/master/bookings')
         .set('Authorization', authHeader)
         .send({ client_id: 2, service_id: 1, start_at: '2026-03-02T10:00:00Z' })
+        .expect(409);
+    });
+
+    it('should reject invalid status', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [masterRow] });
+
+      await request(app)
+        .post('/api/master/bookings')
+        .set('Authorization', authHeader)
+        .send({ client_id: 2, service_id: 1, start_at: '2026-03-02T10:00:00Z', status: 'invalid' })
+        .expect(400);
+    });
+  });
+
+  describe('PUT /api/master/bookings/:id', () => {
+    it('should edit booking fields', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, service_id: 1, start_at: '2026-03-02T10:00:00.000Z', duration_minutes: 60 }]
+        }) // current booking
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // client exists
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, client_id: 2, status: 'completed', master_note: 'Готово' }]
+        }); // update
+
+      const res = await request(app)
+        .put('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({
+          client_id: 2,
+          start_at: '2026-03-02T11:00:00Z',
+          status: 'completed',
+          master_note: 'Готово'
+        })
+        .expect(200);
+
+      expect(res.body.status).toBe('completed');
+      expect(res.body.master_note).toBe('Готово');
+    });
+
+    it('should return 404 for unknown booking', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await request(app)
+        .put('/api/master/bookings/999')
+        .set('Authorization', authHeader)
+        .send({ status: 'confirmed' })
+        .expect(404);
+    });
+
+    it('should reject invalid status', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, service_id: 1, start_at: '2026-03-02T10:00:00.000Z', duration_minutes: 60 }]
+        });
+
+      await request(app)
+        .put('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({ status: 'invalid' })
+        .expect(400);
+    });
+
+    it('should return 404 for unknown service', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, service_id: 1, start_at: '2026-03-02T10:00:00.000Z', duration_minutes: 60 }]
+        })
+        .mockResolvedValueOnce({ rows: [] }); // service missing
+
+      await request(app)
+        .put('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({ service_id: 999 })
+        .expect(404);
+    });
+
+    it('should return 409 on time conflict', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, service_id: 1, start_at: '2026-03-02T10:00:00.000Z', duration_minutes: 60 }]
+        })
+        .mockRejectedValueOnce({ code: '23P01' });
+
+      await request(app)
+        .put('/api/master/bookings/1')
+        .set('Authorization', authHeader)
+        .send({ start_at: '2026-03-02T10:30:00Z' })
         .expect(409);
     });
   });
@@ -705,6 +852,8 @@ describe('Master API', () => {
       expect(res.body.reminder_hours).toEqual([24, 2]);
       expect(res.body.quiet_hours_start).toBeNull();
       expect(res.body.quiet_hours_end).toBeNull();
+      expect(res.body.apple_calendar_enabled).toBe(false);
+      expect(res.body.apple_calendar_token).toBeNull();
     });
 
     it('should return saved settings', async () => {
@@ -754,6 +903,54 @@ describe('Master API', () => {
         .set('Authorization', authHeader)
         .send({ reminder_hours: 'not-array' })
         .expect(400);
+    });
+  });
+
+  describe('Apple Calendar settings', () => {
+    it('should enable apple calendar feed', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [] }) // existing token
+        .mockResolvedValueOnce({
+          rows: [{ master_id: 1, apple_calendar_enabled: true, apple_calendar_token: 'abc' }]
+        });
+
+      const res = await request(app)
+        .post('/api/master/settings/apple-calendar/enable')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.apple_calendar_enabled).toBe(true);
+      expect(res.body.apple_calendar_token).toBeDefined();
+    });
+
+    it('should rotate apple calendar token', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({
+          rows: [{ master_id: 1, apple_calendar_enabled: true, apple_calendar_token: 'new-token' }]
+        });
+
+      const res = await request(app)
+        .post('/api/master/settings/apple-calendar/rotate')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.apple_calendar_enabled).toBe(true);
+      expect(res.body.apple_calendar_token).toBeDefined();
+    });
+
+    it('should disable apple calendar feed', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ master_id: 1, apple_calendar_enabled: false }] });
+
+      const res = await request(app)
+        .delete('/api/master/settings/apple-calendar')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.apple_calendar_enabled).toBe(false);
     });
   });
 });

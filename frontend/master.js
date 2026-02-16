@@ -7,8 +7,30 @@
 (function () {
   'use strict';
 
+  function hasTelegramMiniAppSession() {
+    if (window.Cypress) return true;
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (!webApp) return false;
+    if (typeof webApp.initData === 'string' && webApp.initData.length > 0) return true;
+    return Boolean(webApp.initDataUnsafe && webApp.initDataUnsafe.user);
+  }
+
+  function renderTelegramOnlyError() {
+    document.body.innerHTML = '<main style="max-width:480px;margin:64px auto;padding:24px;text-align:center;font-family:system-ui,-apple-system,sans-serif;">'
+      + '<h1 style="margin-bottom:12px;">Доступ только через Telegram</h1>'
+      + '<p style="margin:0;color:#5b6575;">Откройте панель мастера внутри Telegram Mini App.</p>'
+      + '</main>';
+  }
+
+  if (!hasTelegramMiniAppSession()) {
+    renderTelegramOnlyError();
+    return;
+  }
+
   let API_BASE = '/api/master';
   let token = localStorage.getItem('token') || '';
+  let bookingsCache = [];
+  let currentMasterSlug = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -72,6 +94,16 @@
     return d.toLocaleDateString('ru-RU') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
+  function toInputDateTime(iso) {
+    let d = new Date(iso);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+
+  function toIsoDateTime(inputValue) {
+    return new Date(inputValue).toISOString();
+  }
+
   // === TABS ===
 
   function switchTab(tabName) {
@@ -127,6 +159,7 @@
       let status = $('bookingsStatus').value;
       let q = status ? '?status=' + status : '';
       let bookings = await apiFetch('/bookings' + q);
+      bookingsCache = bookings;
 
       if (bookings.length === 0) {
         container.innerHTML = '';
@@ -142,12 +175,12 @@
   }
 
   function renderBookingCard(b) {
-    let actions = '';
+    let actions = '<button class="btn-small btn-edit" onclick="MasterApp.openBookingForm(' + b.id + ')">Редактировать</button>';
     if (b.status === 'pending') {
-      actions = '<button class="btn-small btn-confirm" onclick="MasterApp.updateBooking(' + b.id + ',\'confirmed\')">Подтвердить</button>'
+      actions += '<button class="btn-small btn-confirm" onclick="MasterApp.updateBooking(' + b.id + ',\'confirmed\')">Подтвердить</button>'
         + '<button class="btn-small btn-cancel" onclick="MasterApp.updateBooking(' + b.id + ',\'canceled\')">Отклонить</button>';
     } else if (b.status === 'confirmed') {
-      actions = '<button class="btn-small btn-complete" onclick="MasterApp.updateBooking(' + b.id + ',\'completed\')">Завершить</button>'
+      actions += '<button class="btn-small btn-complete" onclick="MasterApp.updateBooking(' + b.id + ',\'completed\')">Завершить</button>'
         + '<button class="btn-small btn-cancel" onclick="MasterApp.updateBooking(' + b.id + ',\'canceled\')">Отменить</button>';
     }
 
@@ -159,6 +192,7 @@
       + '<div class="booking-card-meta">'
       + '<span>' + escapeHtml(b.client_name || 'Клиент') + '</span>'
       + '<span>' + formatDateTime(b.start_at) + '</span>'
+      + (b.master_note ? '<span>Комментарий: ' + escapeHtml(b.master_note) + '</span>' : '')
       + '</div>'
       + (actions ? '<div class="booking-card-actions">' + actions + '</div>' : '')
       + '</div>';
@@ -170,6 +204,110 @@
       // Reload current tab
       let activeTab = document.querySelector('.master-tab.active');
       if (activeTab) switchTab(activeTab.dataset.tab);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function openBookingForm(bookingId) {
+    let booking = bookingId ? bookingsCache.find(function (item) { return item.id === bookingId; }) : null;
+    if (bookingId && !booking) {
+      let allBookings = await apiFetch('/bookings');
+      booking = allBookings.find(function (item) { return item.id === bookingId; }) || null;
+    }
+
+    const [clients, services] = await Promise.all([
+      apiFetch('/clients'),
+      apiFetch('/services')
+    ]);
+
+    if (!clients.length) {
+      showToast('Сначала клиент должен хотя бы раз записаться через ссылку');
+      return;
+    }
+    if (!services.length) {
+      showToast('Добавьте хотя бы одну услугу');
+      return;
+    }
+
+    let overlay = document.createElement('div');
+    overlay.className = 'service-form-overlay';
+    overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
+
+    let clientOptions = clients.map(function (c) {
+      let selected = booking && booking.client_id === c.user_id ? ' selected' : '';
+      return '<option value="' + c.user_id + '"' + selected + '>' + escapeHtml(c.username) + '</option>';
+    }).join('');
+
+    let serviceOptions = services.map(function (s) {
+      let selected = booking && booking.service_id === s.id ? ' selected' : '';
+      return '<option value="' + s.id + '"' + selected + '>' + escapeHtml(s.name) + ' (' + s.duration_minutes + ' мин)</option>';
+    }).join('');
+
+    let statusValue = booking ? booking.status : 'confirmed';
+    let dateValue = booking ? toInputDateTime(booking.start_at) : toInputDateTime(new Date().toISOString());
+
+    overlay.innerHTML = '<div class="service-form-sheet booking-form-sheet">'
+      + '<h3>' + (booking ? 'Редактировать запись' : 'Новая запись') + '</h3>'
+      + '<input type="hidden" id="bookingFormId" value="' + (booking ? booking.id : '') + '">'
+      + '<div class="form-field"><label>Клиент</label><select id="bookingFormClient">' + clientOptions + '</select></div>'
+      + '<div class="form-field"><label>Услуга</label><select id="bookingFormService">' + serviceOptions + '</select></div>'
+      + '<div class="form-field"><label>Дата и время</label><input id="bookingFormStart" type="datetime-local" value="' + dateValue + '"></div>'
+      + '<div class="form-field"><label>Статус</label>'
+      + '<select id="bookingFormStatus">'
+      + '<option value="pending"' + (statusValue === 'pending' ? ' selected' : '') + '>Ожидает</option>'
+      + '<option value="confirmed"' + (statusValue === 'confirmed' ? ' selected' : '') + '>Подтверждена</option>'
+      + '<option value="completed"' + (statusValue === 'completed' ? ' selected' : '') + '>Завершена</option>'
+      + '<option value="canceled"' + (statusValue === 'canceled' ? ' selected' : '') + '>Отменена</option>'
+      + '</select></div>'
+      + '<div class="form-field"><label>Комментарий</label><textarea id="bookingFormNote" rows="3" placeholder="Комментарий мастера">'
+      + escapeHtml(booking && booking.master_note ? booking.master_note : '') + '</textarea></div>'
+      + '<div class="sheet-actions">'
+      + '<button class="btn-secondary" onclick="MasterApp.closeBookingForm()">Отмена</button>'
+      + '<button class="btn-primary" onclick="MasterApp.saveBookingForm()">Сохранить</button>'
+      + '</div>'
+      + '</div>';
+
+    document.body.appendChild(overlay);
+  }
+
+  function closeBookingForm() {
+    let overlay = document.querySelector('.service-form-overlay');
+    if (overlay) overlay.remove();
+  }
+
+  async function saveBookingForm() {
+    try {
+      const bookingId = document.getElementById('bookingFormId').value;
+      const clientId = Number(document.getElementById('bookingFormClient').value);
+      const serviceId = Number(document.getElementById('bookingFormService').value);
+      const startAtValue = document.getElementById('bookingFormStart').value;
+      const status = document.getElementById('bookingFormStatus').value;
+      const note = document.getElementById('bookingFormNote').value.trim();
+
+      if (!clientId || !serviceId || !startAtValue) {
+        showToast('Заполните клиента, услугу и время');
+        return;
+      }
+
+      const payload = {
+        client_id: clientId,
+        service_id: serviceId,
+        start_at: toIsoDateTime(startAtValue),
+        status: status,
+        master_note: note || null
+      };
+
+      if (bookingId) {
+        await apiMethod('PUT', '/bookings/' + bookingId, payload);
+      } else {
+        await apiMethod('POST', '/bookings', payload);
+      }
+
+      closeBookingForm();
+      await loadBookings();
+      await loadToday();
+      showToast('Запись сохранена');
     } catch (err) {
       showToast(err.message);
     }
@@ -244,8 +382,10 @@
   // === SETTINGS ===
 
   async function loadSettings() {
+    let appleSettings = null;
     try {
       let profile = await apiFetch('/profile');
+      currentMasterSlug = profile.booking_slug || '';
       $('bookingLink').value = window.location.origin + '/book/' + profile.booking_slug;
     } catch (err) {
       $('bookingLink').value = 'Не удалось загрузить';
@@ -269,11 +409,45 @@
     // Reminder settings
     try {
       let settings = await apiFetch('/settings');
+      appleSettings = settings;
       $('reminderSettings').innerHTML = 'Напоминания за: <strong>' + (settings.reminder_hours || [24, 2]).join(', ') + '</strong> ч.'
         + (settings.quiet_hours_start ? '<br>Тихие часы: ' + settings.quiet_hours_start + ' — ' + settings.quiet_hours_end : '');
     } catch (_) {
       $('reminderSettings').textContent = 'Не удалось загрузить';
     }
+
+    renderAppleCalendarSettings(appleSettings);
+  }
+
+  function getAppleCalendarFeedUrl(tokenValue) {
+    if (!currentMasterSlug || !tokenValue) return '';
+    return window.location.origin
+      + '/api/public/master/'
+      + encodeURIComponent(currentMasterSlug)
+      + '/calendar.ics?token='
+      + encodeURIComponent(tokenValue);
+  }
+
+  function renderAppleCalendarSettings(settings) {
+    const statusEl = $('appleCalStatus');
+    const rowEl = $('appleCalLinkRow');
+    const linkEl = $('appleCalendarLink');
+    const openBtn = $('appleCalendarOpenBtn');
+    if (!statusEl || !rowEl || !linkEl || !openBtn) return;
+
+    const isEnabled = Boolean(settings && settings.apple_calendar_enabled && settings.apple_calendar_token);
+    if (!isEnabled) {
+      statusEl.textContent = 'Отключен';
+      rowEl.style.display = 'none';
+      openBtn.style.display = 'none';
+      linkEl.value = '';
+      return;
+    }
+
+    statusEl.innerHTML = '<span style="color:var(--success);">Подключен</span> (подписка .ics)';
+    linkEl.value = getAppleCalendarFeedUrl(settings.apple_calendar_token);
+    rowEl.style.display = '';
+    openBtn.style.display = '';
   }
 
   function copyLink() {
@@ -296,6 +470,59 @@
     } catch (err) {
       showToast('Ошибка подключения: ' + err.message);
     }
+  }
+
+  async function enableAppleCalendar() {
+    try {
+      await apiMethod('POST', '/settings/apple-calendar/enable');
+      await loadSettings();
+      showToast('Apple Calendar включен');
+    } catch (err) {
+      showToast('Ошибка Apple Calendar: ' + err.message);
+    }
+  }
+
+  async function rotateAppleCalendar() {
+    try {
+      await apiMethod('POST', '/settings/apple-calendar/rotate');
+      await loadSettings();
+      showToast('Ссылка Apple Calendar обновлена');
+    } catch (err) {
+      showToast('Ошибка Apple Calendar: ' + err.message);
+    }
+  }
+
+  async function disableAppleCalendar() {
+    try {
+      await apiMethod('DELETE', '/settings/apple-calendar');
+      await loadSettings();
+      showToast('Apple Calendar отключен');
+    } catch (err) {
+      showToast('Ошибка Apple Calendar: ' + err.message);
+    }
+  }
+
+  function copyAppleLink() {
+    const input = $('appleCalendarLink');
+    if (!input || !input.value) {
+      showToast('Ссылка пока не доступна');
+      return;
+    }
+    navigator.clipboard.writeText(input.value).then(function () {
+      showToast('Ссылка Apple Calendar скопирована');
+      $('networkToast').style.background = 'var(--success)';
+      setTimeout(function () { $('networkToast').style.background = ''; }, 3000);
+    });
+  }
+
+  function openAppleCalendar() {
+    const input = $('appleCalendarLink');
+    if (!input || !input.value) {
+      showToast('Ссылка пока не доступна');
+      return;
+    }
+    const webcalUrl = input.value.replace(/^https?:\/\//, 'webcal://');
+    window.location.href = webcalUrl;
   }
 
   function logout() {
@@ -329,10 +556,18 @@
     switchTab: switchTab,
     loadBookings: loadBookings,
     updateBooking: updateBooking,
+    openBookingForm: openBookingForm,
+    closeBookingForm: closeBookingForm,
+    saveBookingForm: saveBookingForm,
     showAddService: showAddService,
     saveService: saveService,
     copyLink: copyLink,
+    copyAppleLink: copyAppleLink,
+    openAppleCalendar: openAppleCalendar,
     connectGCal: connectGCal,
+    enableAppleCalendar: enableAppleCalendar,
+    rotateAppleCalendar: rotateAppleCalendar,
+    disableAppleCalendar: disableAppleCalendar,
     logout: logout,
     hideToast: hideToast
   };

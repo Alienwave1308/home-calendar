@@ -67,10 +67,6 @@ app.use('/api/auth', authLimiter, authRouter);
 const tasksRouter = require('./routes/tasks');
 app.use('/api/tasks', tasksRouter);
 
-// Подключаем роуты для семей (требуют авторизации)
-const familiesRouter = require('./routes/families');
-app.use('/api/families', familiesRouter);
-
 // Подключаем роуты для тегов (требуют авторизации)
 const tagsRouter = require('./routes/tags');
 app.use('/api/tags', tagsRouter);
@@ -90,6 +86,10 @@ app.use('/api/audit', auditRouter);
 // Подключаем роуты dashboard (требуют авторизации)
 const dashboardRouter = require('./routes/dashboard');
 app.use('/api/dashboard', dashboardRouter);
+
+// Публичные роуты бронирования (частично требуют auth для создания)
+const publicBookingRouter = require('./routes/public-booking');
+app.use('/api/public', publicBookingRouter);
 
 // Подключаем роуты для повторяющихся задач (требуют авторизации)
 const recurrenceRouter = require('./routes/recurrence');

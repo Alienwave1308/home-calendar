@@ -8,8 +8,9 @@ const VALID_TYPES = [
   'task_completed',
   'task_due',
   'comment_added',
-  'family_invite',
-  'family_joined',
+  'booking_created',
+  'booking_updated',
+  'booking_cancelled',
   'shopping_added'
 ];
 

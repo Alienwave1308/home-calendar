@@ -4,9 +4,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { URLSearchParams } = require('url');
 const { Buffer } = require('buffer');
+const { nanoid } = require('nanoid');
 const router = express.Router();
 const { pool } = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
+const TELEGRAM_ONLY_ERROR = 'Only Telegram Mini App authentication is allowed';
 
 function buildToken(user) {
   return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
@@ -44,6 +46,91 @@ function isValidTelegramInitData(initData, botToken) {
 
   return crypto.timingSafeEqual(computedBuffer, receivedBuffer);
 }
+
+function isLegacyAuthAllowed() {
+  return process.env.ALLOW_PASSWORD_AUTH === 'true' || process.env.NODE_ENV === 'test';
+}
+
+function rejectWhenTelegramOnly(req, res, next) {
+  if (isLegacyAuthAllowed()) return next();
+  return res.status(403).json({ error: TELEGRAM_ONLY_ERROR });
+}
+
+function getConfiguredMasterTelegramId() {
+  const masterTelegramId = String(process.env.MASTER_TELEGRAM_USER_ID || '').trim();
+  return masterTelegramId || null;
+}
+
+async function ensureMasterProfileForUser(user, rawUser) {
+  const defaultTimezone = process.env.MASTER_TIMEZONE || 'Europe/Moscow';
+  const defaultDisplayName = process.env.MASTER_DISPLAY_NAME || rawUser?.first_name || rawUser?.username || 'Мастер';
+  const masterByUser = await pool.query(
+    'SELECT id, booking_slug FROM masters WHERE user_id = $1',
+    [user.id]
+  );
+
+  if (masterByUser.rows.length > 0) {
+    return masterByUser.rows[0];
+  }
+
+  const insertedMaster = await pool.query(
+    `INSERT INTO masters (user_id, display_name, timezone, booking_slug)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, booking_slug`,
+    [user.id, defaultDisplayName, defaultTimezone, nanoid(10)]
+  );
+  return insertedMaster.rows[0];
+}
+
+async function resolveRoleAndMaster(user, telegramId, rawUser) {
+  const configuredMasterTelegramId = getConfiguredMasterTelegramId();
+
+  if (configuredMasterTelegramId) {
+    if (String(telegramId) === configuredMasterTelegramId) {
+      const master = await ensureMasterProfileForUser(user, rawUser);
+      return { role: 'master', master };
+    }
+
+    const configuredMaster = await pool.query(
+      `SELECT m.id, m.booking_slug
+       FROM masters m
+       JOIN users u ON u.id = m.user_id
+       WHERE u.username = $1`,
+      [`tg_${configuredMasterTelegramId}`]
+    );
+    if (configuredMaster.rows.length > 0) {
+      return { role: 'client', master: configuredMaster.rows[0] };
+    }
+
+    const firstMaster = await pool.query(
+      'SELECT id, booking_slug FROM masters ORDER BY id ASC LIMIT 1'
+    );
+    return { role: 'client', master: firstMaster.rows[0] || null };
+  }
+
+  const masterByUser = await pool.query(
+    'SELECT id, user_id, booking_slug FROM masters WHERE user_id = $1',
+    [user.id]
+  );
+  if (masterByUser.rows.length > 0) {
+    return { role: 'master', master: masterByUser.rows[0] };
+  }
+
+  const firstMaster = await pool.query(
+    'SELECT id, user_id, booking_slug FROM masters ORDER BY id ASC LIMIT 1'
+  );
+  if (firstMaster.rows.length === 0) {
+    const master = await ensureMasterProfileForUser(user, rawUser);
+    return { role: 'master', master };
+  }
+
+  return { role: 'client', master: firstMaster.rows[0] };
+}
+
+router.post('/register', rejectWhenTelegramOnly);
+router.post('/login', rejectWhenTelegramOnly);
+router.post('/forgot-password', rejectWhenTelegramOnly);
+router.post('/reset-password', rejectWhenTelegramOnly);
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -237,7 +324,15 @@ router.post('/telegram', async (req, res) => {
 
     const user = userResult.rows[0];
     const token = buildToken(user);
-    res.json({ user: { id: user.id, username: user.username }, token });
+    const { role, master } = await resolveRoleAndMaster(user, telegramId, rawUser);
+
+    res.json({
+      user: { id: user.id, username: user.username },
+      token,
+      role,
+      booking_slug: master ? master.booking_slug : null,
+      master_id: master ? master.id : null
+    });
   } catch (error) {
     console.error('Error in Telegram auth:', error);
     res.status(500).json({ error: 'Server error' });

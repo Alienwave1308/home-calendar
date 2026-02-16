@@ -12,7 +12,7 @@ describe('Home Calendar - Auth E2E', () => {
   });
 
   it('should load the auth screen', () => {
-    cy.contains('Family Task Tracker');
+    cy.contains('Календарь мастера');
     cy.contains('Войдите или зарегистрируйтесь');
     cy.get('#loginForm').should('be.visible');
   });
@@ -30,14 +30,14 @@ describe('Home Calendar - Auth E2E', () => {
   });
 
   it('should login successfully', () => {
-    cy.login(testUser, testPass);
+    cy.login(testUser, testPass, { mode: 'ui' });
     cy.get('#appScreen').should('be.visible');
     cy.location('hash').should('eq', '#/dashboard');
     cy.contains(testUser);
   });
 
   it('should logout', () => {
-    cy.login(testUser, testPass);
+    cy.login(testUser, testPass, { mode: 'ui' });
     cy.contains('Выйти').click();
     cy.get('#authScreen').should('be.visible');
     cy.get('#appScreen').should('not.be.visible');

@@ -2,24 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { getUserWorkspaceId } = require('../lib/workspace');
 
 router.use(authenticateToken);
 
-// Helper: get user's family_id
-async function getUserFamily(userId) {
-  const result = await pool.query(
-    'SELECT family_id FROM family_members WHERE user_id = $1 LIMIT 1',
-    [userId]
-  );
-  return result.rows.length > 0 ? result.rows[0].family_id : null;
-}
-
-// GET /api/shopping — list all items for the family
+// GET /api/shopping — list all items for current workspace
 router.get('/', async (req, res) => {
   try {
-    const familyId = await getUserFamily(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
@@ -29,7 +21,7 @@ router.get('/', async (req, res) => {
        LEFT JOIN users u2 ON s.bought_by = u2.id
        WHERE s.family_id = $1
        ORDER BY s.is_bought ASC, s.created_at DESC`,
-      [familyId]
+      [workspaceId]
     );
 
     res.json(result.rows);
@@ -47,15 +39,15 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Title is required' });
     }
 
-    const familyId = await getUserFamily(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
       `INSERT INTO shopping_items (family_id, title, added_by)
        VALUES ($1, $2, $3) RETURNING *`,
-      [familyId, title.trim(), req.user.id]
+      [workspaceId, title.trim(), req.user.id]
     );
 
     res.status(201).json(result.rows[0]);
@@ -75,14 +67,14 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Title is required' });
     }
 
-    const familyId = await getUserFamily(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
       'UPDATE shopping_items SET title = $1 WHERE id = $2 AND family_id = $3 RETURNING *',
-      [title.trim(), itemId, familyId]
+      [title.trim(), itemId, workspaceId]
     );
 
     if (result.rows.length === 0) {
@@ -101,15 +93,15 @@ router.put('/:id/toggle', async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
 
-    const familyId = await getUserFamily(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     // Get current state
     const current = await pool.query(
       'SELECT * FROM shopping_items WHERE id = $1 AND family_id = $2',
-      [itemId, familyId]
+      [itemId, workspaceId]
     );
 
     if (current.rows.length === 0) {
@@ -138,14 +130,14 @@ router.delete('/:id', async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
 
-    const familyId = await getUserFamily(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const result = await pool.query(
       'DELETE FROM shopping_items WHERE id = $1 AND family_id = $2 RETURNING *',
-      [itemId, familyId]
+      [itemId, workspaceId]
     );
 
     if (result.rows.length === 0) {
@@ -164,14 +156,14 @@ router.post('/:id/to-task', async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
 
-    const familyId = await getUserFamily(req.user.id);
-    if (!familyId) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
     const item = await pool.query(
       'SELECT * FROM shopping_items WHERE id = $1 AND family_id = $2',
-      [itemId, familyId]
+      [itemId, workspaceId]
     );
 
     if (item.rows.length === 0) {

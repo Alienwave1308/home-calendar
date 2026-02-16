@@ -26,9 +26,9 @@ describe('Home Calendar - SPA Navigation E2E', () => {
     cy.location('hash').should('eq', '#/kanban');
     cy.get('#screen-kanban').should('be.visible');
 
-    cy.get('.nav-item[data-route="family"]').click();
-    cy.location('hash').should('eq', '#/family');
-    cy.get('#screen-family').should('be.visible');
+    cy.get('.nav-item[data-route="clients"]').click();
+    cy.location('hash').should('eq', '#/clients');
+    cy.get('#screen-clients').should('be.visible');
   });
 
   it('should preserve route after successful login', () => {

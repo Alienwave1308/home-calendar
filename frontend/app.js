@@ -1,7 +1,8 @@
 // API URLs
 const API_URL = '/api/tasks';
 const AUTH_URL = '/api/auth';
-const FAMILY_URL = '/api/families';
+const MASTER_URL = '/api/master';
+const CLIENT_TASKS_URL = '/api/tasks/clients';
 const AUDIT_URL = '/api/audit';
 const DASHBOARD_URL = '/api/dashboard';
 const COMMENTS_URL = '/api/comments';
@@ -25,10 +26,14 @@ const telegramMiniApp = window.TelegramMiniApp || {
 // Auth state
 let authToken = localStorage.getItem('authToken');
 let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+let currentRole = localStorage.getItem('currentRole') || '';
+let currentBookingSlug = localStorage.getItem('currentBookingSlug') || '';
 
-// Family state
-let currentFamily = null;
-let currentTasksView = 'my'; // 'my' or 'family'
+// Clients state
+let currentClients = [];
+let selectedClientId = null;
+let selectedClientName = '';
+let currentTasksView = 'my'; // 'my' or 'clients'
 let pendingTaskFocusId = null;
 let selectedTaskIds = new Set();
 let tasksPage = 1;
@@ -104,6 +109,7 @@ const loadedRoutes = new Set();
 const tgState = {
   enabled: false
 };
+const isCypress = Boolean(window.Cypress);
 
 function isDayModalOpen() {
   const modal = document.getElementById('dayModal');
@@ -180,20 +186,21 @@ window.fetch = async (...args) => {
 // === SPA ROUTER ===
 
 const router = window.RouterUtils || {
-  ROUTES: ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'],
+  ROUTES: ['dashboard', 'calendar', 'tasks', 'kanban', 'clients', 'activity'],
   normalizeRoute: (route) => (
-    ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'].includes(route)
+    ['dashboard', 'calendar', 'tasks', 'kanban', 'clients', 'activity']
+      .includes(route)
       ? route
       : 'dashboard'
   ),
   getRouteFromHash: (hash) => {
     const route = (hash || '').replace('#/', '');
-    return ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'].includes(route)
+    return ['dashboard', 'calendar', 'tasks', 'kanban', 'clients', 'activity'].includes(route)
       ? route
       : 'dashboard';
   },
   buildHash: (route) => {
-    const normalized = ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'].includes(route)
+    const normalized = ['dashboard', 'calendar', 'tasks', 'kanban', 'clients', 'activity'].includes(route)
       ? route
       : 'dashboard';
     return `#/${normalized}`;
@@ -236,8 +243,8 @@ function handleRoute() {
     loadTasks();
   } else if (route === 'kanban') {
     loadKanban();
-  } else if (route === 'family') {
-    loadFamily();
+  } else if (route === 'clients') {
+    loadClients();
   } else if (route === 'activity') {
     activityOffset = 0;
     activityEvents = [];
@@ -281,17 +288,47 @@ async function tryTelegramAutoLogin() {
 
     authToken = data.token;
     currentUser = data.user;
+    currentRole = data.role || 'client';
+    currentBookingSlug = data.booking_slug || '';
     localStorage.setItem('authToken', authToken);
+    localStorage.setItem('token', authToken);
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    localStorage.setItem('currentRole', currentRole);
+    if (currentBookingSlug) {
+      localStorage.setItem('currentBookingSlug', currentBookingSlug);
+    } else {
+      localStorage.removeItem('currentBookingSlug');
+    }
     return true;
   } catch {
     return false;
   }
 }
 
+function redirectToRoleHome() {
+  if (isCypress || !tgState.enabled) return false;
+  if (currentRole === 'master') {
+    window.location.replace('/master');
+    return true;
+  }
+  if (currentBookingSlug) {
+    window.location.replace(`/book/${currentBookingSlug}`);
+    return true;
+  }
+  return false;
+}
+
 // Show correct screen on load
 function checkAuth() {
+  if (!tgState.enabled) {
+    authScreen.style.display = 'block';
+    appScreen.style.display = 'none';
+    renderTelegramOnlyState();
+    return;
+  }
+
   if (authToken && currentUser) {
+    if (redirectToRoleHome()) return;
     authScreen.style.display = 'none';
     appScreen.style.display = 'flex';
     document.getElementById('currentUser').textContent = currentUser.username;
@@ -307,6 +344,22 @@ function checkAuth() {
     appScreen.style.display = 'none';
     syncMiniAppBackButton();
   }
+}
+
+function renderTelegramOnlyState() {
+  const tabs = document.querySelector('.auth-tabs');
+  const loginError = document.getElementById('loginError');
+  const registerError = document.getElementById('registerError');
+  const title = document.querySelector('#authScreen header p');
+  const notice = document.getElementById('telegramOnlyNotice');
+
+  if (tabs) tabs.style.display = 'none';
+  if (loginForm) loginForm.style.display = 'none';
+  if (registerForm) registerForm.style.display = 'none';
+  if (loginError) loginError.textContent = '';
+  if (registerError) registerError.textContent = '';
+  if (title) title.textContent = 'Доступен только через Telegram Mini App';
+  if (notice) notice.style.display = 'block';
 }
 
 // Switch between login/register tabs
@@ -349,6 +402,7 @@ loginForm.addEventListener('submit', async (e) => {
     authToken = data.token;
     currentUser = data.user;
     localStorage.setItem('authToken', authToken);
+    localStorage.setItem('token', authToken);
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     checkAuth();
   } catch {
@@ -380,6 +434,7 @@ registerForm.addEventListener('submit', async (e) => {
     authToken = data.token;
     currentUser = data.user;
     localStorage.setItem('authToken', authToken);
+    localStorage.setItem('token', authToken);
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     checkAuth();
   } catch {
@@ -390,9 +445,14 @@ registerForm.addEventListener('submit', async (e) => {
 function logout() {
   authToken = null;
   currentUser = null;
-  currentFamily = null;
+  currentClients = [];
+  selectedClientId = null;
+  selectedClientName = '';
   localStorage.removeItem('authToken');
+  localStorage.removeItem('token');
   localStorage.removeItem('currentUser');
+  localStorage.removeItem('currentRole');
+  localStorage.removeItem('currentBookingSlug');
   loadedRoutes.clear();
   window.location.hash = '';
   checkAuth();
@@ -514,167 +574,144 @@ if (dashboardQuickForm) {
   });
 }
 
-// === FAMILY LOGIC ===
+// === CLIENTS LOGIC ===
 
-async function loadFamily() {
-  const membersEl = document.getElementById('familyMembers');
-  if (membersEl) membersEl.innerHTML = polishUtils.makeSkeleton(2);
+async function loadClients() {
+  const listEl = document.getElementById('clientsList');
+  const emptyEl = document.getElementById('clientsEmpty');
+  const errorEl = document.getElementById('clientsError');
+  if (!listEl || !emptyEl || !errorEl) return;
+
+  listEl.innerHTML = polishUtils.makeSkeleton(3);
+  emptyEl.style.display = 'none';
+  errorEl.textContent = '';
+
   try {
-    const response = await fetch(FAMILY_URL, { headers: authHeaders() });
-    if (response.status === 401 || response.status === 403) { logout(); return; }
-    const data = await response.json();
-    currentFamily = data.family;
-    renderFamily();
+    const response = await fetch(`${MASTER_URL}/clients`, { headers: authHeaders() });
+    if (response.status === 401 || response.status === 403) {
+      errorEl.textContent = 'Раздел клиентов доступен только мастеру';
+      listEl.innerHTML = '';
+      return;
+    }
+    if (!response.ok) {
+      errorEl.textContent = 'Не удалось загрузить список клиентов';
+      listEl.innerHTML = '';
+      return;
+    }
+
+    currentClients = await response.json();
+    if (!currentClients.some((item) => item.user_id === selectedClientId)) {
+      selectedClientId = null;
+      selectedClientName = '';
+    }
+    renderClientsList();
   } catch (error) {
-    console.error('Ошибка загрузки семьи:', error);
+    console.error('Ошибка загрузки клиентов:', error);
+    errorEl.textContent = 'Ошибка соединения с сервером';
+    listEl.innerHTML = '';
   }
 }
 
-function renderFamily() {
-  const noFamily = document.getElementById('noFamily');
-  const hasFamily = document.getElementById('hasFamily');
-  const tasksTabs = document.getElementById('tasksTabs');
+function renderClientsList() {
+  const listEl = document.getElementById('clientsList');
+  const emptyEl = document.getElementById('clientsEmpty');
+  if (!listEl || !emptyEl) return;
 
-  if (currentFamily) {
-    noFamily.style.display = 'none';
-    hasFamily.style.display = 'block';
-    if (tasksTabs) tasksTabs.style.display = 'flex';
+  if (!currentClients.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    renderClientBookings([]);
+    return;
+  }
 
-    document.getElementById('familyTitle').textContent = currentFamily.name;
-    document.getElementById('familyCode').textContent = currentFamily.invite_code;
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = currentClients.map((client) => {
+    const activeClass = selectedClientId === client.user_id ? ' active' : '';
+    const displayName = escapeHtml(client.username || `Клиент #${client.user_id}`);
+    const telegramId = client.telegram_user_id ? `#${client.telegram_user_id}` : 'не указан';
+    return `
+      <button class="client-card${activeClass}" onclick="selectClient(${client.user_id})">
+        <span class="client-card-title">${displayName}</span>
+        <span class="client-card-meta">Telegram: ${telegramId}</span>
+        <span class="client-card-meta">Записей: ${client.bookings_total || 0}</span>
+        <span class="client-card-meta">Будущих: ${client.upcoming_total || 0}</span>
+      </button>
+    `;
+  }).join('');
+}
 
-    const membersHTML = currentFamily.members.map(m => {
-      const roleLabel = m.role === 'owner' ? 'владелец' : 'участник';
-      const kickBtn = currentFamily.role === 'owner' && m.id !== currentUser.id
-        ? `<button class="btn-small btn-delete" onclick="kickMember(${m.id})">Убрать</button>`
-        : '';
-      return `
-        <div class="family-member">
-          <span>${m.username} <small>(${roleLabel})</small></span>
-          ${kickBtn}
+// eslint-disable-next-line no-unused-vars
+async function selectClient(clientId) {
+  const selected = currentClients.find((item) => item.user_id === clientId);
+  selectedClientId = clientId;
+  selectedClientName = selected?.username || `Клиент #${clientId}`;
+  renderClientsList();
+  await loadClientBookings(clientId);
+}
+
+async function loadClientBookings(clientId) {
+  const errorEl = document.getElementById('clientsError');
+  if (!errorEl) return;
+  errorEl.textContent = '';
+
+  try {
+    const response = await fetch(`${MASTER_URL}/clients/${clientId}/bookings`, { headers: authHeaders() });
+    if (!response.ok) {
+      errorEl.textContent = 'Не удалось загрузить историю клиента';
+      renderClientBookings([]);
+      return;
+    }
+    const bookings = await response.json();
+    renderClientBookings(bookings);
+  } catch (error) {
+    console.error('Ошибка загрузки истории клиента:', error);
+    errorEl.textContent = 'Ошибка соединения с сервером';
+    renderClientBookings([]);
+  }
+}
+
+function renderClientBookings(bookings) {
+  const sectionEl = document.getElementById('clientBookingsSection');
+  const titleEl = document.getElementById('clientBookingsTitle');
+  const listEl = document.getElementById('clientBookingsList');
+  const emptyEl = document.getElementById('clientBookingsEmpty');
+  if (!sectionEl || !titleEl || !listEl || !emptyEl) return;
+
+  if (!selectedClientId) {
+    sectionEl.style.display = 'none';
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'none';
+    return;
+  }
+
+  sectionEl.style.display = 'block';
+  titleEl.textContent = `История клиента: ${selectedClientName}`;
+
+  if (!bookings.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = bookings.map((booking) => {
+    const startAt = booking.start_at ? new Date(booking.start_at).toLocaleString('ru-RU') : 'Дата не указана';
+    const status = escapeHtml(booking.status || 'confirmed');
+    const service = escapeHtml(booking.service_name || 'Услуга');
+    const note = escapeHtml(booking.client_note || booking.master_note || '');
+    return `
+      <article class="booking-history-item">
+        <div class="booking-history-main">
+          <strong>${service}</strong>
+          <span>${startAt}</span>
         </div>
-      `;
-    }).join('');
-
-    document.getElementById('familyMembers').innerHTML = membersHTML;
-  } else {
-    noFamily.style.display = 'block';
-    hasFamily.style.display = 'none';
-    if (tasksTabs) tasksTabs.style.display = 'none';
-    // Reset to my tasks view
-    currentTasksView = 'my';
-    const tasksTitle = document.getElementById('tasksTitle');
-    if (tasksTitle) tasksTitle.textContent = 'Мои задачи';
-  }
-}
-
-// eslint-disable-next-line no-unused-vars
-async function createFamily() {
-  const nameInput = document.getElementById('familyName');
-  const errorEl = document.getElementById('familyError');
-  errorEl.textContent = '';
-
-  const name = nameInput.value.trim();
-  if (name.length < 2) {
-    errorEl.textContent = 'Название семьи — минимум 2 символа';
-    return;
-  }
-
-  try {
-    const response = await fetch(FAMILY_URL, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ name })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      errorEl.textContent = data.error || 'Ошибка создания семьи';
-      return;
-    }
-
-    currentFamily = data.family;
-    nameInput.value = '';
-    renderFamily();
-  } catch {
-    errorEl.textContent = 'Ошибка соединения с сервером';
-  }
-}
-
-// eslint-disable-next-line no-unused-vars
-async function joinFamily() {
-  const codeInput = document.getElementById('inviteCodeInput');
-  const errorEl = document.getElementById('familyError');
-  errorEl.textContent = '';
-
-  const code = codeInput.value.trim();
-  if (!code) {
-    errorEl.textContent = 'Введите код приглашения';
-    return;
-  }
-
-  try {
-    const response = await fetch(`${FAMILY_URL}/join`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ invite_code: code })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      errorEl.textContent = data.error || 'Ошибка присоединения';
-      return;
-    }
-
-    currentFamily = data.family;
-    codeInput.value = '';
-    renderFamily();
-  } catch {
-    errorEl.textContent = 'Ошибка соединения с сервером';
-  }
-}
-
-// eslint-disable-next-line no-unused-vars
-async function leaveFamily() {
-  const action = currentFamily.role === 'owner'
-    ? 'Вы владелец. Семья будет удалена для всех. Продолжить?'
-    : 'Вы уверены, что хотите покинуть семью?';
-
-  if (!await telegramMiniApp.confirm(action)) return;
-
-  try {
-    const response = await fetch(`${FAMILY_URL}/leave`, {
-      method: 'POST',
-      headers: authHeaders()
-    });
-
-    if (response.ok) {
-      currentFamily = null;
-      currentTasksView = 'my';
-      renderFamily();
-      loadTasks();
-    }
-  } catch (error) {
-    console.error('Ошибка:', error);
-  }
-}
-
-// eslint-disable-next-line no-unused-vars
-async function kickMember(userId) {
-  if (!await telegramMiniApp.confirm('Убрать этого участника из семьи?')) return;
-
-  try {
-    const response = await fetch(`${FAMILY_URL}/members/${userId}`, {
-      method: 'DELETE',
-      headers: authHeaders()
-    });
-
-    if (response.ok) {
-      loadFamily();
-    }
-  } catch (error) {
-    console.error('Ошибка:', error);
-  }
+        <div class="booking-history-meta">
+          <span class="booking-history-status">${status}</span>
+          ${note ? `<p class="booking-history-note">${note}</p>` : ''}
+        </div>
+      </article>
+    `;
+  }).join('');
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -685,7 +722,7 @@ function switchTasksView(view, el) {
   el.classList.add('active');
 
   document.getElementById('tasksTitle').textContent =
-    view === 'my' ? 'Мои задачи' : 'Задачи семьи';
+    view === 'my' ? 'Мои задачи' : 'Задачи клиентов';
 
   selectedTaskIds = new Set();
   tasksPage = 1;
@@ -729,10 +766,10 @@ const STATUS_LABELS = {
 const kanbanUtils = window.KanbanUtils || {
   KANBAN_STATUSES: ['backlog', 'planned', 'in_progress', 'done'],
   KANBAN_COLUMN_TITLES: {
-    backlog: 'Backlog',
-    planned: 'Planned',
-    in_progress: 'In Progress',
-    done: 'Done'
+    backlog: 'Бэклог',
+    planned: 'Запланировано',
+    in_progress: 'В работе',
+    done: 'Выполнено'
   },
   filterKanbanTasks: (tasks) => (Array.isArray(tasks)
     ? tasks.filter((task) => ['backlog', 'planned', 'in_progress', 'done'].includes(task.status))
@@ -755,7 +792,7 @@ function updateTasksPagination() {
 
   if (!pageInfo || !prevBtn || !nextBtn || !pagination) return;
 
-  if (currentTasksView === 'family') {
+  if (currentTasksView === 'clients') {
     pagination.style.display = 'none';
     return;
   }
@@ -792,10 +829,10 @@ async function loadTaskFilterOptions() {
   if (!assigneeSelect || !tagSelect || !listSelect) return;
 
   try {
-    const familyRes = await fetch(FAMILY_URL, { headers: authHeaders() });
-    if (familyRes.ok) {
-      const familyData = await familyRes.json();
-      const members = familyData.family?.members || [];
+    const clientsRes = await fetch(`${MASTER_URL}/clients`, { headers: authHeaders() });
+    if (clientsRes.ok) {
+      const clients = await clientsRes.json();
+      const members = clients.map((item) => ({ id: item.user_id, username: item.username }));
       assigneeSelect.innerHTML = '<option value="">Любой исполнитель</option>' +
         members.map((m) => `<option value="${m.id}">${m.username}</option>`).join('');
     }
@@ -830,14 +867,14 @@ async function loadTasks() {
   try {
     const route = getRouteFromHash();
     const useAdvancedListQuery = currentTasksView === 'my' && route === 'tasks';
-    const url = currentTasksView === 'family'
-      ? `${API_URL}/family`
+    const url = currentTasksView === 'clients'
+      ? CLIENT_TASKS_URL
       : (useAdvancedListQuery ? `${API_URL}?${buildTasksQueryString()}` : API_URL);
 
     const response = await fetch(url, { headers: authHeaders() });
     if (response.status === 401 || response.status === 403) { logout(); return; }
-    if (response.status === 404 && currentTasksView === 'family') {
-      if (tasksContainer) tasksContainer.innerHTML = '<p class="no-tasks">Вы не состоите в семье</p>';
+    if (response.status === 404 && currentTasksView === 'clients') {
+      if (tasksContainer) tasksContainer.innerHTML = '<p class="no-tasks">Нет задач клиентов</p>';
       return;
     }
 
@@ -879,16 +916,16 @@ function displayTasks(tasks) {
     return;
   }
 
-  const isFamilyView = currentTasksView === 'family';
+  const isClientsView = currentTasksView === 'clients';
 
   const tasksHTML = tasks.map(task => {
     const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
     const priorityInfo = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS.medium;
     const doneClass = task.status === 'done' ? 'completed' : '';
-    const ownerLabel = isFamilyView && task.username
+    const ownerLabel = isClientsView && task.username
       ? `<span class="task-owner">${task.username}</span>`
       : '';
-    const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
+    const isOwnTask = !isClientsView || task.user_id === currentUser.id;
     const checked = selectedTaskIds.has(task.id) ? 'checked' : '';
 
     return `
@@ -1504,13 +1541,13 @@ function renderModalTasks() {
     return;
   }
 
-  const isFamilyView = currentTasksView === 'family';
+  const isClientsView = currentTasksView === 'clients';
 
   container.innerHTML = dayTasks.map(task => {
     const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.planned;
     const doneClass = task.status === 'done' ? 'completed' : '';
-    const isOwnTask = !isFamilyView || task.user_id === currentUser.id;
-    const ownerLabel = isFamilyView && task.username
+    const isOwnTask = !isClientsView || task.user_id === currentUser.id;
+    const ownerLabel = isClientsView && task.username
       ? `<span class="task-owner">${task.username}</span> `
       : '';
 
@@ -1692,7 +1729,7 @@ function renderTaskDetailModal() {
     `).join('');
 
   const assignedIds = new Set(taskDetailAssignees.map((row) => row.user_id));
-  assignSelect.innerHTML = '<option value="">Выберите участника</option>' + taskDetailMembers
+  assignSelect.innerHTML = '<option value="">Выберите клиента</option>' + taskDetailMembers
     .filter((member) => member.id !== currentUser.id && !assignedIds.has(member.id))
     .map((member) => `<option value="${member.id}">${escapeHtml(member.username)}</option>`)
     .join('');
@@ -1713,7 +1750,7 @@ async function loadTaskDetail(taskId) {
   if (modalTitle) modalTitle.textContent = 'Загрузка...';
 
   try {
-    const [taskRes, checklistRes, commentsRes, taskTagsRes, allTagsRes, historyRes, assigneesRes, familyRes] = await Promise.all([
+    const [taskRes, checklistRes, commentsRes, taskTagsRes, allTagsRes, historyRes, assigneesRes, clientsRes] = await Promise.all([
       fetch(`${API_URL}/${taskId}`, { headers: authHeaders() }),
       fetch(`${API_URL}/${taskId}/checklist`, { headers: authHeaders() }),
       fetch(`${COMMENTS_URL}/task/${taskId}?limit=100&offset=0`, { headers: authHeaders() }),
@@ -1721,7 +1758,7 @@ async function loadTaskDetail(taskId) {
       fetch(TAGS_URL, { headers: authHeaders() }),
       fetch(`${AUDIT_URL}/entity/task/${taskId}`, { headers: authHeaders() }),
       fetch(`${API_URL}/${taskId}/assignees`, { headers: authHeaders() }),
-      fetch(FAMILY_URL, { headers: authHeaders() })
+      fetch(`${MASTER_URL}/clients`, { headers: authHeaders() })
     ]);
 
     if (!taskRes.ok) throw new Error('task load failed');
@@ -1734,7 +1771,9 @@ async function loadTaskDetail(taskId) {
     taskDetailAllTags = allTagsRes.ok ? await allTagsRes.json() : [];
     taskDetailHistory = historyRes.ok ? await historyRes.json() : [];
     taskDetailAssignees = assigneesRes.ok ? await assigneesRes.json() : [];
-    taskDetailMembers = familyRes.ok ? (await familyRes.json()).family?.members || [] : [];
+    taskDetailMembers = clientsRes.ok
+      ? (await clientsRes.json()).map((item) => ({ id: item.user_id, username: item.username }))
+      : [];
 
     renderTaskDetailModal();
   } catch (error) {
@@ -1932,8 +1971,8 @@ const ACTION_LABELS = {
   'comment.created': 'оставил(а) комментарий',
   'comment.deleted': 'удалил(а) комментарий',
   'member.joined': 'присоединился(ась)',
-  'member.left': 'покинул(а) семью',
-  'member.kicked': 'убрал(а) участника',
+  'member.left': 'покинул(а) клиентскую базу',
+  'member.kicked': 'убрал(а) клиента',
   'list.created': 'создал(а) список',
   'list.deleted': 'удалил(а) список'
 };
@@ -1952,7 +1991,7 @@ async function loadActivity() {
     if (response.status === 401 || response.status === 403) { logout(); return; }
 
     if (response.status === 404) {
-      container.innerHTML = '<p class="no-tasks">Вступите в семью, чтобы видеть активность</p>';
+      container.innerHTML = '<p class="no-tasks">Подключите клиентскую базу, чтобы видеть активность</p>';
       loadMoreBtn.style.display = 'none';
       return;
     }
@@ -1984,7 +2023,7 @@ function renderActivity() {
   const container = document.getElementById('activityContainer');
 
   if (activityEvents.length === 0) {
-    container.innerHTML = '<p class="no-tasks">Пока нет активности. Как только семья начнет работать с задачами, здесь появятся события.</p>';
+    container.innerHTML = '<p class="no-tasks">Пока нет активности. Как только начнется работа с задачами, здесь появятся события.</p>';
     return;
   }
 
@@ -2072,7 +2111,7 @@ document.getElementById('networkRetryBtn')?.addEventListener('click', () => {
 });
 updateNetworkBanner();
 
-tgState.enabled = telegramMiniApp.init();
+tgState.enabled = telegramMiniApp.init() || isCypress;
 if (tgState.enabled) {
   telegramMiniApp.onBackButton(handleMiniAppBack);
 }

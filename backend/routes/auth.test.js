@@ -13,6 +13,8 @@ jest.mock('../db', () => ({
 }));
 
 describe('Auth API', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
   function buildTelegramInitData(botToken, userId = 42, authDate = Math.floor(Date.now() / 1000)) {
     const user = JSON.stringify({
       id: userId,
@@ -39,6 +41,38 @@ describe('Auth API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.TELEGRAM_BOT_TOKEN = 'telegram-test-bot-token';
+    process.env.NODE_ENV = 'test';
+    delete process.env.ALLOW_PASSWORD_AUTH;
+    delete process.env.MASTER_TELEGRAM_USER_ID;
+  });
+
+  afterAll(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  describe('Telegram-only mode', () => {
+    beforeEach(() => {
+      process.env.NODE_ENV = 'production';
+      delete process.env.ALLOW_PASSWORD_AUTH;
+    });
+
+    it('should reject password login in production mode', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'testuser', password: 'password123' })
+        .expect(403);
+
+      expect(response.body.error).toMatch(/telegram mini app/i);
+    });
+
+    it('should reject password registration in production mode', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({ username: 'testuser', password: 'password123' })
+        .expect(403);
+
+      expect(response.body.error).toMatch(/telegram mini app/i);
+    });
   });
 
   describe('POST /api/auth/register', () => {
@@ -223,7 +257,10 @@ describe('Auth API', () => {
 
     it('should login existing telegram user', async () => {
       const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 55);
-      pool.query.mockResolvedValueOnce({ rows: [{ id: 7, username: 'tg_55' }] });
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 7, username: 'tg_55' }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, user_id: 1, booking_slug: 'master-slug' }] });
 
       const response = await request(app)
         .post('/api/auth/telegram')
@@ -232,13 +269,17 @@ describe('Auth API', () => {
 
       expect(response.body.user).toEqual({ id: 7, username: 'tg_55' });
       expect(response.body).toHaveProperty('token');
+      expect(response.body.role).toBe('client');
+      expect(response.body.booking_slug).toBe('master-slug');
     });
 
     it('should create telegram user if missing', async () => {
       const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 77);
       pool.query
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ id: 9, username: 'tg_77' }] });
+        .mockResolvedValueOnce({ rows: [{ id: 9, username: 'tg_77' }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, user_id: 1, booking_slug: 'master-slug' }] });
 
       const response = await request(app)
         .post('/api/auth/telegram')
@@ -251,6 +292,39 @@ describe('Auth API', () => {
         'SELECT id, username FROM users WHERE username = $1',
         ['tg_77']
       );
+    });
+
+    it('should mark configured telegram account as master', async () => {
+      process.env.MASTER_TELEGRAM_USER_ID = '91';
+      const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 91);
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 12, username: 'tg_91' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 4, booking_slug: 'master-own-slug' }] });
+
+      const response = await request(app)
+        .post('/api/auth/telegram')
+        .send({ initData })
+        .expect(200);
+
+      expect(response.body.role).toBe('master');
+      expect(response.body.booking_slug).toBe('master-own-slug');
+    });
+
+    it('should assign first telegram user as master when master env is not set', async () => {
+      const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 101);
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 21, username: 'tg_101' }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: 8, booking_slug: 'first-master-slug' }] });
+
+      const response = await request(app)
+        .post('/api/auth/telegram')
+        .send({ initData })
+        .expect(200);
+
+      expect(response.body.role).toBe('master');
+      expect(response.body.booking_slug).toBe('first-master-slug');
     });
 
     it('should reject expired initData', async () => {

@@ -1,5 +1,5 @@
 (function (globalScope) {
-  const ROUTES = ['dashboard', 'calendar', 'tasks', 'kanban', 'family', 'activity'];
+  const ROUTES = ['dashboard', 'calendar', 'tasks', 'kanban', 'clients', 'activity'];
 
   function normalizeRoute(route) {
     return ROUTES.includes(route) ? route : 'dashboard';

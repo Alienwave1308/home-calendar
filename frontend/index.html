@@ -2,12 +2,12 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#667eea">
-  <meta name="description" content="Семейный таск-трекер: задачи, календарь, канбан, активность.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2f9f68">
+  <meta name="description" content="Календарь мастера: записи, клиенты, задачи и активность.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Family Task Tracker</title>
+  <title>Календарь мастера</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="icons/icon-192.svg">
@@ -22,11 +22,14 @@
   <!-- Экран авторизации -->
   <div class="container" id="authScreen">
     <header>
-      <h1>Family Task Tracker</h1>
+      <h1>Календарь мастера</h1>
       <p>Войдите или зарегистрируйтесь</p>
     </header>
 
     <section class="auth-section">
+      <div id="telegramOnlyNotice" class="auth-error" style="display: none;">
+        Откройте приложение из Telegram Mini App. Веб-вход отключен.
+      </div>
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="showAuthTab('login', this)">Вход</button>
         <button class="auth-tab" onclick="showAuthTab('register', this)">Регистрация</button>
@@ -64,7 +67,7 @@
   <div id="appScreen" style="display: none;">
     <!-- Верхняя шапка -->
     <div class="app-header">
-      <h1 class="app-title">Family Task Tracker</h1>
+      <h1 class="app-title">Календарь мастера</h1>
       <div class="app-header-right">
         <span id="currentUser"></span>
         <button class="btn-small btn-logout" onclick="logout()">Выйти</button>
@@ -211,14 +214,14 @@
 
           <div class="tasks-bulk-actions" id="tasksBulkActions">
             <span id="tasksSelectedCount">Выбрано: 0</span>
-            <button class="btn-small" id="bulkSetPlanned">В planned</button>
-            <button class="btn-small" id="bulkSetDone">В done</button>
+            <button class="btn-small" id="bulkSetPlanned">В запланировано</button>
+            <button class="btn-small" id="bulkSetDone">В выполнено</button>
             <button class="btn-small btn-delete" id="bulkDelete">Удалить</button>
           </div>
 
           <div class="tasks-tabs" id="tasksTabs" style="display: none;">
             <button class="tasks-tab active" onclick="switchTasksView('my', this)">Мои задачи</button>
-            <button class="tasks-tab" onclick="switchTasksView('family', this)">Задачи семьи</button>
+            <button class="tasks-tab" onclick="switchTasksView('clients', this)">Задачи клиентов</button>
           </div>
           <h2 id="tasksTitle">Мои задачи</h2>
           <div id="tasksContainer">
@@ -232,34 +235,27 @@
         </section>
       </div>
 
-      <!-- Экран: Семья -->
-      <div class="screen" id="screen-family" style="display: none;">
-        <section class="family-section" id="familySection">
-          <div id="noFamily">
-            <h2>Семья</h2>
-            <p class="family-hint">Создайте семью или присоединитесь по коду приглашения</p>
-            <div class="family-actions">
-              <div class="family-create">
-                <input type="text" id="familyName" placeholder="Название семьи" minlength="2">
-                <button class="btn-primary btn-small" onclick="createFamily()">Создать</button>
-              </div>
-              <div class="family-join">
-                <input type="text" id="inviteCodeInput" placeholder="Код приглашения" maxlength="8">
-                <button class="btn-primary btn-small" onclick="joinFamily()">Присоединиться</button>
-              </div>
-            </div>
-            <div id="familyError" class="auth-error"></div>
+      <!-- Экран: Клиенты -->
+      <div class="screen" id="screen-clients" style="display: none;">
+        <section class="clients-section" id="clientsSection">
+          <div class="clients-header">
+            <h2>Клиенты</h2>
+            <p class="clients-hint">Пользователи Telegram, которые когда-либо записывались к мастеру</p>
           </div>
-          <div id="hasFamily" style="display: none;">
-            <div class="family-header">
-              <h2 id="familyTitle"></h2>
-              <button class="btn-small btn-logout" onclick="leaveFamily()">Покинуть</button>
-            </div>
-            <div class="family-info">
-              <span class="invite-code">Код: <strong id="familyCode"></strong></span>
-            </div>
-            <div class="family-members" id="familyMembers"></div>
+          <div id="clientsList" class="clients-list">
+            <p class="loading">Загрузка...</p>
           </div>
+          <div id="clientsEmpty" class="no-tasks" style="display:none;">
+            Пока нет клиентов с записями
+          </div>
+          <div id="clientBookingsSection" class="client-bookings-section" style="display:none;">
+            <h3 id="clientBookingsTitle">История клиента</h3>
+            <div id="clientBookingsList" class="bookings-history-list"></div>
+            <div id="clientBookingsEmpty" class="no-tasks" style="display:none;">
+              У клиента пока нет записей
+            </div>
+          </div>
+          <div id="clientsError" class="auth-error"></div>
         </section>
       </div>
 
@@ -305,9 +301,9 @@
         <span class="nav-icon">🧩</span>
         <span class="nav-label">Канбан</span>
       </a>
-      <a href="#/family" class="nav-item" data-route="family">
-        <span class="nav-icon">👨‍👩‍👧‍👦</span>
-        <span class="nav-label">Семья</span>
+      <a href="#/clients" class="nav-item" data-route="clients">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Клиенты</span>
       </a>
       <a href="#/activity" class="nav-item" data-route="activity">
         <span class="nav-icon">🔔</span>

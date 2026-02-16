@@ -18,7 +18,7 @@ describe('Lists API', () => {
   });
 
   describe('GET /api/lists', () => {
-    it('should return lists for user family', async () => {
+    it('should return lists for user workspace', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ family_id: 1 }] }) // getUserFamilyId
         .mockResolvedValueOnce({
@@ -37,7 +37,7 @@ describe('Lists API', () => {
       expect(res.body[0].name).toBe('Groceries');
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] }); // no family
 
       await request(app)
@@ -97,7 +97,7 @@ describe('Lists API', () => {
         .expect(400);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)
@@ -180,7 +180,7 @@ describe('Lists API', () => {
         .expect(404);
     });
 
-    it('should return 404 if not in a family', async () => {
+    it('should return 404 if workspace missing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
       await request(app)

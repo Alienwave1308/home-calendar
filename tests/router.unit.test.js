@@ -12,13 +12,18 @@ describe('Router utils', () => {
       'calendar',
       'tasks',
       'kanban',
-      'family',
+      'clients',
       'activity'
     ]));
   });
 
   it('should normalize unknown route to dashboard', () => {
     expect(normalizeRoute('unknown')).toBe('dashboard');
+  });
+
+  it('should fallback unsupported hash route to dashboard', () => {
+    expect(normalizeRoute('clients-old')).toBe('dashboard');
+    expect(getRouteFromHash('#/clients-old')).toBe('dashboard');
   });
 
   it('should parse hash route', () => {

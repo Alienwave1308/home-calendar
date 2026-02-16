@@ -6,6 +6,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  gap: 10px;
 }
 
 .master-header h1 {
@@ -20,6 +21,12 @@
   margin-bottom: 20px;
   border-bottom: 2px solid var(--border);
   padding-bottom: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.master-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .master-tab {
@@ -34,6 +41,8 @@
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
+  min-width: 92px;
+  white-space: nowrap;
 }
 
 .master-tab.active {
@@ -80,8 +89,8 @@
 }
 
 .booking-status.pending {
-  background: #fef3c7;
-  color: #92400e;
+  background: #f5f2cc;
+  color: #6f620f;
 }
 
 .booking-status.confirmed {
@@ -90,8 +99,8 @@
 }
 
 .booking-status.completed {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #dcefe2;
+  color: #1e7c4f;
 }
 
 .booking-status.canceled {
@@ -137,9 +146,16 @@
   color: white;
 }
 
+.btn-edit {
+  background: #dcefe2;
+  color: #1e7c4f;
+}
+
 /* Filters */
 .bookings-filters {
   margin-bottom: 14px;
+  display: grid;
+  gap: 8px;
 }
 
 .bookings-filters select {
@@ -149,6 +165,10 @@
   border-radius: 10px;
   font-size: 0.9em;
   background: var(--card);
+}
+
+.btn-create-booking {
+  min-height: 42px;
 }
 
 /* Settings */
@@ -192,6 +212,22 @@
   color: var(--text-secondary);
 }
 
+.apple-actions {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.apple-actions .btn-secondary {
+  min-height: 40px;
+}
+
+.btn-open-apple {
+  width: 100%;
+  min-height: 42px;
+}
+
 .empty-hint {
   font-size: 0.85em;
   color: var(--text-secondary);
@@ -222,6 +258,7 @@
   width: 100%;
   max-width: 480px;
   animation: slideUp 0.3s ease-out;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 @keyframes slideUp {
@@ -253,7 +290,69 @@
   font-size: 0.95em;
 }
 
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95em;
+  background: #fff;
+}
+
 .form-field input:focus {
   outline: none;
   border-color: var(--primary);
+}
+
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.booking-form-sheet {
+  max-width: 560px;
+}
+
+.sheet-actions {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .master-header h1 {
+    font-size: 1.1em;
+  }
+
+  .master-header .btn-back {
+    margin-bottom: 0;
+  }
+
+  .booking-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .booking-card-actions .btn-small {
+    min-height: 40px;
+  }
+
+  .link-copy-row {
+    flex-direction: column;
+  }
+
+  .btn-copy {
+    width: 100%;
+  }
+
+  .sheet-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .apple-actions {
+    grid-template-columns: 1fr;
+  }
 }

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { getUserWorkspaceId } = require('../lib/workspace');
 
 const VALID_STATUSES = ['backlog', 'planned', 'in_progress', 'done', 'canceled', 'archived'];
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
@@ -125,22 +126,15 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/tasks/family — get all family members' tasks (excludes soft-deleted)
-router.get('/family', async (req, res) => {
+// GET /api/tasks/clients — get all workspace members' tasks (excludes soft-deleted)
+router.get('/clients', async (req, res) => {
   try {
-    // Find user's family
-    const membership = await pool.query(
-      'SELECT family_id FROM family_members WHERE user_id = $1',
-      [req.user.id]
-    );
-
-    if (membership.rows.length === 0) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    const workspaceId = await getUserWorkspaceId(req.user.id);
+    if (!workspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
-    const familyId = membership.rows[0].family_id;
-
-    // Get all tasks from all family members
+    // Get all tasks from workspace members
     const result = await pool.query(
       `SELECT t.*, u.username
        FROM tasks t
@@ -148,12 +142,12 @@ router.get('/family', async (req, res) => {
        JOIN users u ON u.id = t.user_id
        WHERE fm.family_id = $1 AND t.deleted_at IS NULL
        ORDER BY t.date, t.id`,
-      [familyId]
+      [workspaceId]
     );
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Error getting family tasks:', error);
+    console.error('Error getting workspace tasks:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -355,21 +349,18 @@ router.post('/:id/assign', async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    // Check target user is in same family
-    const callerFamily = await pool.query(
-      'SELECT family_id FROM family_members WHERE user_id = $1',
-      [req.user.id]
-    );
-    if (callerFamily.rows.length === 0) {
-      return res.status(404).json({ error: 'You are not in a family' });
+    // Check target user is in the same workspace
+    const callerWorkspaceId = await getUserWorkspaceId(req.user.id);
+    if (!callerWorkspaceId) {
+      return res.status(404).json({ error: 'Рабочее пространство не найдено' });
     }
 
-    const targetFamily = await pool.query(
+    const targetWorkspace = await pool.query(
       'SELECT family_id FROM family_members WHERE user_id = $1 AND family_id = $2',
-      [targetUserId, callerFamily.rows[0].family_id]
+      [targetUserId, callerWorkspaceId]
     );
-    if (targetFamily.rows.length === 0) {
-      return res.status(404).json({ error: 'Target user is not in your family' });
+    if (targetWorkspace.rows.length === 0) {
+      return res.status(404).json({ error: 'Пользователь не найден в рабочем пространстве' });
     }
 
     // Check if already assigned
