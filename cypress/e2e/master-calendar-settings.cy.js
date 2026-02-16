@@ -164,22 +164,14 @@ describe('Master Panel - Calendar Settings E2E', () => {
     cy.contains('#availabilityRules', '10:00 - 18:00').should('be.visible');
   });
 
-  it('should allow bulk availability input', () => {
+  it('should hide bulk availability input', () => {
     cy.window().then((win) => {
       win.MasterApp.switchTab('settings');
     });
 
     cy.wait('@availability');
     cy.wait('@availabilityExclusions');
-
-    cy.get('#availabilityBulkInput').type('2026-02-24 10:00-12:00, 13:00-14:00{enter}2026-02-25 11:00-15:00');
-    cy.contains('button', 'Добавить из строк').click();
-
-    cy.wait('@addAvailability');
-    cy.wait('@addAvailability');
-    cy.wait('@addAvailability');
-
-    cy.contains('#availabilityRules', '2026-02-24').should('be.visible');
-    cy.contains('#availabilityRules', '2026-02-25').should('be.visible');
+    cy.get('#availabilityBulkInput').should('not.exist');
+    cy.contains('button', 'Добавить из строк').should('not.exist');
   });
 });
