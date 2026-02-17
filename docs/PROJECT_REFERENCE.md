@@ -107,8 +107,12 @@ npm install
 npm run lint
 npm test -- --no-coverage
 npx cypress run
+npm run predeploy:check
+npm run predeploy:check:docker
 node backend/server.js
 ```
+
+`npm run predeploy:check:docker` — обязательный pre-deploy gate для любых изменений.
 
 ## 9. CI/CD pipeline
 

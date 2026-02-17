@@ -27,19 +27,15 @@
 - force-push в `main`
 - пропускать CI перед релизом (кроме явно согласованного hotfix)
 
-## 3. Обязательные проверки перед пушем
+## 3. Обязательные проверки перед пушем/деплоем
+
+Обязательный quality gate для любых правок перед деплоем:
 
 ```bash
-npm run lint
-npm test -- --no-coverage
+npm run predeploy:check:docker
 ```
 
-Если менялся booking/master flow, дополнительно:
-
-```bash
-npx cypress run --spec cypress/e2e/master-calendar-settings.cy.js
-npx cypress run --spec cypress/e2e/booking-export.cy.js
-```
+Деплой без успешного `predeploy:check:docker` не допускается.
 
 ## 4. Правила изменений
 

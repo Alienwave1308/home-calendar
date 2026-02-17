@@ -76,6 +76,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('#doneAppleBtn').click();
     cy.wait('@getClientCalendarFeed');
     cy.get('@openLink').should('have.been.called');
+    cy.get('@openLink').its('lastCall.args.0').should('match', /^https?:\/\//);
     cy.get('@openLink').its('lastCall.args.0').should('include', 'client-calendar.ics');
     cy.get('@openLink').its('lastCall.args.0').should('include', 'token=test-client-token');
   });

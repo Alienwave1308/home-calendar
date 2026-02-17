@@ -43,6 +43,24 @@ node backend/server.js
 docker-compose up --build
 ```
 
+## Cypress в контейнере (обход проблем локального бинарника)
+```bash
+# Обязательный gate перед любым деплоем
+npm run predeploy:check:docker
+
+# Один целевой spec (экспорт в календарь)
+npm run cypress:booking-export:docker
+
+# Все e2e-спеки
+npm run cypress:run:docker
+
+# Полная pre-deploy проверка: lint + jest + dockerized e2e
+npm run predeploy:check
+
+# Очистить контейнеры/volume после прогона
+npm run cypress:docker:down
+```
+
 ## Production HTTPS (Telegram Mini App)
 Production deploy now uses `docker-compose.prod.yml` + Caddy (automatic Let's Encrypt TLS).
 

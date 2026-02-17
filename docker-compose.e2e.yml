@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://calendar:calendar123@db:5432/home_calendar
+      - JWT_SECRET=test-secret-for-local-e2e
+
+  e2e:
+    image: cypress/included:15.10.0
+    working_dir: /e2e
+    volumes:
+      - .:/e2e
+    environment:
+      - CYPRESS_baseUrl=http://app:3000
+      - CYPRESS_SPEC
+    depends_on:
+      - app
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - npm ci && npx wait-on http://app:3000/health && if [ -n "$$CYPRESS_SPEC" ]; then cypress run --spec "$$CYPRESS_SPEC"; else cypress run; fi

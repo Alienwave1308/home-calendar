@@ -544,8 +544,9 @@
         const httpsUrl = new window.URL(feedPath, window.location.origin).toString();
         const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
 
+        // Telegram Mini App openLink accepts only http/https URLs.
         if (tg && typeof tg.openLink === 'function') {
-          tg.openLink(webcalUrl, { try_instant_view: false });
+          tg.openLink(httpsUrl, { try_instant_view: false });
           return;
         }
         window.location.href = webcalUrl;
@@ -730,8 +731,9 @@
       const httpsUrl = new window.URL(feedPath, window.location.origin).toString();
       const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
 
+      // Telegram Mini App openLink accepts only http/https URLs.
       if (tg && typeof tg.openLink === 'function') {
-        tg.openLink(webcalUrl, { try_instant_view: false });
+        tg.openLink(httpsUrl, { try_instant_view: false });
         return;
       }
       window.location.href = webcalUrl;
