@@ -21,12 +21,10 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     }).as('getSlots');
 
     cy.intercept('POST', /\/api\/public\/master\/test-master\/book\/?$/, (req) => {
-      expect(req.body).to.include({
-        service_id: 10,
-        start_at: '2026-02-20T10:00:00.000Z',
-        client_note: 'Зона подмышек'
-      });
-      req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed' } });
+      expect(req.body.service_ids).to.deep.equal([10]);
+      expect(req.body.start_at).to.equal('2026-02-20T10:00:00.000Z');
+      expect(req.body.client_note).to.equal('Зона подмышек');
+      req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed', pricing: {} } });
     }).as('postBook');
 
     cy.intercept('GET', /\/api\/client\/bookings\/1\/calendar-feed\/?$/, {
@@ -57,7 +55,9 @@ describe('Booking Mini App - Calendar Export E2E', () => {
   });
 
   it('shows calendar export actions after successful booking', () => {
+    // Multi-select flow: click card to select, then click "Далее →" to proceed to slots
     cy.contains('.service-card', 'Шугаринг').click();
+    cy.get('.selection-bar-btn').click();
     cy.wait('@getSlots');
 
     cy.get('.slot-btn').first().click();

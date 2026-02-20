@@ -50,6 +50,9 @@
   let masterSettings = { first_visit_discount_percent: 15, min_booking_notice_minutes: 60 };
   let services = [];
   let visibleServices = [];
+  // Multi-select: list of selected services (zones freely combined; complex is solo)
+  let selectedServices = [];
+  // Legacy alias kept for reschedule flow compatibility
   let selectedService = null;
   let selectedDate = null;
   let selectedSlot = null;
@@ -250,6 +253,52 @@
     }
   }
 
+  // Returns true if the current selection contains a complex
+  function selectionHasComplex() {
+    return selectedServices.some(function (s) {
+      return parseServiceTaxonomy(s).category === 'Комплексы';
+    });
+  }
+
+  // Returns true if the current selection contains any zone
+  function selectionHasZone() {
+    return selectedServices.some(function (s) {
+      return parseServiceTaxonomy(s).category === 'Услуги';
+    });
+  }
+
+  // Compute totals from selectedServices
+  function selectionTotals() {
+    const totalMinutes = selectedServices.reduce(function (acc, s) { return acc + Number(s.duration_minutes || 0); }, 0);
+    const totalPrice = selectedServices.reduce(function (acc, s) { return acc + Number(s.price || 0); }, 0);
+    const discountPct = isFirstVisitClient ? Number(masterSettings.first_visit_discount_percent || 0) : 0;
+    const finalPrice = discountPct > 0 ? Math.max(0, Math.round(totalPrice * (1 - discountPct / 100))) : totalPrice;
+    return { totalMinutes: totalMinutes, totalPrice: totalPrice, discountPct: discountPct, finalPrice: finalPrice };
+  }
+
+  function updateSelectionBar() {
+    const bar = $('selectionBar');
+    if (!selectedServices.length) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
+
+    const count = selectedServices.length;
+    const totals = selectionTotals();
+    $('selectionBarCount').textContent = count + ' ' + (count === 1 ? 'услуга' : count < 5 ? 'услуги' : 'услуг');
+
+    let metaParts = [totals.totalMinutes + ' мин'];
+    if (totals.totalPrice > 0) {
+      if (totals.discountPct > 0) {
+        metaParts.push(formatPriceRub(totals.finalPrice) + ' ₽ (−' + totals.discountPct + '%)');
+      } else {
+        metaParts.push(formatPriceRub(totals.totalPrice) + ' ₽');
+      }
+    }
+    $('selectionBarMeta').textContent = metaParts.join(' · ');
+  }
+
   function renderServices() {
     visibleServices = services.filter(function (s) {
       const tax = parseServiceTaxonomy(s);
@@ -262,29 +311,78 @@
       $('servicesList').innerHTML = '';
       $('servicesEmpty').style.display = '';
       $('servicesEmpty').querySelector('p').textContent = 'По выбранным фильтрам услуг нет';
+      updateSelectionBar();
       return;
     }
 
     $('servicesEmpty').style.display = 'none';
+    const hasComplex = selectionHasComplex();
+    const hasZone = selectionHasZone();
+
     let html = '';
     visibleServices.forEach(function (s) {
-      let priceText = s.price ? s.price + ' ₽' : '';
-      let discountedText = '';
       const tax = parseServiceTaxonomy(s);
-      if (isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
-        const finalPrice = Math.max(0, Number(s.price) - (Number(s.price) * Number(masterSettings.first_visit_discount_percent) / 100));
-        discountedText = '<span class="service-meta">Первый визит: ' + Math.round(finalPrice) + ' ₽</span>';
+      const isComplex = tax.category === 'Комплексы';
+      const isSelected = selectedServices.some(function (sel) { return sel.id === s.id; });
+
+      // Disable condition:
+      // - complex disabled if any zone already selected
+      // - zone disabled if any complex already selected
+      // - complex disabled if another complex is selected (and this one isn't it)
+      const isDisabled = (!isSelected) && (
+        (isComplex && hasZone) ||
+        (!isComplex && hasComplex) ||
+        (isComplex && hasComplex)
+      );
+
+      let priceText = s.price ? formatPriceRub(s.price) + ' ₽' : '';
+      let discountedText = '';
+      if (!isDisabled && isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
+        const fp = Math.max(0, Number(s.price) * (1 - Number(masterSettings.first_visit_discount_percent) / 100));
+        discountedText = '<span class="service-meta service-meta-discount">Первый визит: ' + Math.round(fp) + ' ₽</span>';
       }
-      html += '<div class="service-card" data-id="' + s.id + '" onclick="BookingApp.selectService(' + s.id + ')">'
+
+      const cardClass = 'service-card'
+        + (isSelected ? ' service-card--selected' : '')
+        + (isDisabled ? ' service-card--disabled' : '');
+      const onclickAttr = isDisabled ? '' : ' onclick="BookingApp.toggleService(' + s.id + ')"';
+
+      html += '<div class="' + cardClass + '" data-id="' + s.id + '"' + onclickAttr + '>'
+        + (isSelected ? '<span class="service-card-check">✓</span>' : '')
         + '<div class="service-info">'
         + '<h3>' + escapeHtml(s.name) + '</h3>'
         + '<span class="service-meta">' + tax.category + ' · ' + s.duration_minutes + ' мин</span>'
         + discountedText
         + '</div>'
-        + (priceText ? '<span class="service-price">' + priceText + '</span>' : '')
+        + (priceText ? '<span class="service-price">' + (isDisabled ? '<span style="opacity:.4">' + priceText + '</span>' : priceText) + '</span>' : '')
         + '</div>';
     });
     $('servicesList').innerHTML = html;
+    updateSelectionBar();
+  }
+
+  // Toggle a service in/out of the selection (multi-select with complex rules)
+  function toggleService(serviceId) {
+    const service = services.find(function (s) { return s.id === serviceId; });
+    if (!service) return;
+
+    const tax = parseServiceTaxonomy(service);
+    const isComplex = tax.category === 'Комплексы';
+    const alreadySelected = selectedServices.some(function (s) { return s.id === serviceId; });
+
+    if (alreadySelected) {
+      // Deselect
+      selectedServices = selectedServices.filter(function (s) { return s.id !== serviceId; });
+    } else if (isComplex) {
+      // Complex: can only be selected alone; clears everything else
+      selectedServices = [service];
+    } else {
+      // Zone: cannot be added if a complex is selected
+      if (selectionHasComplex()) return;
+      selectedServices.push(service);
+    }
+
+    renderServices();
   }
 
   function setMethodFilter(next, silent) {
@@ -303,11 +401,40 @@
     if (!silent) renderServices();
   }
 
+  // Called by "Далее →" in the selection bar — move to slot picking
+  function proceedToSlots() {
+    if (!selectedServices.length) return;
+    // Set legacy alias to the first selected service (used in reschedule + calendar export)
+    selectedService = selectedServices[0];
+
+    // Header in step 2: show service names as chips
+    const totals = selectionTotals();
+    if (selectedServices.length === 1) {
+      $('selectedServiceName').textContent = selectedService.name;
+      $('selectedServicesChips').style.display = 'none';
+    } else {
+      $('selectedServiceName').textContent = selectedServices.length + ' услуги · ' + totals.totalMinutes + ' мин';
+      const chipsEl = $('selectedServicesChips');
+      chipsEl.innerHTML = selectedServices.map(function (s) {
+        return '<span class="service-chip">' + escapeHtml(s.name) + '</span>';
+      }).join('');
+      chipsEl.style.display = 'flex';
+    }
+
+    showStep('stepSlots');
+    currentDateOffset = 0;
+    renderDateStrip();
+    selectDate(toDateStr(new Date()));
+  }
+
+  // Legacy single-service select (used only in reschedule flow)
   function selectService(serviceId) {
     selectedService = services.find(function (s) { return s.id === serviceId; });
     if (!selectedService) return;
+    selectedServices = [selectedService];
 
     $('selectedServiceName').textContent = selectedService.name;
+    $('selectedServicesChips').style.display = 'none';
     showStep('stepSlots');
     currentDateOffset = 0;
     renderDateStrip();
@@ -347,7 +474,13 @@
     $('slotsEmpty').style.display = 'none';
 
     try {
-      let data = await apiFetch('/public/master/' + slug + '/slots?service_id=' + selectedService.id + '&date_from=' + dateStr + '&date_to=' + dateStr);
+      const totals = selectionTotals();
+      const primaryId = selectedService ? selectedService.id : (selectedServices[0] && selectedServices[0].id);
+      let slotsUrl = '/public/master/' + slug + '/slots?service_id=' + primaryId + '&date_from=' + dateStr + '&date_to=' + dateStr;
+      if (totals.totalMinutes > 0 && selectedServices.length > 1) {
+        slotsUrl += '&duration_minutes=' + totals.totalMinutes;
+      }
+      let data = await apiFetch(slotsUrl);
       let slots = data.slots || data || [];
 
       if (slots.length === 0) {
@@ -387,22 +520,36 @@
       return;
     }
 
-    // Go to confirm
-    $('confirmService').textContent = selectedService.name;
+    // Build service list block for confirm screen
+    const confirmServicesBlock = $('confirmServicesBlock');
+    if (selectedServices.length > 1) {
+      let blockHtml = selectedServices.map(function (s, idx) {
+        return '<div class="confirm-row">'
+          + '<span class="confirm-label">' + (idx === 0 ? 'Услуги' : '') + '</span>'
+          + '<span class="confirm-value">' + escapeHtml(s.name) + '</span>'
+          + '</div>';
+      }).join('');
+      confirmServicesBlock.innerHTML = blockHtml;
+    } else {
+      confirmServicesBlock.innerHTML = '<div class="confirm-row">'
+        + '<span class="confirm-label">Услуга</span>'
+        + '<span id="confirmService" class="confirm-value">' + escapeHtml(selectedService.name) + '</span>'
+        + '</div>';
+    }
+
+    const totals = selectionTotals();
     $('confirmDate').textContent = formatDate(selectedSlot.start);
     $('confirmTime').textContent = formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end);
-    $('confirmDuration').textContent = selectedService.duration_minutes + ' мин';
+    $('confirmDuration').textContent = totals.totalMinutes + ' мин';
 
-    if (selectedService.price) {
+    if (totals.totalPrice > 0) {
       $('confirmPriceRow').style.display = '';
-      $('confirmPrice').textContent = selectedService.price + ' ₽';
-      const discountPercent = isFirstVisitClient ? Number(masterSettings.first_visit_discount_percent || 0) : 0;
-      if (discountPercent > 0) {
-        const finalPrice = Math.max(0, Number(selectedService.price) - (Number(selectedService.price) * discountPercent / 100));
+      $('confirmPrice').textContent = formatPriceRub(totals.totalPrice) + ' ₽';
+      if (totals.discountPct > 0) {
         $('confirmDiscountRow').style.display = '';
-        $('confirmDiscount').textContent = '-' + discountPercent + '%';
+        $('confirmDiscount').textContent = '−' + totals.discountPct + '%';
         $('confirmFinalPriceRow').style.display = '';
-        $('confirmFinalPrice').textContent = Math.round(finalPrice) + ' ₽';
+        $('confirmFinalPrice').textContent = formatPriceRub(totals.finalPrice) + ' ₽';
       } else {
         $('confirmDiscountRow').style.display = 'none';
         $('confirmFinalPriceRow').style.display = 'none';
@@ -459,18 +606,21 @@
     showLoader();
 
     try {
+      const note = $('confirmNote').value.trim();
       let body = {
-        service_id: selectedService.id,
+        service_ids: selectedServices.map(function (s) { return s.id; }),
         start_at: selectedSlot.start,
-        client_note: $('confirmNote').value.trim() || undefined
+        client_note: note || undefined
       };
 
-      const note = $('confirmNote').value.trim();
       const created = await apiPost('/public/master/' + slug + '/book', body);
       selectedPricing = created.pricing || null;
 
       hideLoader();
-      $('doneDetails').textContent = selectedService.name + '\n'
+      const serviceNamesText = selectedServices.length > 1
+        ? selectedServices.map(function (s) { return s.name; }).join(', ')
+        : selectedService.name;
+      $('doneDetails').textContent = serviceNamesText + '\n'
         + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end)
         + '\nАдрес: Мкр Околица д.1, квартира 60'
         + (selectedPricing && selectedPricing.first_visit_discount_percent
@@ -745,10 +895,12 @@
   // === RESET ===
 
   function reset() {
+    selectedServices = [];
     selectedService = null;
     selectedDate = null;
     selectedSlot = null;
     rescheduleBookingId = null;
+    renderServices();
     showStep('stepServices');
   }
 
@@ -788,7 +940,9 @@
 
   // Public API
   window.BookingApp = {
-    selectService: selectService,
+    toggleService: toggleService,
+    proceedToSlots: proceedToSlots,
+    selectService: selectService, // kept for reschedule flow
     selectDate: selectDate,
     selectSlot: selectSlot,
     nextDate: nextDate,
