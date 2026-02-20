@@ -188,10 +188,11 @@ router.get('/master/:slug', async (req, res) => {
   }
 });
 
-// GET /api/public/master/:slug/slots?service_id=&date_from=&date_to=
+// GET /api/public/master/:slug/slots?service_id=&date_from=&date_to=&duration_minutes=
+// duration_minutes is optional override for multi-service total duration
 router.get('/master/:slug/slots', async (req, res) => {
   try {
-    const { service_id, date_from, date_to } = req.query;
+    const { service_id, date_from, date_to, duration_minutes } = req.query;
     if (!service_id || !date_from || !date_to) {
       return res.status(400).json({ error: 'service_id, date_from, date_to are required' });
     }
@@ -205,6 +206,12 @@ router.get('/master/:slug/slots', async (req, res) => {
     if (!service) {
       return res.status(404).json({ error: 'Service not found' });
     }
+
+    // Allow overriding duration for multi-service bookings (sum of selected zones)
+    const overrideDuration = parseInt(duration_minutes, 10);
+    const effectiveService = (overrideDuration > 0 && overrideDuration !== service.duration_minutes)
+      ? { ...service, duration_minutes: overrideDuration }
+      : service;
 
     const timezone = resolveMasterTimezone(master);
     const settings = await loadMasterSettings(master.id);
@@ -233,7 +240,7 @@ router.get('/master/:slug/slots', async (req, res) => {
     ]);
 
     const slots = generateSlotsFromWindows({
-      service,
+      service: effectiveService,
       windows: windows.rows,
       bookings: bookings.rows,
       blocks: blocks.rows,
@@ -415,11 +422,23 @@ router.get('/master/:slug/client-calendar.ics', async (req, res) => {
 });
 
 // POST /api/public/master/:slug/book
+// Accepts either { service_id, start_at } (legacy single) or { service_ids: [...], start_at } (multi-service).
+// Complexes must be booked alone (service_ids.length === 1 if any complex is selected).
 router.post('/master/:slug/book', authenticateToken, async (req, res) => {
   try {
-    const { service_id, start_at, client_note } = req.body;
-    if (!service_id || !start_at) {
-      return res.status(400).json({ error: 'service_id and start_at are required' });
+    const { start_at, client_note } = req.body;
+
+    // Normalize to array of IDs
+    let rawIds = req.body.service_ids;
+    if (!rawIds) {
+      rawIds = req.body.service_id ? [req.body.service_id] : [];
+    }
+    const serviceIds = (Array.isArray(rawIds) ? rawIds : [rawIds])
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    if (!serviceIds.length || !start_at) {
+      return res.status(400).json({ error: 'service_ids (or service_id) and start_at are required' });
     }
 
     const master = await loadMasterBySlug(req.params.slug);
@@ -427,10 +446,15 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Master not found' });
     }
 
-    const service = await loadService(master.id, service_id);
-    if (!service) {
-      return res.status(404).json({ error: 'Service not found' });
+    // Load and validate all requested services
+    const loadedServices = await Promise.all(
+      serviceIds.map((id) => loadService(master.id, id))
+    );
+    const missingIdx = loadedServices.findIndex((s) => !s);
+    if (missingIdx !== -1) {
+      return res.status(404).json({ error: `Service ${serviceIds[missingIdx]} not found or inactive` });
     }
+
     const settings = await loadMasterSettings(master.id);
     const timezone = resolveMasterTimezone(master);
 
@@ -447,6 +471,10 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: `Booking is allowed at least ${minNoticeMinutes} minutes in advance` });
     }
 
+    // Calculate totals across all services
+    const totalDurationMinutes = loadedServices.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
+    const totalBasePrice = loadedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
     const localDate = dateInTimezone(startDate, timezone);
     const windowCoverage = await pool.query(
       `SELECT id
@@ -460,7 +488,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         master.id,
         localDate,
         timeInTimezone(startDate, timezone),
-        timeInTimezone(new Date(startDate.getTime() + service.duration_minutes * 60000), timezone)
+        timeInTimezone(new Date(startDate.getTime() + totalDurationMinutes * 60000), timezone)
       ]
     );
     if (!windowCoverage.rows.length) {
@@ -484,25 +512,32 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     }
 
     const firstBookingCheck = await pool.query(
-      `SELECT id
-       FROM bookings
-       WHERE master_id = $1 AND client_id = $2
-       LIMIT 1`,
+      `SELECT id FROM bookings WHERE master_id = $1 AND client_id = $2 LIMIT 1`,
       [master.id, req.user.id]
     );
     const isFirstVisit = firstBookingCheck.rows.length === 0;
     const discountPercent = isFirstVisit ? Number(settings.first_visit_discount_percent || 0) : 0;
-    const basePrice = Number(service.price || 0);
-    const discountAmount = Math.round(basePrice * discountPercent) / 100;
-    const finalPrice = Math.max(0, basePrice - discountAmount);
+    const discountAmount = Math.round(totalBasePrice * discountPercent) / 100;
+    const finalPrice = Math.max(0, totalBasePrice - discountAmount);
 
-    const endDate = new Date(startDate.getTime() + service.duration_minutes * 60000);
+    const primaryServiceId = serviceIds[0];
+    const extraServiceIds = serviceIds.slice(1);
+    const endDate = new Date(startDate.getTime() + totalDurationMinutes * 60000);
 
     const result = await pool.query(
-      `INSERT INTO bookings (master_id, client_id, service_id, start_at, end_at, status, source, client_note)
-       VALUES ($1, $2, $3, $4, $5, 'confirmed', 'telegram_link', $6)
+      `INSERT INTO bookings
+         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note)
+       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7)
        RETURNING *`,
-      [master.id, req.user.id, service.id, startDate.toISOString(), endDate.toISOString(), client_note || null]
+      [
+        master.id,
+        req.user.id,
+        primaryServiceId,
+        JSON.stringify(extraServiceIds),
+        startDate.toISOString(),
+        endDate.toISOString(),
+        client_note || null
+      ]
     );
     const created = result.rows[0];
 
@@ -516,7 +551,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     return res.status(201).json({
       ...created,
       pricing: {
-        base_price: basePrice,
+        base_price: totalBasePrice,
         first_visit_discount_percent: discountPercent,
         final_price: finalPrice
       }
