@@ -47,6 +47,15 @@
         <div class="empty-icon">📋</div>
         <p>У мастера пока нет доступных услуг</p>
       </div>
+
+      <!-- Selection summary bar — появляется когда выбрана хотя бы 1 услуга -->
+      <div id="selectionBar" class="selection-bar" style="display:none;">
+        <div class="selection-bar-info">
+          <span id="selectionBarCount" class="selection-bar-count"></span>
+          <span id="selectionBarMeta" class="selection-bar-meta"></span>
+        </div>
+        <button class="selection-bar-btn" onclick="BookingApp.proceedToSlots()">Далее &rarr;</button>
+      </div>
     </section>
 
     <!-- Шаг 2: Выбор даты и слота -->
@@ -54,6 +63,7 @@
       <div class="step-header">
         <button class="btn-back" onclick="BookingApp.goBack('stepServices')">&larr; Назад</button>
         <h2 id="selectedServiceName"></h2>
+        <div id="selectedServicesChips" class="selected-chips" style="display:none;"></div>
         <p class="step-subtitle">Выберите дату и время</p>
       </div>
       <div class="date-strip" id="dateStrip">
@@ -76,9 +86,12 @@
         <h2>Подтверждение записи</h2>
       </div>
       <div class="confirm-card">
-        <div class="confirm-row">
-          <span class="confirm-label">Услуга</span>
-          <span id="confirmService" class="confirm-value"></span>
+        <!-- Список услуг (для мультивыбора — несколько строк) -->
+        <div id="confirmServicesBlock">
+          <div class="confirm-row">
+            <span class="confirm-label">Услуга</span>
+            <span id="confirmService" class="confirm-value"></span>
+          </div>
         </div>
         <div class="confirm-row">
           <span class="confirm-label">Дата</span>
