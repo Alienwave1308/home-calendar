@@ -9,22 +9,15 @@ services:
 
   e2e:
     image: cypress/included:15.10.0
-    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     working_dir: /e2e
     volumes:
       - .:/e2e
-      - e2e_node_modules:/e2e/node_modules
     environment:
       - CYPRESS_baseUrl=http://app:3000
       - CYPRESS_SPEC
-      - HOME=/tmp/home
-      - NPM_CONFIG_CACHE=/tmp/npm-cache
     depends_on:
       - app
     entrypoint:
       - /bin/sh
       - -lc
       - npm ci && npx wait-on http://app:3000/health && if [ -n "$$CYPRESS_SPEC" ]; then cypress run --spec "$$CYPRESS_SPEC"; else cypress run; fi
-
-volumes:
-  e2e_node_modules:
