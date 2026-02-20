@@ -81,6 +81,8 @@ jobs:
             spec: cypress/e2e/dashboard.cy.js
           - section: Navigation
             spec: cypress/e2e/navigation.cy.js
+          - section: MobileLayout
+            spec: cypress/e2e/mobile-layout.cy.js
           - section: Booking
             spec: cypress/e2e/booking-export.cy.js
           - section: MasterCalendar
