@@ -693,9 +693,9 @@
           + '</div>'
           + '<div class="leads-user-actions">'
           + ((canWrite || Number(u.telegram_user_id || 0) > 0)
-            ? '<button class="leads-write-btn" onclick="MasterApp.openLeadChat('
+            ? '<button class="leads-write-btn" onclick=\'MasterApp.openLeadChat('
               + Number(u.telegram_user_id)
-              + ',' + usernameJs + ')">Написать</button>'
+              + ',' + usernameJs + ')\'>Написать</button>'
             : '<span class="leads-user-chat-hint">Нет Telegram-данных для открытия диалога</span>')
           + '</div>'
           + '</article>';
