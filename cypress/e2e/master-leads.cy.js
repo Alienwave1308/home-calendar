@@ -204,7 +204,7 @@ describe('Master Panel - Leads Tab E2E', () => {
     cy.get('#leadsUsersList').should('contain.text', 'Логин Telegram скрыт');
     cy.get('#leadsUsersList').should('contain.text', 'ID: 654321');
     cy.get('#leadsUsersList').should('contain.text', 'Катя');
-    cy.get('#leadsUsersList').contains('button', 'Написать').should('have.length', 2);
+    cy.get('#leadsUsersList .leads-write-btn').should('have.length', 2);
 
     cy.get('#leadsUsersList .leads-user-card').eq(0).contains('button', 'Написать').click();
     cy.window().its('__openedTelegramLinks.0').should('eq', 'tg://user?id=654321');
