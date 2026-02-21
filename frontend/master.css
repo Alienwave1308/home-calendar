@@ -419,14 +419,14 @@
 .leads-users-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .leads-user-card {
   background: var(--card);
   border: 2px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 18px 16px;
 }
 
 .leads-user-main {
@@ -439,8 +439,9 @@
 
 .leads-user-main-left {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
 }
 
 .leads-user-avatar {
@@ -470,16 +471,23 @@
 }
 
 .leads-user-login {
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 3px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 2px;
   line-height: 1.2;
 }
 
 .leads-user-name {
+  color: var(--text);
+  font-size: 0.98em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.leads-user-id {
   color: var(--text-secondary);
   font-size: 0.9em;
-  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .leads-user-meta {
@@ -492,12 +500,12 @@
 }
 
 .leads-user-actions {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .leads-write-btn {
-  min-height: 36px;
-  padding: 8px 14px;
+  min-height: 40px;
+  padding: 10px 16px;
   border-radius: 9px;
   border: none;
   background: var(--primary);
@@ -663,6 +671,19 @@
 
   .leads-kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .leads-user-card {
+    padding: 16px 14px;
+  }
+
+  .leads-user-main {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .leads-user-id {
+    font-size: 0.85em;
   }
 
   .leads-help-toggle-row .btn-secondary {

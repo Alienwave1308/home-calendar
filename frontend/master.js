@@ -616,25 +616,26 @@
     const tgId = Number(telegramUserId || 0);
     const username = String(telegramUsername || '').trim();
     const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-    const userLink = username ? ('https://t.me/' + encodeURIComponent(username)) : '';
+    const cleanUsername = /^tg_[0-9]+$/i.test(username) ? '' : username;
+    const userLink = cleanUsername ? ('https://t.me/' + encodeURIComponent(cleanUsername)) : '';
+    const idLink = tgId > 0 ? ('tg://user?id=' + tgId) : '';
 
-    if (webApp && typeof webApp.openTelegramLink === 'function' && userLink) {
-      webApp.openTelegramLink(userLink);
+    if (!userLink && !idLink) {
+      showToast('Нельзя открыть диалог: нет данных Telegram у пользователя');
       return;
     }
-    if (webApp && typeof webApp.openLink === 'function' && userLink) {
-      webApp.openLink(userLink, { try_instant_view: false });
+
+    const targetLink = userLink || idLink;
+
+    if (webApp && typeof webApp.openTelegramLink === 'function') {
+      webApp.openTelegramLink(targetLink);
       return;
     }
-    if (tgId > 0 && webApp && typeof webApp.openLink === 'function') {
-      webApp.openLink('tg://user?id=' + tgId, { try_instant_view: false });
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(targetLink, { try_instant_view: false });
       return;
     }
-    if (tgId > 0) {
-      window.location.href = 'tg://user?id=' + tgId;
-      return;
-    }
-    showToast('Не удалось открыть чат: у пользователя нет Telegram username');
+    window.location.href = targetLink;
   }
 
   async function loadLeadsRegistrations() {
@@ -661,9 +662,11 @@
       }
 
       listEl.innerHTML = users.map(function (u) {
-        const tgUsername = String(u.telegram_username || '').trim();
-        const login = tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Без username';
-        const displayName = u.display_name ? escapeHtml(u.display_name) : 'Без имени';
+        const rawTgUsername = String(u.telegram_username || '').trim();
+        const tgUsername = /^tg_[0-9]+$/i.test(rawTgUsername) ? '' : rawTgUsername;
+        const login = tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Логин Telegram скрыт';
+        const rawDisplayName = String(u.display_name || '').trim();
+        const displayName = rawDisplayName ? escapeHtml(rawDisplayName) : (tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Пользователь Telegram');
         const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
         const registeredAt = formatLeadDate(u.registered_at);
         const bookingsTotal = Number(u.bookings_total || 0);
@@ -672,27 +675,29 @@
           ? '<img class="leads-user-avatar-img" src="' + escapeHtml(avatarUrl) + '" alt="avatar">'
           : '<div class="leads-user-avatar-fallback">' + displayName.slice(0, 1).toUpperCase() + '</div>';
         const usernameJs = JSON.stringify(String(u.telegram_username || ''));
-        const canWrite = Number(u.telegram_user_id || 0) > 0;
+        const canWrite = Boolean(tgUsername);
         return '<article class="leads-user-card">'
           + '<div class="leads-user-main">'
           + '<div class="leads-user-main-left">'
           + '<div class="leads-user-avatar">' + avatarHtml + '</div>'
           + '<div>'
-          + '<div class="leads-user-login">' + login + '</div>'
           + '<div class="leads-user-name">' + displayName + '</div>'
+          + '<div class="leads-user-login">' + login + '</div>'
           + '</div>'
           + '</div>'
-          + '<div class="leads-user-name">ID: ' + telegramId + '</div>'
+          + '<div class="leads-user-id">ID: ' + telegramId + '</div>'
           + '</div>'
           + '<div class="leads-user-meta">'
           + '<span>Регистрация: ' + registeredAt + '</span>'
           + '<span>Записей у мастера: ' + bookingsTotal + '</span>'
           + '</div>'
-          + (canWrite
-            ? '<div class="leads-user-actions"><button class="leads-write-btn" onclick="MasterApp.openLeadChat('
+          + '<div class="leads-user-actions">'
+          + ((canWrite || Number(u.telegram_user_id || 0) > 0)
+            ? '<button class="leads-write-btn" onclick="MasterApp.openLeadChat('
               + Number(u.telegram_user_id)
-              + ',' + usernameJs + ')">Написать</button></div>'
-            : '')
+              + ',' + usernameJs + ')">Написать</button>'
+            : '<span class="leads-user-chat-hint">Нет Telegram-данных для открытия диалога</span>')
+          + '</div>'
           + '</article>';
       }).join('');
     } catch (err) {

@@ -1122,5 +1122,40 @@ describe('Master API', () => {
       expect(res.body.users[0].avatar_url).toBe('https://example.com/avatar.jpg');
       expect(res.body.users[0].telegram_user_id).toBe(123456);
     });
+
+    it('should sanitize telegram_username selection in SQL query', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{
+            current_start_local: '2026-02-21T00:00:00.000Z',
+            current_end_local: '2026-02-22T00:00:00.000Z',
+            previous_start_local: '2026-02-20T00:00:00.000Z',
+            previous_end_local: '2026-02-21T00:00:00.000Z'
+          }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{
+            user_id: 101,
+            username: 'tg_123456',
+            telegram_username: 'irina_client',
+            display_name: null,
+            avatar_url: null,
+            telegram_user_id: 123456,
+            registered_at: '2026-02-21T10:00:00.000Z',
+            bookings_total: 2,
+            first_booking_created_at: '2026-02-21T10:15:00.000Z'
+          }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/leads/registrations?period=day')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(pool.query.mock.calls[2][0]).toContain("WHEN u.telegram_username ~ '^tg_[0-9]+$' THEN NULL");
+      expect(res.body.users[0].telegram_username).toBe('irina_client');
+      expect(res.body.users[0].telegram_user_id).toBe(123456);
+    });
   });
 });

@@ -1492,7 +1492,10 @@ router.get('/leads/registrations', loadMaster, async (req, res) => {
       `SELECT
          u.id AS user_id,
          u.username,
-         u.telegram_username,
+         CASE
+           WHEN u.telegram_username ~ '^tg_[0-9]+$' THEN NULL
+           ELSE u.telegram_username
+         END AS telegram_username,
          u.display_name,
          u.avatar_url,
          CASE

@@ -107,12 +107,22 @@ describe('Master Panel - Leads Tab E2E', () => {
         {
           user_id: 102,
           username: 'tg_654321',
-          telegram_username: 'katya_nsk',
-          display_name: null,
+          telegram_username: 'tg_654321',
+          display_name: 'Катя',
           avatar_url: 'https://example.com/avatar-katya.jpg',
           telegram_user_id: 654321,
           registered_at: '2026-02-20T09:00:00.000Z',
           bookings_total: 0
+        },
+        {
+          user_id: 103,
+          username: 'tg_999999',
+          telegram_username: 'real_client',
+          display_name: 'Ольга',
+          avatar_url: '',
+          telegram_user_id: 999999,
+          registered_at: '2026-02-19T09:00:00.000Z',
+          bookings_total: 1
         }
       ]
     };
@@ -144,12 +154,16 @@ describe('Master Panel - Leads Tab E2E', () => {
 
     cy.visit('/master.html', {
       onBeforeLoad(win) {
+        win.__openedTelegramLinks = [];
         win.Telegram = {
           WebApp: {
             initData: 'test-init-data',
             initDataUnsafe: { user: { id: 777, username: 'master' } },
             ready() {},
-            expand() {}
+            expand() {},
+            openTelegramLink(link) {
+              win.__openedTelegramLinks.push(link);
+            }
           }
         };
         win.localStorage.setItem('token', 'mock-token');
@@ -186,9 +200,16 @@ describe('Master Panel - Leads Tab E2E', () => {
 
     cy.contains('#tabLeads button', 'Люди').click();
     cy.wait('@leadsUsersWeek');
-    cy.get('#leadsUsersList').should('contain.text', '@katya_nsk');
+    cy.get('#leadsUsersList').should('not.contain.text', '@tg_654321');
+    cy.get('#leadsUsersList').should('contain.text', 'Логин Telegram скрыт');
     cy.get('#leadsUsersList').should('contain.text', 'ID: 654321');
-    cy.get('#leadsUsersList').should('contain.text', 'Без имени');
-    cy.get('#leadsUsersList').contains('button', 'Написать').should('be.visible');
+    cy.get('#leadsUsersList').should('contain.text', 'Катя');
+    cy.get('#leadsUsersList').contains('button', 'Написать').should('have.length', 2);
+
+    cy.get('#leadsUsersList .leads-user-card').eq(0).contains('button', 'Написать').click();
+    cy.window().its('__openedTelegramLinks.0').should('eq', 'tg://user?id=654321');
+
+    cy.get('#leadsUsersList .leads-user-card').eq(1).contains('button', 'Написать').click();
+    cy.window().its('__openedTelegramLinks.1').should('eq', 'https://t.me/real_client');
   });
 });
