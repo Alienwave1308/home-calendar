@@ -90,7 +90,9 @@ describe('Master Panel - Leads Tab E2E', () => {
         {
           user_id: 101,
           username: 'tg_123456',
+          telegram_username: 'irina_client',
           display_name: 'Ирина',
+          avatar_url: 'https://example.com/avatar-irina.jpg',
           telegram_user_id: 123456,
           registered_at: '2026-02-21T10:00:00.000Z',
           bookings_total: 2
@@ -105,7 +107,9 @@ describe('Master Panel - Leads Tab E2E', () => {
         {
           user_id: 102,
           username: 'tg_654321',
+          telegram_username: 'katya_nsk',
           display_name: null,
+          avatar_url: 'https://example.com/avatar-katya.jpg',
           telegram_user_id: 654321,
           registered_at: '2026-02-20T09:00:00.000Z',
           bookings_total: 0
@@ -182,8 +186,9 @@ describe('Master Panel - Leads Tab E2E', () => {
 
     cy.contains('#tabLeads button', 'Люди').click();
     cy.wait('@leadsUsersWeek');
-    cy.get('#leadsUsersList').should('contain.text', '@tg_654321');
+    cy.get('#leadsUsersList').should('contain.text', '@katya_nsk');
     cy.get('#leadsUsersList').should('contain.text', 'ID: 654321');
     cy.get('#leadsUsersList').should('contain.text', 'Без имени');
+    cy.get('#leadsUsersList').contains('button', 'Написать').should('be.visible');
   });
 });

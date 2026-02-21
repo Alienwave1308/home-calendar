@@ -61,6 +61,34 @@ function getConfiguredMasterTelegramId() {
   return masterTelegramId || null;
 }
 
+function resolveTelegramDisplayName(rawUser) {
+  if (!rawUser || typeof rawUser !== 'object') return null;
+  const firstName = String(rawUser.first_name || '').trim();
+  const lastName = String(rawUser.last_name || '').trim();
+  const fullName = `${firstName} ${lastName}`.trim();
+  if (fullName) return fullName;
+  const tgUsername = String(rawUser.username || '').trim();
+  if (tgUsername) return `@${tgUsername}`;
+  return null;
+}
+
+async function syncTelegramUserProfile(userId, rawUser) {
+  if (!userId || !rawUser) return;
+  const displayName = resolveTelegramDisplayName(rawUser);
+  const avatarUrl = typeof rawUser.photo_url === 'string' ? rawUser.photo_url : null;
+  const telegramUsername = typeof rawUser.username === 'string' ? rawUser.username : null;
+
+  await pool.query(
+    `UPDATE users
+     SET
+       display_name = COALESCE($1, display_name),
+       avatar_url = COALESCE($2, avatar_url),
+       telegram_username = COALESCE($3, telegram_username)
+     WHERE id = $4`,
+    [displayName, avatarUrl, telegramUsername, userId]
+  );
+}
+
 async function ensureMasterProfileForUser(user, rawUser) {
   const defaultTimezone = process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
   const defaultDisplayName = process.env.MASTER_DISPLAY_NAME || rawUser?.first_name || rawUser?.username || 'Мастер';
@@ -323,6 +351,7 @@ router.post('/telegram', async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    await syncTelegramUserProfile(user.id, rawUser);
     const token = buildToken(user);
     const { role, master } = await resolveRoleAndMaster(user, telegramId, rawUser);
 

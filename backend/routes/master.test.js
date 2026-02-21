@@ -1100,7 +1100,9 @@ describe('Master API', () => {
           rows: [{
             user_id: 101,
             username: 'tg_123456',
+            telegram_username: 'irina_client',
             display_name: 'Ирина',
+            avatar_url: 'https://example.com/avatar.jpg',
             telegram_user_id: 123456,
             registered_at: '2026-02-21T10:00:00.000Z',
             bookings_total: 2,
@@ -1116,6 +1118,7 @@ describe('Master API', () => {
       expect(res.body.period).toBe('day');
       expect(Array.isArray(res.body.users)).toBe(true);
       expect(res.body.users[0].username).toBe('tg_123456');
+      expect(res.body.users[0].telegram_username).toBe('irina_client');
       expect(res.body.users[0].telegram_user_id).toBe(123456);
     });
   });

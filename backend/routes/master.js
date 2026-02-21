@@ -1412,7 +1412,9 @@ router.get('/leads/registrations', loadMaster, async (req, res) => {
       `SELECT
          u.id AS user_id,
          u.username,
+         u.telegram_username,
          u.display_name,
+         u.avatar_url,
          CASE
            WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
            ELSE NULL
@@ -1428,7 +1430,7 @@ router.get('/leads/registrations', loadMaster, async (req, res) => {
          AND u.username ~ '^tg_[0-9]+$'
          AND u.created_at >= ($3::timestamp AT TIME ZONE $5)
          AND u.created_at < ($4::timestamp AT TIME ZONE $5)
-       GROUP BY u.id, u.username, u.display_name, u.created_at
+       GROUP BY u.id, u.username, u.telegram_username, u.display_name, u.avatar_url, u.created_at
        ORDER BY u.created_at DESC
        LIMIT 300`,
       [

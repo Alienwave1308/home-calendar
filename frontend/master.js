@@ -612,6 +612,27 @@
     return d.toLocaleString('ru-RU');
   }
 
+  function openLeadChat(telegramUserId, telegramUsername) {
+    const tgId = Number(telegramUserId || 0);
+    const username = String(telegramUsername || '').trim();
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    const userLink = username ? ('https://t.me/' + encodeURIComponent(username)) : '';
+
+    if (webApp && typeof webApp.openTelegramLink === 'function' && userLink) {
+      webApp.openTelegramLink(userLink);
+      return;
+    }
+    if (webApp && typeof webApp.openLink === 'function' && userLink) {
+      webApp.openLink(userLink, { try_instant_view: false });
+      return;
+    }
+    if (tgId > 0) {
+      window.location.href = 'tg://user?id=' + tgId;
+      return;
+    }
+    showToast('Не удалось открыть чат: у пользователя нет Telegram username');
+  }
+
   async function loadLeadsRegistrations() {
     const listEl = $('leadsUsersList');
     const emptyEl = $('leadsUsersEmpty');
@@ -636,16 +657,25 @@
       }
 
       listEl.innerHTML = users.map(function (u) {
-        const login = escapeHtml(u.username || '—');
+        const login = escapeHtml(u.telegram_username || u.username || '—');
         const displayName = u.display_name ? escapeHtml(u.display_name) : 'Без имени';
         const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
         const registeredAt = formatLeadDate(u.registered_at);
         const bookingsTotal = Number(u.bookings_total || 0);
+        const avatarUrl = typeof u.avatar_url === 'string' ? u.avatar_url.trim() : '';
+        const avatarHtml = avatarUrl
+          ? '<img class="leads-user-avatar-img" src="' + escapeHtml(avatarUrl) + '" alt="avatar">'
+          : '<div class="leads-user-avatar-fallback">' + displayName.slice(0, 1).toUpperCase() + '</div>';
+        const usernameJs = JSON.stringify(String(u.telegram_username || ''));
+        const canWrite = Number(u.telegram_user_id || 0) > 0;
         return '<article class="leads-user-card">'
           + '<div class="leads-user-main">'
+          + '<div class="leads-user-main-left">'
+          + '<div class="leads-user-avatar">' + avatarHtml + '</div>'
           + '<div>'
           + '<div class="leads-user-login">@' + login + '</div>'
           + '<div class="leads-user-name">' + displayName + '</div>'
+          + '</div>'
           + '</div>'
           + '<div class="leads-user-name">ID: ' + telegramId + '</div>'
           + '</div>'
@@ -653,6 +683,11 @@
           + '<span>Регистрация: ' + registeredAt + '</span>'
           + '<span>Записей у мастера: ' + bookingsTotal + '</span>'
           + '</div>'
+          + (canWrite
+            ? '<div class="leads-user-actions"><button class="btn-small btn-confirm" onclick="MasterApp.openLeadChat('
+              + Number(u.telegram_user_id)
+              + ',' + usernameJs + ')">Написать</button></div>'
+            : '')
           + '</article>';
       }).join('');
     } catch (err) {
@@ -1005,6 +1040,7 @@
     setServiceCategoryFilter: setServiceCategoryFilter,
     setLeadsPeriod: setLeadsPeriod,
     setLeadsView: setLeadsView,
+    openLeadChat: openLeadChat,
     toggleLeadsHelp: toggleLeadsHelp,
     editService: editService,
     deleteService: deleteService,
