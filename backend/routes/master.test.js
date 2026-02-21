@@ -1119,6 +1119,7 @@ describe('Master API', () => {
       expect(Array.isArray(res.body.users)).toBe(true);
       expect(res.body.users[0].username).toBe('tg_123456');
       expect(res.body.users[0].telegram_username).toBe('irina_client');
+      expect(res.body.users[0].avatar_url).toBe('https://example.com/avatar.jpg');
       expect(res.body.users[0].telegram_user_id).toBe(123456);
     });
   });

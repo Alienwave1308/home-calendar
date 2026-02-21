@@ -100,6 +100,86 @@ function buildLeadConversion(metrics) {
   };
 }
 
+async function telegramApiCall(method, payload) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken || typeof fetch !== 'function') return null;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {})
+    });
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => null);
+    return data && data.ok ? data.result : null;
+  } catch (error) {
+    console.error(`Error calling Telegram API ${method}:`, error);
+    return null;
+  }
+}
+
+async function getTelegramFileUrl(fileId) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken || !fileId) return null;
+  const file = await telegramApiCall('getFile', { file_id: fileId });
+  if (!file || !file.file_path) return null;
+  return `https://api.telegram.org/file/bot${botToken}/${file.file_path}`;
+}
+
+async function resolveTelegramProfile(telegramUserId) {
+  const chat = await telegramApiCall('getChat', { chat_id: telegramUserId });
+  if (!chat) return null;
+
+  const firstName = String(chat.first_name || '').trim();
+  const lastName = String(chat.last_name || '').trim();
+  const fullName = `${firstName} ${lastName}`.trim();
+  const telegramUsername = typeof chat.username === 'string' ? chat.username : null;
+  let avatarUrl = null;
+  if (chat.photo && (chat.photo.big_file_id || chat.photo.small_file_id)) {
+    avatarUrl = await getTelegramFileUrl(chat.photo.big_file_id || chat.photo.small_file_id);
+  }
+
+  return {
+    display_name: fullName || (telegramUsername ? `@${telegramUsername}` : null),
+    telegram_username: telegramUsername,
+    avatar_url: avatarUrl
+  };
+}
+
+async function enrichLeadUsersWithTelegramProfile(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+  const candidates = rows.filter((item) => (
+    Number(item.telegram_user_id || 0) > 0
+    && (!item.display_name || !item.telegram_username || !item.avatar_url)
+  )).slice(0, 25);
+
+  for (const user of candidates) {
+    const profile = await resolveTelegramProfile(Number(user.telegram_user_id));
+    if (!profile) continue;
+
+    if (profile.display_name) user.display_name = profile.display_name;
+    if (profile.telegram_username) user.telegram_username = profile.telegram_username;
+    if (profile.avatar_url) user.avatar_url = profile.avatar_url;
+
+    try {
+      await pool.query(
+        `UPDATE users
+         SET
+           display_name = COALESCE($1, display_name),
+           telegram_username = COALESCE($2, telegram_username),
+           avatar_url = COALESCE($3, avatar_url)
+         WHERE id = $4`,
+        [profile.display_name, profile.telegram_username, profile.avatar_url, user.user_id]
+      );
+    } catch (error) {
+      console.error('Error updating Telegram profile for lead user:', error);
+    }
+  }
+
+  return rows;
+}
+
 async function loadLeadBounds(timezone, periodSql) {
   const boundsRes = await pool.query(
     `SELECT
@@ -1442,12 +1522,14 @@ router.get('/leads/registrations', loadMaster, async (req, res) => {
       ]
     );
 
+    const users = await enrichLeadUsersWithTelegramProfile(usersRes.rows);
+
     return res.json({
       period,
       timezone: tz,
       range_start_local: bounds.current_start_local,
       range_end_local: bounds.current_end_local,
-      users: usersRes.rows
+      users: users
     });
   } catch (error) {
     console.error('Error loading lead registrations:', error);

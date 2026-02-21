@@ -626,6 +626,10 @@
       webApp.openLink(userLink, { try_instant_view: false });
       return;
     }
+    if (tgId > 0 && webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink('tg://user?id=' + tgId, { try_instant_view: false });
+      return;
+    }
     if (tgId > 0) {
       window.location.href = 'tg://user?id=' + tgId;
       return;
@@ -657,7 +661,8 @@
       }
 
       listEl.innerHTML = users.map(function (u) {
-        const login = escapeHtml(u.telegram_username || u.username || '—');
+        const tgUsername = String(u.telegram_username || '').trim();
+        const login = tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Без username';
         const displayName = u.display_name ? escapeHtml(u.display_name) : 'Без имени';
         const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
         const registeredAt = formatLeadDate(u.registered_at);
@@ -673,7 +678,7 @@
           + '<div class="leads-user-main-left">'
           + '<div class="leads-user-avatar">' + avatarHtml + '</div>'
           + '<div>'
-          + '<div class="leads-user-login">@' + login + '</div>'
+          + '<div class="leads-user-login">' + login + '</div>'
           + '<div class="leads-user-name">' + displayName + '</div>'
           + '</div>'
           + '</div>'
@@ -684,7 +689,7 @@
           + '<span>Записей у мастера: ' + bookingsTotal + '</span>'
           + '</div>'
           + (canWrite
-            ? '<div class="leads-user-actions"><button class="btn-small btn-confirm" onclick="MasterApp.openLeadChat('
+            ? '<div class="leads-user-actions"><button class="leads-write-btn" onclick="MasterApp.openLeadChat('
               + Number(u.telegram_user_id)
               + ',' + usernameJs + ')">Написать</button></div>'
             : '')
