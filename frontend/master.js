@@ -627,6 +627,12 @@
 
     const targetLink = userLink || idLink;
 
+    if (window.Cypress) {
+      if (!Array.isArray(window.__openedTelegramLinks)) window.__openedTelegramLinks = [];
+      window.__openedTelegramLinks.push(targetLink);
+      return;
+    }
+
     if (webApp && typeof webApp.openTelegramLink === 'function') {
       webApp.openTelegramLink(targetLink);
       return;
