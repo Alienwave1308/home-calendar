@@ -55,22 +55,22 @@ async function loadMaster(req, res, next) {
 
 const LEAD_PERIODS = {
   day: {
-    sqlStart: "date_trunc('day', now() AT TIME ZONE $2)",
-    sqlEnd: "date_trunc('day', now() AT TIME ZONE $2) + interval '1 day'",
-    sqlPrevStart: "date_trunc('day', now() AT TIME ZONE $2) - interval '1 day'",
-    sqlPrevEnd: "date_trunc('day', now() AT TIME ZONE $2)"
+    sqlStart: "date_trunc('day', now() AT TIME ZONE $1)",
+    sqlEnd: "date_trunc('day', now() AT TIME ZONE $1) + interval '1 day'",
+    sqlPrevStart: "date_trunc('day', now() AT TIME ZONE $1) - interval '1 day'",
+    sqlPrevEnd: "date_trunc('day', now() AT TIME ZONE $1)"
   },
   week: {
-    sqlStart: "date_trunc('week', now() AT TIME ZONE $2)",
-    sqlEnd: "date_trunc('week', now() AT TIME ZONE $2) + interval '1 week'",
-    sqlPrevStart: "date_trunc('week', now() AT TIME ZONE $2) - interval '1 week'",
-    sqlPrevEnd: "date_trunc('week', now() AT TIME ZONE $2)"
+    sqlStart: "date_trunc('week', now() AT TIME ZONE $1)",
+    sqlEnd: "date_trunc('week', now() AT TIME ZONE $1) + interval '1 week'",
+    sqlPrevStart: "date_trunc('week', now() AT TIME ZONE $1) - interval '1 week'",
+    sqlPrevEnd: "date_trunc('week', now() AT TIME ZONE $1)"
   },
   month: {
-    sqlStart: "date_trunc('month', now() AT TIME ZONE $2)",
-    sqlEnd: "date_trunc('month', now() AT TIME ZONE $2) + interval '1 month'",
-    sqlPrevStart: "date_trunc('month', now() AT TIME ZONE $2) - interval '1 month'",
-    sqlPrevEnd: "date_trunc('month', now() AT TIME ZONE $2)"
+    sqlStart: "date_trunc('month', now() AT TIME ZONE $1)",
+    sqlEnd: "date_trunc('month', now() AT TIME ZONE $1) + interval '1 month'",
+    sqlPrevStart: "date_trunc('month', now() AT TIME ZONE $1) - interval '1 month'",
+    sqlPrevEnd: "date_trunc('month', now() AT TIME ZONE $1)"
   }
 };
 
@@ -1317,7 +1317,7 @@ router.get('/leads/metrics', loadMaster, async (req, res) => {
          (${periodSql.sqlEnd})::timestamp AS current_end_local,
          (${periodSql.sqlPrevStart})::timestamp AS previous_start_local,
          (${periodSql.sqlPrevEnd})::timestamp AS previous_end_local`,
-      [req.master.id, tz]
+      [tz]
     );
 
     const bounds = boundsRes.rows[0];
