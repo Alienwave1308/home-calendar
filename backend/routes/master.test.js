@@ -1083,4 +1083,40 @@ describe('Master API', () => {
       expect(res.body.current.conversion.visit_to_booking_created).toBeNull();
     });
   });
+
+  describe('GET /api/master/leads/registrations', () => {
+    it('should return telegram registrations for selected period', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{
+            current_start_local: '2026-02-21T00:00:00.000Z',
+            current_end_local: '2026-02-22T00:00:00.000Z',
+            previous_start_local: '2026-02-20T00:00:00.000Z',
+            previous_end_local: '2026-02-21T00:00:00.000Z'
+          }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{
+            user_id: 101,
+            username: 'tg_123456',
+            display_name: 'Ирина',
+            telegram_user_id: 123456,
+            registered_at: '2026-02-21T10:00:00.000Z',
+            bookings_total: 2,
+            first_booking_created_at: '2026-02-21T10:15:00.000Z'
+          }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/leads/registrations?period=day')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.period).toBe('day');
+      expect(Array.isArray(res.body.users)).toBe(true);
+      expect(res.body.users[0].username).toBe('tg_123456');
+      expect(res.body.users[0].telegram_user_id).toBe(123456);
+    });
+  });
 });

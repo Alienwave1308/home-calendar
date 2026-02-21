@@ -55,6 +55,10 @@
 
     <!-- Tab: Leads -->
     <section class="tab-panel" id="tabLeads" style="display:none;">
+      <div class="service-tabs leads-subtabs">
+        <button class="service-tab active" data-leads-view="summary" onclick="MasterApp.setLeadsView('summary')">Сводка</button>
+        <button class="service-tab" data-leads-view="users" onclick="MasterApp.setLeadsView('users')">Люди</button>
+      </div>
       <div class="leads-help-toggle-row">
         <button
           id="leadsHelpToggleBtn"
@@ -79,6 +83,7 @@
         <button class="service-tab" data-leads-period="week" onclick="MasterApp.setLeadsPeriod('week')">Неделя</button>
         <button class="service-tab" data-leads-period="month" onclick="MasterApp.setLeadsPeriod('month')">Месяц</button>
       </div>
+      <div id="leadsSummarySection">
       <div class="leads-kpi-grid">
         <article class="settings-card leads-kpi-card">
           <p>Зашли в бота</p>
@@ -114,6 +119,18 @@
         <h3>Период</h3>
         <div id="leadsRangeLabel" class="settings-hint">—</div>
         <p class="settings-hint" style="margin-top:8px;">Метрики считаются по текущим данным пользователей и записей (proxy).</p>
+      </div>
+      </div>
+      <div id="leadsUsersSection" style="display:none;">
+        <div class="settings-card">
+          <h3>Кто зарегистрировался в боте</h3>
+          <div id="leadsUsersRangeLabel" class="settings-hint">—</div>
+        </div>
+        <div id="leadsUsersList" class="leads-users-list"></div>
+        <div id="leadsUsersEmpty" class="empty-state" style="display:none;">
+          <div class="empty-icon">👤</div>
+          <p>За выбранный период новых регистраций нет</p>
+        </div>
       </div>
     </section>
 

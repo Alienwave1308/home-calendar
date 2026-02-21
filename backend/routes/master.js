@@ -100,6 +100,18 @@ function buildLeadConversion(metrics) {
   };
 }
 
+async function loadLeadBounds(timezone, periodSql) {
+  const boundsRes = await pool.query(
+    `SELECT
+       (${periodSql.sqlStart})::timestamp AS current_start_local,
+       (${periodSql.sqlEnd})::timestamp AS current_end_local,
+       (${periodSql.sqlPrevStart})::timestamp AS previous_start_local,
+       (${periodSql.sqlPrevEnd})::timestamp AS previous_end_local`,
+    [timezone]
+  );
+  return boundsRes.rows[0];
+}
+
 // POST /api/master/setup — create master profile
 router.post('/setup', async (req, res) => {
   try {
@@ -1310,17 +1322,7 @@ router.get('/leads/metrics', loadMaster, async (req, res) => {
     const period = normalizeLeadPeriod(req.query.period);
     const tz = req.master.timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
     const periodSql = LEAD_PERIODS[period];
-
-    const boundsRes = await pool.query(
-      `SELECT
-         (${periodSql.sqlStart})::timestamp AS current_start_local,
-         (${periodSql.sqlEnd})::timestamp AS current_end_local,
-         (${periodSql.sqlPrevStart})::timestamp AS previous_start_local,
-         (${periodSql.sqlPrevEnd})::timestamp AS previous_end_local`,
-      [tz]
-    );
-
-    const bounds = boundsRes.rows[0];
+    const bounds = await loadLeadBounds(tz, periodSql);
     const {
       current_start_local,
       current_end_local,
@@ -1394,6 +1396,59 @@ router.get('/leads/metrics', loadMaster, async (req, res) => {
     });
   } catch (error) {
     console.error('Error loading lead metrics:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/master/leads/registrations?period=day|week|month
+router.get('/leads/registrations', loadMaster, async (req, res) => {
+  try {
+    const period = normalizeLeadPeriod(req.query.period);
+    const tz = req.master.timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
+    const periodSql = LEAD_PERIODS[period];
+    const bounds = await loadLeadBounds(tz, periodSql);
+
+    const usersRes = await pool.query(
+      `SELECT
+         u.id AS user_id,
+         u.username,
+         u.display_name,
+         CASE
+           WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
+           ELSE NULL
+         END AS telegram_user_id,
+         u.created_at AS registered_at,
+         COUNT(b.id)::int AS bookings_total,
+         MIN(b.created_at) AS first_booking_created_at
+       FROM users u
+       LEFT JOIN bookings b
+         ON b.client_id = u.id
+        AND b.master_id = $1
+       WHERE u.id <> $2
+         AND u.username ~ '^tg_[0-9]+$'
+         AND u.created_at >= ($3::timestamp AT TIME ZONE $5)
+         AND u.created_at < ($4::timestamp AT TIME ZONE $5)
+       GROUP BY u.id, u.username, u.display_name, u.created_at
+       ORDER BY u.created_at DESC
+       LIMIT 300`,
+      [
+        req.master.id,
+        req.master.user_id,
+        bounds.current_start_local,
+        bounds.current_end_local,
+        tz
+      ]
+    );
+
+    return res.json({
+      period,
+      timezone: tz,
+      range_start_local: bounds.current_start_local,
+      range_end_local: bounds.current_end_local,
+      users: usersRes.rows
+    });
+  } catch (error) {
+    console.error('Error loading lead registrations:', error);
     return res.status(500).json({ error: 'Server error' });
   }
 });

@@ -81,6 +81,38 @@ describe('Master Panel - Leads Tab E2E', () => {
       }
     };
 
+    const usersDayPayload = {
+      period: 'day',
+      timezone: 'Asia/Novosibirsk',
+      range_start_local: '2026-02-21T00:00:00.000Z',
+      range_end_local: '2026-02-22T00:00:00.000Z',
+      users: [
+        {
+          user_id: 101,
+          username: 'tg_123456',
+          display_name: 'Ирина',
+          telegram_user_id: 123456,
+          registered_at: '2026-02-21T10:00:00.000Z',
+          bookings_total: 2
+        }
+      ]
+    };
+
+    const usersWeekPayload = {
+      ...usersDayPayload,
+      period: 'week',
+      users: [
+        {
+          user_id: 102,
+          username: 'tg_654321',
+          display_name: null,
+          telegram_user_id: 654321,
+          registered_at: '2026-02-20T09:00:00.000Z',
+          bookings_total: 0
+        }
+      ]
+    };
+
     cy.intercept('GET', /\/api\/master\/calendar.*/, {
       statusCode: 200,
       body: { bookings: [], blocks: [] }
@@ -95,6 +127,16 @@ describe('Master Panel - Leads Tab E2E', () => {
       statusCode: 200,
       body: weekPayload
     }).as('leadsWeek');
+
+    cy.intercept('GET', '/api/master/leads/registrations?period=day', {
+      statusCode: 200,
+      body: usersDayPayload
+    }).as('leadsUsersDay');
+
+    cy.intercept('GET', '/api/master/leads/registrations?period=week', {
+      statusCode: 200,
+      body: usersWeekPayload
+    }).as('leadsUsersWeek');
 
     cy.visit('/master.html', {
       onBeforeLoad(win) {
@@ -137,5 +179,11 @@ describe('Master Panel - Leads Tab E2E', () => {
     cy.get('#leadsVisitors').should('have.text', '70');
     cy.get('#leadsBookingCreated').should('have.text', '14');
     cy.get('#leadsFunnel').should('contain.text', '56%');
+
+    cy.contains('#tabLeads button', 'Люди').click();
+    cy.wait('@leadsUsersWeek');
+    cy.get('#leadsUsersList').should('contain.text', '@tg_654321');
+    cy.get('#leadsUsersList').should('contain.text', 'ID: 654321');
+    cy.get('#leadsUsersList').should('contain.text', 'Без имени');
   });
 });

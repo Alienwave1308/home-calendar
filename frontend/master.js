@@ -38,6 +38,7 @@
   let editingServiceId = null;
   let leadsPeriod = 'day';
   let leadsHelpVisible = false;
+  let leadsView = 'summary';
 
   function $(id) { return document.getElementById(id); }
 
@@ -137,7 +138,7 @@
 
     if (tabName === 'today') loadToday();
     if (tabName === 'bookings') loadBookings();
-    if (tabName === 'leads') loadLeadsMetrics();
+    if (tabName === 'leads') setLeadsView(leadsView);
     if (tabName === 'services') loadServices();
     if (tabName === 'settings') loadSettings();
   }
@@ -532,7 +533,23 @@
     document.querySelectorAll('[data-leads-period]').forEach(function (btn) {
       btn.classList.toggle('active', btn.dataset.leadsPeriod === period);
     });
-    loadLeadsMetrics();
+    if (leadsView === 'summary') loadLeadsMetrics();
+    if (leadsView === 'users') loadLeadsRegistrations();
+  }
+
+  function setLeadsView(view) {
+    leadsView = view === 'users' ? 'users' : 'summary';
+    document.querySelectorAll('[data-leads-view]').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.leadsView === leadsView);
+    });
+
+    const summaryEl = $('leadsSummarySection');
+    const usersEl = $('leadsUsersSection');
+    if (summaryEl) summaryEl.style.display = leadsView === 'summary' ? '' : 'none';
+    if (usersEl) usersEl.style.display = leadsView === 'users' ? '' : 'none';
+
+    if (leadsView === 'summary') loadLeadsMetrics();
+    else loadLeadsRegistrations();
   }
 
   function toggleLeadsHelp() {
@@ -584,6 +601,62 @@
         : 'Период не определен';
     } catch (err) {
       funnelEl.innerHTML = '<p class="settings-hint">Не удалось загрузить воронку</p>';
+      showToast(err.message);
+    }
+  }
+
+  function formatLeadDate(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('ru-RU');
+  }
+
+  async function loadLeadsRegistrations() {
+    const listEl = $('leadsUsersList');
+    const emptyEl = $('leadsUsersEmpty');
+    if (!listEl || !emptyEl) return;
+
+    listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    emptyEl.style.display = 'none';
+
+    try {
+      const data = await apiFetch('/leads/registrations?period=' + encodeURIComponent(leadsPeriod));
+      const users = Array.isArray(data.users) ? data.users : [];
+      const start = data.range_start_local ? String(data.range_start_local).slice(0, 16).replace('T', ' ') : '';
+      const end = data.range_end_local ? String(data.range_end_local).slice(0, 16).replace('T', ' ') : '';
+      $('leadsUsersRangeLabel').textContent = start && end
+        ? 'Период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
+        : 'Период не определен';
+
+      if (!users.length) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = '';
+        return;
+      }
+
+      listEl.innerHTML = users.map(function (u) {
+        const login = escapeHtml(u.username || '—');
+        const displayName = u.display_name ? escapeHtml(u.display_name) : 'Без имени';
+        const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
+        const registeredAt = formatLeadDate(u.registered_at);
+        const bookingsTotal = Number(u.bookings_total || 0);
+        return '<article class="leads-user-card">'
+          + '<div class="leads-user-main">'
+          + '<div>'
+          + '<div class="leads-user-login">@' + login + '</div>'
+          + '<div class="leads-user-name">' + displayName + '</div>'
+          + '</div>'
+          + '<div class="leads-user-name">ID: ' + telegramId + '</div>'
+          + '</div>'
+          + '<div class="leads-user-meta">'
+          + '<span>Регистрация: ' + registeredAt + '</span>'
+          + '<span>Записей у мастера: ' + bookingsTotal + '</span>'
+          + '</div>'
+          + '</article>';
+      }).join('');
+    } catch (err) {
+      listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить список</p>';
       showToast(err.message);
     }
   }
@@ -931,6 +1004,7 @@
     setServiceMethodFilter: setServiceMethodFilter,
     setServiceCategoryFilter: setServiceCategoryFilter,
     setLeadsPeriod: setLeadsPeriod,
+    setLeadsView: setLeadsView,
     toggleLeadsHelp: toggleLeadsHelp,
     editService: editService,
     deleteService: deleteService,

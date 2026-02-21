@@ -328,6 +328,10 @@
   margin-bottom: 12px;
 }
 
+.leads-subtabs {
+  margin-bottom: 10px;
+}
+
 .leads-help-toggle-row {
   display: flex;
   justify-content: flex-end;
@@ -410,6 +414,44 @@
 
 .leads-funnel-row strong {
   color: var(--text);
+}
+
+.leads-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.leads-user-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.leads-user-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.leads-user-login {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.leads-user-name {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+.leads-user-meta {
+  color: var(--text-secondary);
+  font-size: 0.84em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .empty-hint {
