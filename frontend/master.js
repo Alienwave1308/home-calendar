@@ -39,6 +39,7 @@
   let leadsPeriod = 'day';
   let leadsHelpVisible = false;
   let leadsView = 'summary';
+  let leadsUsersRaw = [];
 
   function $(id) { return document.getElementById(id); }
 
@@ -612,6 +613,140 @@
     return d.toLocaleString('ru-RU');
   }
 
+  function getLeadsUsersUiState() {
+    const sort = $('leadsUsersSort') ? $('leadsUsersSort').value : 'registered_desc';
+    const bookingsFilter = $('leadsUsersBookingsFilter') ? $('leadsUsersBookingsFilter').value : 'all';
+    const usernameFilter = $('leadsUsersUsernameFilter') ? $('leadsUsersUsernameFilter').value : 'all';
+    const search = $('leadsUsersSearch') ? String($('leadsUsersSearch').value || '').trim().toLowerCase() : '';
+    return { sort: sort, bookingsFilter: bookingsFilter, usernameFilter: usernameFilter, search: search };
+  }
+
+  function parseLeadUserViewData(u) {
+    const rawTgUsername = String(u.telegram_username || '').trim();
+    const tgUsername = /^tg_[0-9]+$/i.test(rawTgUsername) ? '' : rawTgUsername;
+    const login = tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Логин Telegram скрыт';
+    const rawDisplayName = String(u.display_name || '').trim();
+    const displayName = rawDisplayName
+      ? escapeHtml(rawDisplayName)
+      : (tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Пользователь Telegram');
+    const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
+    const registeredAt = formatLeadDate(u.registered_at);
+    const bookingsTotal = Number(u.bookings_total || 0);
+    const avatarUrl = typeof u.avatar_url === 'string' ? u.avatar_url.trim() : '';
+    const avatarHtml = avatarUrl
+      ? '<img class="leads-user-avatar-img" src="' + escapeHtml(avatarUrl) + '" alt="avatar">'
+      : '<div class="leads-user-avatar-fallback">' + displayName.slice(0, 1).toUpperCase() + '</div>';
+    const usernameAttr = escapeHtml(String(u.telegram_username || ''));
+    const canWrite = Boolean(tgUsername);
+    return {
+      tgUsername: tgUsername,
+      login: login,
+      displayName: displayName,
+      telegramId: telegramId,
+      registeredAt: registeredAt,
+      bookingsTotal: bookingsTotal,
+      avatarHtml: avatarHtml,
+      usernameAttr: usernameAttr,
+      canWrite: canWrite
+    };
+  }
+
+  function getLeadRegistrationTime(u) {
+    const t = new Date(u && u.registered_at ? u.registered_at : '').getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function applyLeadsUsersFilters(users, state) {
+    const filtered = users.filter(function (u) {
+      const view = parseLeadUserViewData(u);
+      if (state.bookingsFilter === 'with_bookings' && view.bookingsTotal <= 0) return false;
+      if (state.bookingsFilter === 'without_bookings' && view.bookingsTotal > 0) return false;
+      if (state.usernameFilter === 'with_username' && !view.tgUsername) return false;
+      if (state.usernameFilter === 'without_username' && view.tgUsername) return false;
+      if (!state.search) return true;
+      const searchable = [
+        String(u.telegram_user_id || ''),
+        String(u.display_name || ''),
+        String(u.telegram_username || ''),
+        String(u.username || '')
+      ].join(' ').toLowerCase();
+      return searchable.includes(state.search);
+    });
+
+    filtered.sort(function (a, b) {
+      const bookingsA = Number(a.bookings_total || 0);
+      const bookingsB = Number(b.bookings_total || 0);
+      const regA = getLeadRegistrationTime(a);
+      const regB = getLeadRegistrationTime(b);
+      if (state.sort === 'bookings_desc') return bookingsB - bookingsA || regB - regA;
+      if (state.sort === 'bookings_asc') return bookingsA - bookingsB || regB - regA;
+      if (state.sort === 'registered_asc') return regA - regB;
+      return regB - regA;
+    });
+
+    return filtered;
+  }
+
+  function renderLeadsUsersList(users) {
+    const listEl = $('leadsUsersList');
+    const emptyEl = $('leadsUsersEmpty');
+    if (!listEl || !emptyEl) return;
+
+    if (!users.length) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = '';
+      const emptyText = emptyEl.querySelector('p');
+      if (emptyText) {
+        emptyText.textContent = leadsUsersRaw.length === 0
+          ? 'За выбранный период новых регистраций нет'
+          : 'По выбранным фильтрам пользователей не найдено';
+      }
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = users.map(function (u) {
+      const view = parseLeadUserViewData(u);
+      return '<article class="leads-user-card">'
+        + '<div class="leads-user-main">'
+        + '<div class="leads-user-main-left">'
+        + '<div class="leads-user-avatar">' + view.avatarHtml + '</div>'
+        + '<div>'
+        + '<div class="leads-user-name">' + view.displayName + '</div>'
+        + '<div class="leads-user-login">' + view.login + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div class="leads-user-id">ID: ' + view.telegramId + '</div>'
+        + '</div>'
+        + '<div class="leads-user-meta">'
+        + '<span>Регистрация: ' + view.registeredAt + '</span>'
+        + '<span>Записей у мастера: ' + view.bookingsTotal + '</span>'
+        + '</div>'
+        + '<div class="leads-user-actions">'
+        + ((view.canWrite || Number(u.telegram_user_id || 0) > 0)
+          ? '<button class="leads-write-btn" data-tg-id="' + Number(u.telegram_user_id || 0) + '" data-tg-username="' + view.usernameAttr + '">Написать</button>'
+          : '<span class="leads-user-chat-hint">Нет Telegram-данных для открытия диалога</span>')
+        + '</div>'
+        + '</article>';
+    }).join('');
+
+    listEl.querySelectorAll('.leads-write-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const tgId = Number(btn.getAttribute('data-tg-id') || 0);
+        const tgUsername = String(btn.getAttribute('data-tg-username') || '');
+        openLeadChat(tgId, tgUsername);
+      });
+    });
+  }
+
+  function updateLeadsUsersFilters() {
+    const state = getLeadsUsersUiState();
+    const filtered = applyLeadsUsersFilters(leadsUsersRaw, state);
+    const hint = $('leadsUsersFilteredHint');
+    if (hint) hint.textContent = 'Показано: ' + filtered.length + ' из ' + leadsUsersRaw.length;
+    renderLeadsUsersList(filtered);
+  }
+
   function openLeadChat(telegramUserId, telegramUsername) {
     const tgId = Number(telegramUserId || 0);
     const username = String(telegramUsername || '').trim();
@@ -660,59 +795,10 @@
       $('leadsUsersRangeLabel').textContent = start && end
         ? 'Период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
         : 'Период не определен';
-
-      if (!users.length) {
-        listEl.innerHTML = '';
-        emptyEl.style.display = '';
-        return;
-      }
-
-      listEl.innerHTML = users.map(function (u) {
-        const rawTgUsername = String(u.telegram_username || '').trim();
-        const tgUsername = /^tg_[0-9]+$/i.test(rawTgUsername) ? '' : rawTgUsername;
-        const login = tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Логин Telegram скрыт';
-        const rawDisplayName = String(u.display_name || '').trim();
-        const displayName = rawDisplayName ? escapeHtml(rawDisplayName) : (tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Пользователь Telegram');
-        const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
-        const registeredAt = formatLeadDate(u.registered_at);
-        const bookingsTotal = Number(u.bookings_total || 0);
-        const avatarUrl = typeof u.avatar_url === 'string' ? u.avatar_url.trim() : '';
-        const avatarHtml = avatarUrl
-          ? '<img class="leads-user-avatar-img" src="' + escapeHtml(avatarUrl) + '" alt="avatar">'
-          : '<div class="leads-user-avatar-fallback">' + displayName.slice(0, 1).toUpperCase() + '</div>';
-        const usernameAttr = escapeHtml(String(u.telegram_username || ''));
-        const canWrite = Boolean(tgUsername);
-        return '<article class="leads-user-card">'
-          + '<div class="leads-user-main">'
-          + '<div class="leads-user-main-left">'
-          + '<div class="leads-user-avatar">' + avatarHtml + '</div>'
-          + '<div>'
-          + '<div class="leads-user-name">' + displayName + '</div>'
-          + '<div class="leads-user-login">' + login + '</div>'
-          + '</div>'
-          + '</div>'
-          + '<div class="leads-user-id">ID: ' + telegramId + '</div>'
-          + '</div>'
-          + '<div class="leads-user-meta">'
-          + '<span>Регистрация: ' + registeredAt + '</span>'
-          + '<span>Записей у мастера: ' + bookingsTotal + '</span>'
-          + '</div>'
-          + '<div class="leads-user-actions">'
-          + ((canWrite || Number(u.telegram_user_id || 0) > 0)
-            ? '<button class="leads-write-btn" data-tg-id="' + Number(u.telegram_user_id || 0) + '" data-tg-username="' + usernameAttr + '">Написать</button>'
-            : '<span class="leads-user-chat-hint">Нет Telegram-данных для открытия диалога</span>')
-          + '</div>'
-          + '</article>';
-      }).join('');
-
-      listEl.querySelectorAll('.leads-write-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          const tgId = Number(btn.getAttribute('data-tg-id') || 0);
-          const tgUsername = String(btn.getAttribute('data-tg-username') || '');
-          openLeadChat(tgId, tgUsername);
-        });
-      });
+      leadsUsersRaw = users;
+      updateLeadsUsersFilters();
     } catch (err) {
+      leadsUsersRaw = [];
       listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить список</p>';
       showToast(err.message);
     }
@@ -1062,6 +1148,7 @@
     setServiceCategoryFilter: setServiceCategoryFilter,
     setLeadsPeriod: setLeadsPeriod,
     setLeadsView: setLeadsView,
+    updateLeadsUsersFilters: updateLeadsUsersFilters,
     openLeadChat: openLeadChat,
     toggleLeadsHelp: toggleLeadsHelp,
     editService: editService,

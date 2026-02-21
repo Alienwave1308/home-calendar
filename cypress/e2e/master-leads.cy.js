@@ -200,16 +200,35 @@ describe('Master Panel - Leads Tab E2E', () => {
 
     cy.contains('#tabLeads button', 'Люди').click();
     cy.wait('@leadsUsersWeek');
+    cy.get('#leadsUsersSort').should('be.visible');
+    cy.get('#leadsUsersBookingsFilter').should('be.visible');
+    cy.get('#leadsUsersUsernameFilter').should('be.visible');
+    cy.get('#leadsUsersSearch').should('be.visible');
+    cy.get('#leadsUsersFilteredHint').should('contain.text', '2 из 2');
     cy.get('#leadsUsersList').should('not.contain.text', '@tg_654321');
     cy.get('#leadsUsersList').should('contain.text', 'Логин Telegram скрыт');
     cy.get('#leadsUsersList').should('contain.text', 'ID: 654321');
     cy.get('#leadsUsersList').should('contain.text', 'Катя');
     cy.get('#leadsUsersList .leads-write-btn').should('have.length', 2);
+    cy.get('#leadsUsersList .leads-user-card').first().should('contain.text', 'Катя');
+
+    cy.get('#leadsUsersSort').select('bookings_desc');
+    cy.get('#leadsUsersList .leads-user-card').first().should('contain.text', 'Ольга');
+
+    cy.get('#leadsUsersUsernameFilter').select('without_username');
+    cy.get('#leadsUsersFilteredHint').should('contain.text', '1 из 2');
+    cy.get('#leadsUsersList .leads-user-card').should('have.length', 1);
+    cy.get('#leadsUsersList').should('contain.text', 'Катя');
+    cy.get('#leadsUsersList').should('not.contain.text', 'Ольга');
 
     cy.get('#leadsUsersList .leads-user-card').eq(0).contains('button', 'Написать').click();
     cy.window().its('__openedTelegramLinks.0').should('eq', 'tg://user?id=654321');
 
-    cy.get('#leadsUsersList .leads-user-card').eq(1).contains('button', 'Написать').click();
+    cy.get('#leadsUsersUsernameFilter').select('all');
+    cy.get('#leadsUsersSearch').type('ольга');
+    cy.get('#leadsUsersFilteredHint').should('contain.text', '1 из 2');
+    cy.get('#leadsUsersList .leads-user-card').should('have.length', 1);
+    cy.get('#leadsUsersList .leads-user-card').eq(0).contains('button', 'Написать').click();
     cy.window().its('__openedTelegramLinks.1').should('eq', 'https://t.me/real_client');
   });
 });

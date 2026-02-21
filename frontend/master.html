@@ -126,6 +126,31 @@
           <h3>Кто зарегистрировался в боте</h3>
           <div id="leadsUsersRangeLabel" class="settings-hint">—</div>
         </div>
+        <div class="settings-card leads-users-controls">
+          <input
+            id="leadsUsersSearch"
+            type="text"
+            placeholder="Поиск: имя, @username, ID"
+            oninput="MasterApp.updateLeadsUsersFilters()"
+          >
+          <select id="leadsUsersBookingsFilter" onchange="MasterApp.updateLeadsUsersFilters()">
+            <option value="all">По записям: все</option>
+            <option value="with_bookings">По записям: есть</option>
+            <option value="without_bookings">По записям: нет</option>
+          </select>
+          <select id="leadsUsersUsernameFilter" onchange="MasterApp.updateLeadsUsersFilters()">
+            <option value="all">По Telegram: все</option>
+            <option value="with_username">По Telegram: есть @username</option>
+            <option value="without_username">По Telegram: без @username</option>
+          </select>
+          <select id="leadsUsersSort" onchange="MasterApp.updateLeadsUsersFilters()">
+            <option value="registered_desc">Сортировка: новые сверху</option>
+            <option value="bookings_desc">Сортировка: больше записей</option>
+            <option value="bookings_asc">Сортировка: меньше записей</option>
+            <option value="registered_asc">Сортировка: старые сверху</option>
+          </select>
+          <p id="leadsUsersFilteredHint" class="settings-hint">Показано: 0</p>
+        </div>
         <div id="leadsUsersList" class="leads-users-list"></div>
         <div id="leadsUsersEmpty" class="empty-state" style="display:none;">
           <div class="empty-icon">👤</div>
