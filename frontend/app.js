@@ -20,7 +20,8 @@ const telegramMiniApp = window.TelegramMiniApp || {
   confirm: async (message) => window.confirm(message),
   alert: async (message) => window.alert(message),
   isMiniApp: () => false,
-  getInitData: () => ''
+  getInitData: () => '',
+  getStartParam: () => null
 };
 
 // Auth state

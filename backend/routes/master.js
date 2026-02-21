@@ -53,6 +53,53 @@ async function loadMaster(req, res, next) {
   next();
 }
 
+const LEAD_PERIODS = {
+  day: {
+    sqlStart: "date_trunc('day', now() AT TIME ZONE $2)",
+    sqlEnd: "date_trunc('day', now() AT TIME ZONE $2) + interval '1 day'",
+    sqlPrevStart: "date_trunc('day', now() AT TIME ZONE $2) - interval '1 day'",
+    sqlPrevEnd: "date_trunc('day', now() AT TIME ZONE $2)"
+  },
+  week: {
+    sqlStart: "date_trunc('week', now() AT TIME ZONE $2)",
+    sqlEnd: "date_trunc('week', now() AT TIME ZONE $2) + interval '1 week'",
+    sqlPrevStart: "date_trunc('week', now() AT TIME ZONE $2) - interval '1 week'",
+    sqlPrevEnd: "date_trunc('week', now() AT TIME ZONE $2)"
+  },
+  month: {
+    sqlStart: "date_trunc('month', now() AT TIME ZONE $2)",
+    sqlEnd: "date_trunc('month', now() AT TIME ZONE $2) + interval '1 month'",
+    sqlPrevStart: "date_trunc('month', now() AT TIME ZONE $2) - interval '1 month'",
+    sqlPrevEnd: "date_trunc('month', now() AT TIME ZONE $2)"
+  }
+};
+
+function normalizeLeadPeriod(value) {
+  const key = String(value || 'day').toLowerCase();
+  return LEAD_PERIODS[key] ? key : 'day';
+}
+
+function toPercent(numerator, denominator) {
+  if (!denominator || denominator <= 0) return null;
+  return Math.round((Number(numerator) / Number(denominator)) * 1000) / 10;
+}
+
+function buildLeadConversion(metrics) {
+  const visitors = Number(metrics.visitors || 0);
+  const authStarted = Number(metrics.auth_started || 0);
+  const authSuccess = Number(metrics.auth_success || 0);
+  const bookingStarted = Number(metrics.booking_started || 0);
+  const bookingCreated = Number(metrics.booking_created || 0);
+
+  return {
+    visit_to_auth_start: toPercent(authStarted, visitors),
+    auth_start_to_auth_success: toPercent(authSuccess, authStarted),
+    auth_success_to_booking_created: toPercent(bookingCreated, authSuccess),
+    visit_to_booking_created: toPercent(bookingCreated, visitors),
+    booking_started_to_booking_created: toPercent(bookingCreated, bookingStarted)
+  };
+}
+
 // POST /api/master/setup — create master profile
 router.post('/setup', async (req, res) => {
   try {
@@ -1254,6 +1301,100 @@ router.delete('/settings/apple-calendar', loadMaster, async (req, res) => {
   } catch (error) {
     console.error('Error disabling Apple Calendar feed:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/master/leads/metrics?period=day|week|month
+router.get('/leads/metrics', loadMaster, async (req, res) => {
+  try {
+    const period = normalizeLeadPeriod(req.query.period);
+    const tz = req.master.timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
+    const periodSql = LEAD_PERIODS[period];
+
+    const boundsRes = await pool.query(
+      `SELECT
+         (${periodSql.sqlStart})::timestamp AS current_start_local,
+         (${periodSql.sqlEnd})::timestamp AS current_end_local,
+         (${periodSql.sqlPrevStart})::timestamp AS previous_start_local,
+         (${periodSql.sqlPrevEnd})::timestamp AS previous_end_local`,
+      [req.master.id, tz]
+    );
+
+    const bounds = boundsRes.rows[0];
+    const {
+      current_start_local,
+      current_end_local,
+      previous_start_local,
+      previous_end_local
+    } = bounds;
+
+    async function loadPeriodProxyMetrics(startLocal, endLocal) {
+      const result = await pool.query(
+        `SELECT
+           COALESCE((
+             SELECT COUNT(DISTINCT u.id)::int
+             FROM users u
+             WHERE u.id <> $5
+               AND u.username ~ '^tg_[0-9]+$'
+               AND u.created_at >= ($2::timestamp AT TIME ZONE $4)
+               AND u.created_at < ($3::timestamp AT TIME ZONE $4)
+           ), 0) AS visitors,
+           COALESCE((
+             SELECT COUNT(DISTINCT b.client_id)::int
+             FROM bookings b
+             WHERE b.master_id = $1
+               AND b.source = 'telegram_link'
+               AND b.created_at >= ($2::timestamp AT TIME ZONE $4)
+               AND b.created_at < ($3::timestamp AT TIME ZONE $4)
+           ), 0) AS booking_started,
+           COALESCE((
+             SELECT COUNT(DISTINCT b.client_id)::int
+             FROM bookings b
+             WHERE b.master_id = $1
+               AND b.source = 'telegram_link'
+               AND b.status <> 'canceled'
+               AND b.created_at >= ($2::timestamp AT TIME ZONE $4)
+               AND b.created_at < ($3::timestamp AT TIME ZONE $4)
+           ), 0) AS booking_created`,
+        [req.master.id, startLocal, endLocal, tz, req.master.user_id]
+      );
+
+      const row = result.rows[0] || {};
+      const visitors = Number(row.visitors || 0);
+      return {
+        visitors,
+        auth_started: visitors,
+        auth_success: visitors,
+        booking_started: Number(row.booking_started || 0),
+        booking_created: Number(row.booking_created || 0)
+      };
+    }
+
+    const [current, previous] = await Promise.all([
+      loadPeriodProxyMetrics(current_start_local, current_end_local),
+      loadPeriodProxyMetrics(previous_start_local, previous_end_local)
+    ]);
+
+    return res.json({
+      period,
+      timezone: tz,
+      data_source: 'current_entities_proxy',
+      current: {
+        range_start_local: current_start_local,
+        range_end_local: current_end_local,
+        metrics: current,
+        conversion: buildLeadConversion(current)
+      },
+      previous: {
+        range_start_local: previous_start_local,
+        range_end_local: previous_end_local,
+        metrics: previous,
+        conversion: buildLeadConversion(previous)
+      }
+    });
+  } catch (error) {
+    console.error('Error loading lead metrics:', error);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

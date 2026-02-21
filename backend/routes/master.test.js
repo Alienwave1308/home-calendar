@@ -1021,4 +1021,66 @@ describe('Master API', () => {
       expect(res.body.apple_calendar_enabled).toBe(false);
     });
   });
+
+  describe('GET /api/master/leads/metrics', () => {
+    it('should return current/previous lead metrics with conversion', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{
+            current_start_local: '2026-02-21T00:00:00.000Z',
+            current_end_local: '2026-02-22T00:00:00.000Z',
+            previous_start_local: '2026-02-20T00:00:00.000Z',
+            previous_end_local: '2026-02-21T00:00:00.000Z'
+          }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ visitors: 20, booking_started: 8, booking_created: 5 }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ visitors: 10, booking_started: 4, booking_created: 2 }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/leads/metrics?period=day')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.period).toBe('day');
+      expect(res.body.data_source).toBe('current_entities_proxy');
+      expect(res.body.current.metrics.visitors).toBe(20);
+      expect(res.body.previous.metrics.booking_created).toBe(2);
+      expect(res.body.current.conversion.visit_to_booking_created).toBe(25);
+    });
+
+    it('should fallback to day period and return zero metrics when no data', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({
+          rows: [{
+            current_start_local: '2026-02-21T00:00:00.000Z',
+            current_end_local: '2026-02-22T00:00:00.000Z',
+            previous_start_local: '2026-02-20T00:00:00.000Z',
+            previous_end_local: '2026-02-21T00:00:00.000Z'
+          }]
+        })
+        .mockResolvedValueOnce({ rows: [{}] })
+        .mockResolvedValueOnce({ rows: [{}] });
+
+      const res = await request(app)
+        .get('/api/master/leads/metrics?period=unknown')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.period).toBe('day');
+      expect(res.body.current.metrics).toEqual({
+        visitors: 0,
+        auth_started: 0,
+        auth_success: 0,
+        booking_started: 0,
+        booking_created: 0
+      });
+      expect(res.body.current.conversion.visit_to_booking_created).toBeNull();
+    });
+  });
 });

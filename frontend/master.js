@@ -36,6 +36,8 @@
   let serviceMethodFilter = 'all';
   let serviceCategoryFilter = 'all';
   let editingServiceId = null;
+  let leadsPeriod = 'day';
+  let leadsHelpVisible = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -135,6 +137,7 @@
 
     if (tabName === 'today') loadToday();
     if (tabName === 'bookings') loadBookings();
+    if (tabName === 'leads') loadLeadsMetrics();
     if (tabName === 'services') loadServices();
     if (tabName === 'settings') loadSettings();
   }
@@ -494,6 +497,97 @@
     }
   }
 
+  // === LEADS ===
+
+  function formatSignedPercent(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    const rounded = Math.round(Number(value) * 10) / 10;
+    if (rounded > 0) return '+' + rounded + '%';
+    if (rounded < 0) return rounded + '%';
+    return '0%';
+  }
+
+  function renderLeadsDelta(elementId, currentValue, previousValue) {
+    const el = $(elementId);
+    if (!el) return;
+    const currentNum = Number(currentValue || 0);
+    const previousNum = Number(previousValue || 0);
+    if (previousNum <= 0) {
+      el.textContent = currentNum > 0 ? 'Новый рост' : 'Без изменений';
+      el.className = 'leads-delta';
+      return;
+    }
+    const delta = ((currentNum - previousNum) / previousNum) * 100;
+    el.textContent = formatSignedPercent(delta) + ' к прошлому периоду';
+    el.className = 'leads-delta ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat');
+  }
+
+  function conversionLabel(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    return (Math.round(Number(value) * 10) / 10) + '%';
+  }
+
+  function setLeadsPeriod(period) {
+    leadsPeriod = period;
+    document.querySelectorAll('[data-leads-period]').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.leadsPeriod === period);
+    });
+    loadLeadsMetrics();
+  }
+
+  function toggleLeadsHelp() {
+    leadsHelpVisible = !leadsHelpVisible;
+    const panel = $('leadsHelpPanel');
+    const btn = $('leadsHelpToggleBtn');
+    if (panel) panel.style.display = leadsHelpVisible ? '' : 'none';
+    if (btn) {
+      btn.textContent = leadsHelpVisible ? 'Скрыть подсказки' : 'Подсказки';
+      btn.setAttribute('aria-expanded', leadsHelpVisible ? 'true' : 'false');
+    }
+  }
+
+  async function loadLeadsMetrics() {
+    const funnelEl = $('leadsFunnel');
+    if (!funnelEl) return;
+
+    funnelEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    try {
+      const data = await apiFetch('/leads/metrics?period=' + encodeURIComponent(leadsPeriod));
+      const current = data.current && data.current.metrics ? data.current.metrics : {};
+      const previous = data.previous && data.previous.metrics ? data.previous.metrics : {};
+      const conversion = data.current && data.current.conversion ? data.current.conversion : {};
+
+      $('leadsVisitors').textContent = Number(current.visitors || 0);
+      $('leadsAuthStarted').textContent = Number(current.auth_started || 0);
+      $('leadsAuthSuccess').textContent = Number(current.auth_success || 0);
+      $('leadsBookingStarted').textContent = Number(current.booking_started || 0);
+      $('leadsBookingCreated').textContent = Number(current.booking_created || 0);
+
+      renderLeadsDelta('leadsVisitorsDelta', current.visitors, previous.visitors);
+      renderLeadsDelta('leadsAuthStartedDelta', current.auth_started, previous.auth_started);
+      renderLeadsDelta('leadsAuthSuccessDelta', current.auth_success, previous.auth_success);
+      renderLeadsDelta('leadsBookingStartedDelta', current.booking_started, previous.booking_started);
+      renderLeadsDelta('leadsBookingCreatedDelta', current.booking_created, previous.booking_created);
+
+      funnelEl.innerHTML = [
+        '<div class="leads-funnel-row"><span>Visit → Auth start</span><strong>' + conversionLabel(conversion.visit_to_auth_start) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Auth start → Auth success</span><strong>' + conversionLabel(conversion.auth_start_to_auth_success) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Auth success → Booking created</span><strong>' + conversionLabel(conversion.auth_success_to_booking_created) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Visit → Booking created</span><strong>' + conversionLabel(conversion.visit_to_booking_created) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Booking started → Booking created</span><strong>' + conversionLabel(conversion.booking_started_to_booking_created) + '</strong></div>'
+      ].join('');
+
+      const start = data.current && data.current.range_start_local ? String(data.current.range_start_local).slice(0, 16).replace('T', ' ') : '';
+      const end = data.current && data.current.range_end_local ? String(data.current.range_end_local).slice(0, 16).replace('T', ' ') : '';
+      $('leadsRangeLabel').textContent = start && end
+        ? 'Текущий период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
+        : 'Период не определен';
+    } catch (err) {
+      funnelEl.innerHTML = '<p class="settings-hint">Не удалось загрузить воронку</p>';
+      showToast(err.message);
+    }
+  }
+
   // === SETTINGS ===
 
   async function loadSettings() {
@@ -836,6 +930,8 @@
     showAddService: showAddService,
     setServiceMethodFilter: setServiceMethodFilter,
     setServiceCategoryFilter: setServiceCategoryFilter,
+    setLeadsPeriod: setLeadsPeriod,
+    toggleLeadsHelp: toggleLeadsHelp,
     editService: editService,
     deleteService: deleteService,
     saveService: saveService,
