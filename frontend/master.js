@@ -674,7 +674,7 @@
         const avatarHtml = avatarUrl
           ? '<img class="leads-user-avatar-img" src="' + escapeHtml(avatarUrl) + '" alt="avatar">'
           : '<div class="leads-user-avatar-fallback">' + displayName.slice(0, 1).toUpperCase() + '</div>';
-        const usernameJs = JSON.stringify(String(u.telegram_username || ''));
+        const usernameAttr = escapeHtml(String(u.telegram_username || ''));
         const canWrite = Boolean(tgUsername);
         return '<article class="leads-user-card">'
           + '<div class="leads-user-main">'
@@ -693,13 +693,19 @@
           + '</div>'
           + '<div class="leads-user-actions">'
           + ((canWrite || Number(u.telegram_user_id || 0) > 0)
-            ? '<button class="leads-write-btn" onclick=\'MasterApp.openLeadChat('
-              + Number(u.telegram_user_id)
-              + ',' + usernameJs + ')\'>Написать</button>'
+            ? '<button class="leads-write-btn" data-tg-id="' + Number(u.telegram_user_id || 0) + '" data-tg-username="' + usernameAttr + '">Написать</button>'
             : '<span class="leads-user-chat-hint">Нет Telegram-данных для открытия диалога</span>')
           + '</div>'
           + '</article>';
       }).join('');
+
+      listEl.querySelectorAll('.leads-write-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const tgId = Number(btn.getAttribute('data-tg-id') || 0);
+          const tgUsername = String(btn.getAttribute('data-tg-username') || '');
+          openLeadChat(tgId, tgUsername);
+        });
+      });
     } catch (err) {
       listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить список</p>';
       showToast(err.message);
