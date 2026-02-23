@@ -19,6 +19,7 @@
     <nav class="master-tabs" id="masterTabs">
       <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Сегодня</button>
       <button class="master-tab" data-tab="bookings" onclick="MasterApp.switchTab('bookings')">Записи</button>
+      <button class="master-tab" data-tab="leads" onclick="MasterApp.switchTab('leads')">Лиды</button>
       <button class="master-tab" data-tab="services" onclick="MasterApp.switchTab('services')">Услуги</button>
       <button class="master-tab" data-tab="settings" onclick="MasterApp.switchTab('settings')">Настройки</button>
     </nav>
@@ -49,6 +50,112 @@
       <div id="bookingsEmpty" class="empty-state" style="display:none;">
         <div class="empty-icon">📅</div>
         <p>Записей не найдено</p>
+      </div>
+    </section>
+
+    <!-- Tab: Leads -->
+    <section class="tab-panel" id="tabLeads" style="display:none;">
+      <div class="service-tabs leads-subtabs">
+        <button class="service-tab active" data-leads-view="summary" onclick="MasterApp.setLeadsView('summary')">Сводка</button>
+        <button class="service-tab" data-leads-view="users" onclick="MasterApp.setLeadsView('users')">Люди</button>
+      </div>
+      <div class="leads-help-toggle-row">
+        <button
+          id="leadsHelpToggleBtn"
+          class="btn-secondary"
+          type="button"
+          aria-expanded="false"
+          onclick="MasterApp.toggleLeadsHelp()"
+        >
+          Подсказки
+        </button>
+      </div>
+      <div id="leadsHelpPanel" class="settings-card leads-help-panel" style="display:none;">
+        <h3>Как читать показатели</h3>
+        <p><strong>Зашли в бота</strong> — сколько новых людей пришло. Влияет на поток новых клиентов.</p>
+        <p><strong>Начали / авторизовались</strong> — сколько людей дошли до входа. Если проседает: упростить шаги и текст.</p>
+        <p><strong>Начали запись</strong> — сколько людей выбрали услугу и слот. Если мало: проверить цены, названия, удобные окна.</p>
+        <p><strong>Создали запись</strong> — сколько дошли до финального подтверждения. Это ключевая метрика загрузки.</p>
+        <p><strong>Воронка</strong> — где теряются люди между шагами. Смотрите, где самый низкий процент.</p>
+      </div>
+      <div class="leads-period-tabs">
+        <button class="service-tab active" data-leads-period="day" onclick="MasterApp.setLeadsPeriod('day')">День</button>
+        <button class="service-tab" data-leads-period="week" onclick="MasterApp.setLeadsPeriod('week')">Неделя</button>
+        <button class="service-tab" data-leads-period="month" onclick="MasterApp.setLeadsPeriod('month')">Месяц</button>
+      </div>
+      <div id="leadsSummarySection">
+      <div class="leads-kpi-grid">
+        <article class="settings-card leads-kpi-card">
+          <p>Зашли в бота</p>
+          <strong id="leadsVisitors">0</strong>
+          <span id="leadsVisitorsDelta">—</span>
+        </article>
+        <article class="settings-card leads-kpi-card">
+          <p>Начали авторизацию</p>
+          <strong id="leadsAuthStarted">0</strong>
+          <span id="leadsAuthStartedDelta">—</span>
+        </article>
+        <article class="settings-card leads-kpi-card">
+          <p>Авторизовались</p>
+          <strong id="leadsAuthSuccess">0</strong>
+          <span id="leadsAuthSuccessDelta">—</span>
+        </article>
+        <article class="settings-card leads-kpi-card">
+          <p>Начали запись</p>
+          <strong id="leadsBookingStarted">0</strong>
+          <span id="leadsBookingStartedDelta">—</span>
+        </article>
+        <article class="settings-card leads-kpi-card">
+          <p>Создали запись</p>
+          <strong id="leadsBookingCreated">0</strong>
+          <span id="leadsBookingCreatedDelta">—</span>
+        </article>
+      </div>
+      <div class="settings-card">
+        <h3>Воронка</h3>
+        <div id="leadsFunnel" class="leads-funnel"></div>
+      </div>
+      <div class="settings-card">
+        <h3>Период</h3>
+        <div id="leadsRangeLabel" class="settings-hint">—</div>
+        <p class="settings-hint" style="margin-top:8px;">Метрики считаются по текущим данным пользователей и записей (proxy).</p>
+      </div>
+      </div>
+      <div id="leadsUsersSection" style="display:none;">
+        <div class="settings-card">
+          <h3>Кто зарегистрировался в боте</h3>
+          <div id="leadsUsersRangeLabel" class="settings-hint">—</div>
+        </div>
+        <div class="settings-card leads-users-controls">
+          <input
+            id="leadsUsersSearch"
+            type="text"
+            placeholder="Поиск: имя, @username, ID"
+            oninput="MasterApp.updateLeadsUsersFilters()"
+          >
+          <select id="leadsUsersBookingsFilter" onchange="MasterApp.updateLeadsUsersFilters()">
+            <option value="all">По записям: все</option>
+            <option value="with_bookings">По записям: есть</option>
+            <option value="without_bookings">По записям: нет</option>
+          </select>
+          <select id="leadsUsersUsernameFilter" onchange="MasterApp.updateLeadsUsersFilters()">
+            <option value="all">По Telegram: все</option>
+            <option value="with_username">По Telegram: есть @username</option>
+            <option value="without_username">По Telegram: без @username</option>
+          </select>
+          <select id="leadsUsersSort" onchange="MasterApp.updateLeadsUsersFilters()">
+            <option value="registered_desc">Сортировка: новые сверху</option>
+            <option value="bookings_desc">Сортировка: больше записей</option>
+            <option value="bookings_asc">Сортировка: меньше записей</option>
+            <option value="registered_asc">Сортировка: старые сверху</option>
+          </select>
+          <p id="leadsUsersFilteredHint" class="settings-hint">Показано: 0</p>
+        </div>
+        <div id="leadsUsersList" class="leads-users-list"></div>
+        <div id="leadsUsersEmpty" class="empty-state" style="display:none;">
+          <div class="empty-icon">👤</div>
+          <p>За выбранный период новых регистраций нет</p>
+        </div>
       </div>
     </section>
 

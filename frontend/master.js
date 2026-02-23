@@ -36,6 +36,10 @@
   let serviceMethodFilter = 'all';
   let serviceCategoryFilter = 'all';
   let editingServiceId = null;
+  let leadsPeriod = 'day';
+  let leadsHelpVisible = false;
+  let leadsView = 'summary';
+  let leadsUsersRaw = [];
 
   function $(id) { return document.getElementById(id); }
 
@@ -45,7 +49,11 @@
 
     let res = await fetch(API_BASE + path, { headers: headers });
     if (!res.ok) {
-      if (res.status === 401) {
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('currentRole');
         window.location.href = '/';
         return;
       }
@@ -135,6 +143,7 @@
 
     if (tabName === 'today') loadToday();
     if (tabName === 'bookings') loadBookings();
+    if (tabName === 'leads') setLeadsView(leadsView);
     if (tabName === 'services') loadServices();
     if (tabName === 'settings') loadSettings();
   }
@@ -494,6 +503,311 @@
     }
   }
 
+  // === LEADS ===
+
+  function formatSignedPercent(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    const rounded = Math.round(Number(value) * 10) / 10;
+    if (rounded > 0) return '+' + rounded + '%';
+    if (rounded < 0) return rounded + '%';
+    return '0%';
+  }
+
+  function renderLeadsDelta(elementId, currentValue, previousValue) {
+    const el = $(elementId);
+    if (!el) return;
+    const currentNum = Number(currentValue || 0);
+    const previousNum = Number(previousValue || 0);
+    if (previousNum <= 0) {
+      el.textContent = currentNum > 0 ? 'Новый рост' : 'Без изменений';
+      el.className = 'leads-delta';
+      return;
+    }
+    const delta = ((currentNum - previousNum) / previousNum) * 100;
+    el.textContent = formatSignedPercent(delta) + ' к прошлому периоду';
+    el.className = 'leads-delta ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat');
+  }
+
+  function conversionLabel(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    return (Math.round(Number(value) * 10) / 10) + '%';
+  }
+
+  function setLeadsPeriod(period) {
+    leadsPeriod = period;
+    document.querySelectorAll('[data-leads-period]').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.leadsPeriod === period);
+    });
+    if (leadsView === 'summary') loadLeadsMetrics();
+    if (leadsView === 'users') loadLeadsRegistrations();
+  }
+
+  function setLeadsView(view) {
+    leadsView = view === 'users' ? 'users' : 'summary';
+    document.querySelectorAll('[data-leads-view]').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.leadsView === leadsView);
+    });
+
+    const summaryEl = $('leadsSummarySection');
+    const usersEl = $('leadsUsersSection');
+    if (summaryEl) summaryEl.style.display = leadsView === 'summary' ? '' : 'none';
+    if (usersEl) usersEl.style.display = leadsView === 'users' ? '' : 'none';
+
+    if (leadsView === 'summary') loadLeadsMetrics();
+    else loadLeadsRegistrations();
+  }
+
+  function toggleLeadsHelp() {
+    leadsHelpVisible = !leadsHelpVisible;
+    const panel = $('leadsHelpPanel');
+    const btn = $('leadsHelpToggleBtn');
+    if (panel) panel.style.display = leadsHelpVisible ? '' : 'none';
+    if (btn) {
+      btn.textContent = leadsHelpVisible ? 'Скрыть подсказки' : 'Подсказки';
+      btn.setAttribute('aria-expanded', leadsHelpVisible ? 'true' : 'false');
+    }
+  }
+
+  async function loadLeadsMetrics() {
+    const funnelEl = $('leadsFunnel');
+    if (!funnelEl) return;
+
+    funnelEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    try {
+      const data = await apiFetch('/leads/metrics?period=' + encodeURIComponent(leadsPeriod));
+      const current = data.current && data.current.metrics ? data.current.metrics : {};
+      const previous = data.previous && data.previous.metrics ? data.previous.metrics : {};
+      const conversion = data.current && data.current.conversion ? data.current.conversion : {};
+
+      $('leadsVisitors').textContent = Number(current.visitors || 0);
+      $('leadsAuthStarted').textContent = Number(current.auth_started || 0);
+      $('leadsAuthSuccess').textContent = Number(current.auth_success || 0);
+      $('leadsBookingStarted').textContent = Number(current.booking_started || 0);
+      $('leadsBookingCreated').textContent = Number(current.booking_created || 0);
+
+      renderLeadsDelta('leadsVisitorsDelta', current.visitors, previous.visitors);
+      renderLeadsDelta('leadsAuthStartedDelta', current.auth_started, previous.auth_started);
+      renderLeadsDelta('leadsAuthSuccessDelta', current.auth_success, previous.auth_success);
+      renderLeadsDelta('leadsBookingStartedDelta', current.booking_started, previous.booking_started);
+      renderLeadsDelta('leadsBookingCreatedDelta', current.booking_created, previous.booking_created);
+
+      funnelEl.innerHTML = [
+        '<div class="leads-funnel-row"><span>Visit → Auth start</span><strong>' + conversionLabel(conversion.visit_to_auth_start) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Auth start → Auth success</span><strong>' + conversionLabel(conversion.auth_start_to_auth_success) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Auth success → Booking created</span><strong>' + conversionLabel(conversion.auth_success_to_booking_created) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Visit → Booking created</span><strong>' + conversionLabel(conversion.visit_to_booking_created) + '</strong></div>',
+        '<div class="leads-funnel-row"><span>Booking started → Booking created</span><strong>' + conversionLabel(conversion.booking_started_to_booking_created) + '</strong></div>'
+      ].join('');
+
+      const start = data.current && data.current.range_start_local ? String(data.current.range_start_local).slice(0, 16).replace('T', ' ') : '';
+      const end = data.current && data.current.range_end_local ? String(data.current.range_end_local).slice(0, 16).replace('T', ' ') : '';
+      $('leadsRangeLabel').textContent = start && end
+        ? 'Текущий период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
+        : 'Период не определен';
+    } catch (err) {
+      funnelEl.innerHTML = '<p class="settings-hint">Не удалось загрузить воронку</p>';
+      showToast(err.message);
+    }
+  }
+
+  function formatLeadDate(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('ru-RU');
+  }
+
+  function getLeadsUsersUiState() {
+    const sort = $('leadsUsersSort') ? $('leadsUsersSort').value : 'registered_desc';
+    const bookingsFilter = $('leadsUsersBookingsFilter') ? $('leadsUsersBookingsFilter').value : 'all';
+    const usernameFilter = $('leadsUsersUsernameFilter') ? $('leadsUsersUsernameFilter').value : 'all';
+    const search = $('leadsUsersSearch') ? String($('leadsUsersSearch').value || '').trim().toLowerCase() : '';
+    return { sort: sort, bookingsFilter: bookingsFilter, usernameFilter: usernameFilter, search: search };
+  }
+
+  function parseLeadUserViewData(u) {
+    const rawTgUsername = String(u.telegram_username || '').trim();
+    const tgUsername = /^tg_[0-9]+$/i.test(rawTgUsername) ? '' : rawTgUsername;
+    const login = tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Логин Telegram скрыт';
+    const rawDisplayName = String(u.display_name || '').trim();
+    const displayName = rawDisplayName
+      ? escapeHtml(rawDisplayName)
+      : (tgUsername ? ('@' + escapeHtml(tgUsername)) : 'Пользователь Telegram');
+    const telegramId = u.telegram_user_id ? String(u.telegram_user_id) : 'неизвестно';
+    const registeredAt = formatLeadDate(u.registered_at);
+    const bookingsTotal = Number(u.bookings_total || 0);
+    const avatarUrl = typeof u.avatar_url === 'string' ? u.avatar_url.trim() : '';
+    const avatarHtml = avatarUrl
+      ? '<img class="leads-user-avatar-img" src="' + escapeHtml(avatarUrl) + '" alt="avatar">'
+      : '<div class="leads-user-avatar-fallback">' + displayName.slice(0, 1).toUpperCase() + '</div>';
+    const usernameAttr = escapeHtml(String(u.telegram_username || ''));
+    const canWrite = Boolean(tgUsername);
+    return {
+      tgUsername: tgUsername,
+      login: login,
+      displayName: displayName,
+      telegramId: telegramId,
+      registeredAt: registeredAt,
+      bookingsTotal: bookingsTotal,
+      avatarHtml: avatarHtml,
+      usernameAttr: usernameAttr,
+      canWrite: canWrite
+    };
+  }
+
+  function getLeadRegistrationTime(u) {
+    const t = new Date(u && u.registered_at ? u.registered_at : '').getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function applyLeadsUsersFilters(users, state) {
+    const filtered = users.filter(function (u) {
+      const view = parseLeadUserViewData(u);
+      if (state.bookingsFilter === 'with_bookings' && view.bookingsTotal <= 0) return false;
+      if (state.bookingsFilter === 'without_bookings' && view.bookingsTotal > 0) return false;
+      if (state.usernameFilter === 'with_username' && !view.tgUsername) return false;
+      if (state.usernameFilter === 'without_username' && view.tgUsername) return false;
+      if (!state.search) return true;
+      const searchable = [
+        String(u.telegram_user_id || ''),
+        String(u.display_name || ''),
+        String(u.telegram_username || ''),
+        String(u.username || '')
+      ].join(' ').toLowerCase();
+      return searchable.includes(state.search);
+    });
+
+    filtered.sort(function (a, b) {
+      const bookingsA = Number(a.bookings_total || 0);
+      const bookingsB = Number(b.bookings_total || 0);
+      const regA = getLeadRegistrationTime(a);
+      const regB = getLeadRegistrationTime(b);
+      if (state.sort === 'bookings_desc') return bookingsB - bookingsA || regB - regA;
+      if (state.sort === 'bookings_asc') return bookingsA - bookingsB || regB - regA;
+      if (state.sort === 'registered_asc') return regA - regB;
+      return regB - regA;
+    });
+
+    return filtered;
+  }
+
+  function renderLeadsUsersList(users) {
+    const listEl = $('leadsUsersList');
+    const emptyEl = $('leadsUsersEmpty');
+    if (!listEl || !emptyEl) return;
+
+    if (!users.length) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = '';
+      const emptyText = emptyEl.querySelector('p');
+      if (emptyText) {
+        emptyText.textContent = leadsUsersRaw.length === 0
+          ? 'За выбранный период новых регистраций нет'
+          : 'По выбранным фильтрам пользователей не найдено';
+      }
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = users.map(function (u) {
+      const view = parseLeadUserViewData(u);
+      return '<article class="leads-user-card">'
+        + '<div class="leads-user-main">'
+        + '<div class="leads-user-main-left">'
+        + '<div class="leads-user-avatar">' + view.avatarHtml + '</div>'
+        + '<div>'
+        + '<div class="leads-user-name">' + view.displayName + '</div>'
+        + '<div class="leads-user-login">' + view.login + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div class="leads-user-id">ID: ' + view.telegramId + '</div>'
+        + '</div>'
+        + '<div class="leads-user-meta">'
+        + '<span>Регистрация: ' + view.registeredAt + '</span>'
+        + '<span>Записей у мастера: ' + view.bookingsTotal + '</span>'
+        + '</div>'
+        + '<div class="leads-user-actions">'
+        + ((view.canWrite || Number(u.telegram_user_id || 0) > 0)
+          ? '<button class="leads-write-btn" data-tg-id="' + Number(u.telegram_user_id || 0) + '" data-tg-username="' + view.usernameAttr + '">Написать</button>'
+          : '<span class="leads-user-chat-hint">Нет Telegram-данных для открытия диалога</span>')
+        + '</div>'
+        + '</article>';
+    }).join('');
+
+    listEl.querySelectorAll('.leads-write-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const tgId = Number(btn.getAttribute('data-tg-id') || 0);
+        const tgUsername = String(btn.getAttribute('data-tg-username') || '');
+        openLeadChat(tgId, tgUsername);
+      });
+    });
+  }
+
+  function updateLeadsUsersFilters() {
+    const state = getLeadsUsersUiState();
+    const filtered = applyLeadsUsersFilters(leadsUsersRaw, state);
+    const hint = $('leadsUsersFilteredHint');
+    if (hint) hint.textContent = 'Показано: ' + filtered.length + ' из ' + leadsUsersRaw.length;
+    renderLeadsUsersList(filtered);
+  }
+
+  function openLeadChat(telegramUserId, telegramUsername) {
+    const tgId = Number(telegramUserId || 0);
+    const username = String(telegramUsername || '').trim();
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    const cleanUsername = /^tg_[0-9]+$/i.test(username) ? '' : username;
+    const userLink = cleanUsername ? ('https://t.me/' + encodeURIComponent(cleanUsername)) : '';
+    const idLink = tgId > 0 ? ('tg://user?id=' + tgId) : '';
+
+    if (!userLink && !idLink) {
+      showToast('Нельзя открыть диалог: нет данных Telegram у пользователя');
+      return;
+    }
+
+    const targetLink = userLink || idLink;
+
+    if (window.Cypress) {
+      if (!Array.isArray(window.__openedTelegramLinks)) window.__openedTelegramLinks = [];
+      window.__openedTelegramLinks.push(targetLink);
+      return;
+    }
+
+    if (webApp && typeof webApp.openTelegramLink === 'function') {
+      webApp.openTelegramLink(targetLink);
+      return;
+    }
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(targetLink, { try_instant_view: false });
+      return;
+    }
+    window.location.href = targetLink;
+  }
+
+  async function loadLeadsRegistrations() {
+    const listEl = $('leadsUsersList');
+    const emptyEl = $('leadsUsersEmpty');
+    if (!listEl || !emptyEl) return;
+
+    listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    emptyEl.style.display = 'none';
+
+    try {
+      const data = await apiFetch('/leads/registrations?period=' + encodeURIComponent(leadsPeriod));
+      const users = Array.isArray(data.users) ? data.users : [];
+      const start = data.range_start_local ? String(data.range_start_local).slice(0, 16).replace('T', ' ') : '';
+      const end = data.range_end_local ? String(data.range_end_local).slice(0, 16).replace('T', ' ') : '';
+      $('leadsUsersRangeLabel').textContent = start && end
+        ? 'Период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
+        : 'Период не определен';
+      leadsUsersRaw = users;
+      updateLeadsUsersFilters();
+    } catch (err) {
+      leadsUsersRaw = [];
+      listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить список</p>';
+      showToast(err.message);
+    }
+  }
+
   // === SETTINGS ===
 
   async function loadSettings() {
@@ -836,6 +1150,11 @@
     showAddService: showAddService,
     setServiceMethodFilter: setServiceMethodFilter,
     setServiceCategoryFilter: setServiceCategoryFilter,
+    setLeadsPeriod: setLeadsPeriod,
+    setLeadsView: setLeadsView,
+    updateLeadsUsersFilters: updateLeadsUsersFilters,
+    openLeadChat: openLeadChat,
+    toggleLeadsHelp: toggleLeadsHelp,
     editService: editService,
     deleteService: deleteService,
     saveService: saveService,

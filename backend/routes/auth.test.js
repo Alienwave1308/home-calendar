@@ -259,6 +259,7 @@ describe('Auth API', () => {
       const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 55);
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 7, username: 'tg_55' }] })
+        .mockResolvedValueOnce({ rows: [] }) // syncTelegramUserProfile
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: 1, user_id: 1, booking_slug: 'master-slug' }] });
 
@@ -271,6 +272,10 @@ describe('Auth API', () => {
       expect(response.body).toHaveProperty('token');
       expect(response.body.role).toBe('client');
       expect(response.body.booking_slug).toBe('master-slug');
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE users'),
+        expect.arrayContaining([7])
+      );
     });
 
     it('should create telegram user if missing', async () => {
@@ -278,6 +283,7 @@ describe('Auth API', () => {
       pool.query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: 9, username: 'tg_77' }] })
+        .mockResolvedValueOnce({ rows: [] }) // syncTelegramUserProfile
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: 1, user_id: 1, booking_slug: 'master-slug' }] });
 
@@ -299,6 +305,7 @@ describe('Auth API', () => {
       const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 91);
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 12, username: 'tg_91' }] })
+        .mockResolvedValueOnce({ rows: [] }) // syncTelegramUserProfile
         .mockResolvedValueOnce({ rows: [{ id: 4, booking_slug: 'master-own-slug' }] });
 
       const response = await request(app)
@@ -314,6 +321,7 @@ describe('Auth API', () => {
       const initData = buildTelegramInitData(process.env.TELEGRAM_BOT_TOKEN, 101);
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 21, username: 'tg_101' }] })
+        .mockResolvedValueOnce({ rows: [] }) // syncTelegramUserProfile
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: 8, booking_slug: 'first-master-slug' }] });

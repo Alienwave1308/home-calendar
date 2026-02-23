@@ -20,7 +20,8 @@ const telegramMiniApp = window.TelegramMiniApp || {
   confirm: async (message) => window.confirm(message),
   alert: async (message) => window.alert(message),
   isMiniApp: () => false,
-  getInitData: () => ''
+  getInitData: () => '',
+  getStartParam: () => null
 };
 
 // Auth state
@@ -264,11 +265,13 @@ const appScreen = document.getElementById('appScreen');
 const tgAuthRetryBtn = document.getElementById('tgAuthRetryBtn');
 
 async function tryTelegramAutoLogin() {
-  if (authToken && currentUser) return true;
   if (!tgState.enabled) return false;
 
   const initData = telegramMiniApp.getInitData();
-  if (!initData) return false;
+  if (!initData) {
+    // Нет сессии Telegram — используем кешированный токен если есть
+    return !!(authToken && currentUser);
+  }
 
   const loginError = document.getElementById('loginError');
   if (loginError) loginError.textContent = '';
