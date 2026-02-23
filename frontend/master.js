@@ -49,7 +49,11 @@
 
     let res = await fetch(API_BASE + path, { headers: headers });
     if (!res.ok) {
-      if (res.status === 401) {
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('currentRole');
         window.location.href = '/';
         return;
       }
