@@ -345,4 +345,117 @@ describe('Auth API', () => {
         .expect(401);
     });
   });
+
+  // ─── POST /api/auth/vk ────────────────────────────────────────────────────
+
+  describe('POST /api/auth/vk', () => {
+    const VK_APP_SECRET = 'test-vk-secret';
+
+    function buildVkLaunchParams(userId = 123456, overrides = {}) {
+      const params = new URLSearchParams({
+        vk_user_id: String(userId),
+        vk_app_id: '1234567',
+        vk_ts: String(Math.floor(Date.now() / 1000)),
+        ...overrides
+      });
+
+      // Sort vk_* keys, build check string
+      const entries = [];
+      params.forEach((value, key) => {
+        if (key.startsWith('vk_')) entries.push([key, value]);
+      });
+      entries.sort(([a], [b]) => a.localeCompare(b));
+      const checkString = entries.map(([k, v]) => `${k}=${v}`).join('&');
+
+      const sign = crypto.createHmac('sha256', VK_APP_SECRET)
+        .update(checkString)
+        .digest('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      params.set('sign', sign);
+      return params.toString();
+    }
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      process.env.VK_APP_SECRET = VK_APP_SECRET;
+    });
+
+    it('возвращает 503 если VK_APP_SECRET не настроен', async () => {
+      delete process.env.VK_APP_SECRET;
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams: 'vk_user_id=1&sign=x' });
+      expect(res.status).toBe(503);
+    });
+
+    it('возвращает 400 если launchParams отсутствует', async () => {
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({});
+      expect(res.status).toBe(400);
+    });
+
+    it('возвращает 401 при неверной подписи', async () => {
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams: 'vk_user_id=123&sign=bad_signature' });
+      expect(res.status).toBe(401);
+    });
+
+    it('создаёт нового пользователя и возвращает token для нового VK userId', async () => {
+      const launchParams = buildVkLaunchParams(555555);
+
+      // Первый SELECT — не найден
+      pool.query
+        .mockResolvedValueOnce({ rows: [] })
+        // INSERT — возвращает нового пользователя
+        .mockResolvedValueOnce({ rows: [{ id: 10, username: 'vk_555555' }] })
+        // SELECT master
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.role).toBe('client');
+      expect(res.body.booking_slug).toBe('lera');
+    });
+
+    it('возвращает существующего пользователя по vk_user_id', async () => {
+      const launchParams = buildVkLaunchParams(777777);
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 5, username: 'vk_777777', vk_user_id: 777777 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.user.username).toBe('vk_777777');
+    });
+
+    it('JWT-токен содержит корректный userId', async () => {
+      const launchParams = buildVkLaunchParams(888888);
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 99, username: 'vk_888888', vk_user_id: 888888 }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(200);
+      const decoded = jwt.verify(res.body.token, JWT_SECRET);
+      expect(decoded.id).toBe(99);
+    });
+  });
 });

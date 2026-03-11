@@ -20,17 +20,58 @@
     )
   );
 
-  if (!isCypress && !hasTelegramSession) {
+  // VK Mini App integration
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
+
+  if (!isCypress && !hasTelegramSession && !hasVkSession) {
     document.body.innerHTML = '<main style="max-width:480px;margin:64px auto;padding:24px;text-align:center;font-family:system-ui,-apple-system,sans-serif;">'
-      + '<h1 style="margin-bottom:12px;">Доступ только через Telegram</h1>'
-      + '<p style="margin:0;color:#5b6575;">Откройте форму записи внутри Telegram Mini App.</p>'
+      + '<h1 style="margin-bottom:12px;">Откройте через Telegram или ВКонтакте</h1>'
+      + '<p style="margin:0;color:#5b6575;">Форма записи доступна только в Telegram Mini App или VK Mini App.</p>'
       + '</main>';
     return;
   }
 
-  if (tg) {
+  if (tg && hasTelegramSession) {
     tg.ready();
     tg.expand();
+  }
+
+  if (hasVkSession) {
+    try { window.vkBridge.send('VKWebAppInit'); } catch (_) {}
+  }
+
+  async function initAuth() {
+    if (localStorage.getItem('token')) return true;
+
+    try {
+      if (hasTelegramSession) {
+        let res = await fetch(API_BASE + '/auth/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: tg.initData })
+        });
+        if (res.ok) {
+          let data = await res.json();
+          if (data.token) { localStorage.setItem('token', data.token); return true; }
+        }
+        return false;
+      }
+
+      if (hasVkSession) {
+        let res = await fetch(API_BASE + '/auth/vk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ launchParams: window.location.search.slice(1) })
+        });
+        if (res.ok) {
+          let data = await res.json();
+          if (data.token) { localStorage.setItem('token', data.token); return true; }
+        }
+        return false;
+      }
+    } catch (_) {}
+    return false;
   }
 
   // Extract booking slug from URL: /book/:slug or ?slug=...
@@ -931,7 +972,7 @@
   // === INIT ===
 
   if (slug) {
-    loadMaster();
+    initAuth().then(function () { loadMaster(); });
   } else {
     $('servicesList').innerHTML = '';
     $('servicesEmpty').style.display = '';
