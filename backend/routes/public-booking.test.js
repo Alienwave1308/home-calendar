@@ -9,6 +9,18 @@ jest.mock('../db', () => ({
   initDB: jest.fn()
 }));
 
+// Generate a future date aligned to 10 minutes to avoid "booking in the past" / min-notice errors
+function futureDate(offsetHours = 48) {
+  const d = new Date(Date.now() + offsetHours * 3600000);
+  d.setUTCMinutes(0, 0, 0);
+  return d.toISOString();
+}
+function futureDatePlus(offsetHours = 48, plusMinutes = 60) {
+  const d = new Date(Date.now() + offsetHours * 3600000 + plusMinutes * 60000);
+  d.setUTCSeconds(0, 0);
+  return d.toISOString();
+}
+
 jest.mock('../lib/reminders', () => ({
   createReminders: jest.fn().mockResolvedValue(undefined)
 }));
@@ -66,8 +78,8 @@ describe('Public Booking API', () => {
       .query({
         title: 'Запись на депиляцию: Ноги',
         details: 'Комментарий клиента: тест',
-        start_at: '2026-03-05T10:00:00.000Z',
-        end_at: '2026-03-05T11:00:00.000Z',
+        start_at: futureDate(),
+        end_at: futureDatePlus(),
         timezone: 'Asia/Novosibirsk'
       })
       .expect(200);
@@ -86,7 +98,7 @@ describe('Public Booking API', () => {
   });
 
   it('should create booking for authenticated client', async () => {
-    const startAt = '2026-03-05T10:00:00.000Z';
+    const startAt = futureDate();
     pool.query
       .mockResolvedValueOnce({
         rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
@@ -122,7 +134,7 @@ describe('Public Booking API', () => {
   });
 
   it('should block booking creation when client already has 3 active bookings', async () => {
-    const startAt = '2026-03-05T10:00:00.000Z';
+    const startAt = futureDate();
     pool.query
       .mockResolvedValueOnce({
         rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
@@ -175,8 +187,8 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({
         rows: [{
           id: 55,
-          start_at: '2026-03-05T10:00:00.000Z',
-          end_at: '2026-03-05T11:00:00.000Z',
+          start_at: futureDate(),
+          end_at: futureDatePlus(),
           client_note: 'Тест',
           master_note: null,
           service_name: 'Шугаринг',
@@ -216,8 +228,8 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({
         rows: [{
           id: 77,
-          start_at: '2026-03-05T10:00:00.000Z',
-          end_at: '2026-03-05T11:00:00.000Z',
+          start_at: futureDate(),
+          end_at: futureDatePlus(),
           client_note: 'Только моя запись',
           service_name: 'Воск: Ноги полностью',
           status: 'confirmed'
@@ -242,7 +254,7 @@ describe('Public Booking API', () => {
   // ===== Multi-service booking tests =====
 
   it('should create multi-service booking with service_ids array and sum duration+price', async () => {
-    const startAt = '2026-03-05T10:00:00.000Z';
+    const startAt = futureDate();
     pool.query
       // loadMasterBySlug
       .mockResolvedValueOnce({
@@ -299,14 +311,14 @@ describe('Public Booking API', () => {
     const res = await request(app)
       .post('/api/public/master/master-slug/book')
       .set('Authorization', authHeader)
-      .send({ service_ids: [], start_at: '2026-03-05T10:00:00.000Z' })
+      .send({ service_ids: [], start_at: futureDate() })
       .expect(400);
 
     expect(res.body.error).toContain('service_ids');
   });
 
   it('should return 404 when one of service_ids does not belong to master', async () => {
-    const startAt = '2026-03-05T10:00:00.000Z';
+    const startAt = futureDate();
     pool.query
       .mockResolvedValueOnce({
         rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
@@ -328,7 +340,7 @@ describe('Public Booking API', () => {
   });
 
   it('should accept legacy service_id (single) and treat it as service_ids=[id]', async () => {
-    const startAt = '2026-03-05T10:00:00.000Z';
+    const startAt = futureDate();
     pool.query
       .mockResolvedValueOnce({
         rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]

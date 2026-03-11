@@ -91,6 +91,10 @@ app.use('/api/dashboard', dashboardRouter);
 const publicBookingRouter = require('./routes/public-booking');
 app.use('/api/public', publicBookingRouter);
 
+// VK Bot webhook (публичный, без авторизации — до роутеров с глобальным authenticateToken)
+const vkWebhookRouter = require('./routes/vk-webhook');
+app.use('/api/vk', vkWebhookRouter);
+
 // Подключаем роуты для повторяющихся задач (требуют авторизации)
 const recurrenceRouter = require('./routes/recurrence');
 app.use('/api', recurrenceRouter);
@@ -124,7 +128,9 @@ const calendarSyncRouter = require('./routes/calendar-sync');
 app.use('/api/calendar-sync', calendarSyncRouter);
 
 // Booking Mini App — serve booking.html for /book/:slug
+// Allow embedding in Telegram and VK iframes (Mini Apps)
 app.get('/book/:slug', (req, res) => {
+  res.removeHeader('X-Frame-Options');
   res.sendFile(path.join(frontendDir, 'booking.html'));
 });
 
@@ -137,6 +143,10 @@ app.get('/master', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
+
+// Централизованный обработчик ошибок (должен быть последним)
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 // Подключаем базу данных
 const { initDB } = require('./db');
