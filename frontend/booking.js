@@ -38,7 +38,7 @@
   }
 
   if (hasVkSession) {
-    try { window.vkBridge.send('VKWebAppInit'); } catch (_) {}
+    try { window.vkBridge.send('VKWebAppInit'); } catch (e) { /* VKWebAppInit optional */ }
   }
 
   async function initAuth() {
@@ -70,7 +70,7 @@
         }
         return false;
       }
-    } catch (_) {}
+    } catch (e) { /* auth fetch failed */ }
     return false;
   }
 
