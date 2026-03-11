@@ -128,7 +128,9 @@ const calendarSyncRouter = require('./routes/calendar-sync');
 app.use('/api/calendar-sync', calendarSyncRouter);
 
 // Booking Mini App — serve booking.html for /book/:slug
+// Allow embedding in Telegram and VK iframes (Mini Apps)
 app.get('/book/:slug', (req, res) => {
+  res.removeHeader('X-Frame-Options');
   res.sendFile(path.join(frontendDir, 'booking.html'));
 });
 
