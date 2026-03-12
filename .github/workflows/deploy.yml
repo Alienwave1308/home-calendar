@@ -20,6 +20,12 @@ jobs:
         LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        VK_GROUP_TOKEN: ${{ secrets.VK_GROUP_TOKEN }}
+        VK_GROUP_ID: ${{ secrets.VK_GROUP_ID }}
+        VK_SECRET: ${{ secrets.VK_SECRET }}
+        VK_CONFIRMATION_STRING: ${{ secrets.VK_CONFIRMATION_STRING }}
+        VK_APP_SECRET: ${{ secrets.VK_APP_SECRET }}
+        MASTER_BOOKING_SLUG: ${{ secrets.MASTER_BOOKING_SLUG }}
       run: |
         if [ -z "$APP_DOMAIN" ] || [ -z "$LETSENCRYPT_EMAIL" ] || [ -z "$JWT_SECRET" ] || [ -z "$TELEGRAM_BOT_TOKEN" ]; then
           echo "One or more required secrets are missing: APP_DOMAIN, LETSENCRYPT_EMAIL, JWT_SECRET, TELEGRAM_BOT_TOKEN"
@@ -35,11 +41,17 @@ jobs:
           cd ~/home-calendar
           git pull origin main
 
-          printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\n" \
+          printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\nVK_GROUP_TOKEN=%s\nVK_GROUP_ID=%s\nVK_SECRET=%s\nVK_CONFIRMATION_STRING=%s\nVK_APP_SECRET=%s\nMASTER_BOOKING_SLUG=%s\n" \
             "${APP_DOMAIN}" \
             "${LETSENCRYPT_EMAIL}" \
             "${JWT_SECRET}" \
-            "${TELEGRAM_BOT_TOKEN}" > .env
+            "${TELEGRAM_BOT_TOKEN}" \
+            "${VK_GROUP_TOKEN}" \
+            "${VK_GROUP_ID}" \
+            "${VK_SECRET}" \
+            "${VK_CONFIRMATION_STRING}" \
+            "${VK_APP_SECRET}" \
+            "${MASTER_BOOKING_SLUG}" > .env
 
           docker compose -f docker-compose.prod.yml down
           docker compose -f docker-compose.prod.yml build --no-cache
