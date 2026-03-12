@@ -55,7 +55,8 @@
           let data = await res.json();
           if (data.token) { localStorage.setItem('token', data.token); return true; }
         }
-        return false;
+        let errData = await res.json().catch(function () { return {}; });
+        throw new Error(errData.error || 'Ошибка авторизации Telegram (' + res.status + ')');
       }
 
       if (hasVkSession) {
@@ -68,9 +69,12 @@
           let data = await res.json();
           if (data.token) { localStorage.setItem('token', data.token); return true; }
         }
-        return false;
+        let errData = await res.json().catch(function () { return {}; });
+        throw new Error(errData.error || 'Ошибка авторизации ВКонтакте (' + res.status + ')');
       }
-    } catch (e) { /* auth fetch failed */ }
+    } catch (e) {
+      throw e;
+    }
     return false;
   }
 
@@ -762,6 +766,9 @@
     $('myBookingsEmpty').style.display = 'none';
 
     try {
+      if (!localStorage.getItem('token')) {
+        await initAuth();
+      }
       let bookings = await apiFetch('/client/bookings');
 
       if (!bookings.length) {
@@ -818,7 +825,11 @@
       $('myBookingsList').innerHTML = html;
     } catch (err) {
       $('myBookingsList').innerHTML = '';
-      showToast('Ошибка загрузки записей: ' + err.message);
+      if (err.message && (err.message.includes('No token') || err.message.includes('Access denied') || err.message.includes('авторизации'))) {
+        showToast('Не удалось войти. Закройте и откройте приложение заново.');
+      } else {
+        showToast('Ошибка загрузки записей: ' + err.message);
+      }
     }
   }
 
@@ -972,7 +983,10 @@
   // === INIT ===
 
   if (slug) {
-    initAuth().then(function () { loadMaster(); });
+    initAuth().then(function () { loadMaster(); }).catch(function (err) {
+      showToast('Ошибка авторизации: ' + err.message);
+      loadMaster();
+    });
   } else {
     $('servicesList').innerHTML = '';
     $('servicesEmpty').style.display = '';
