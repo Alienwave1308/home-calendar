@@ -350,7 +350,7 @@ async function handleVkMessage(msg, info = {}) {
 
   let payload = null;
   if (msg.payload) {
-    try { payload = JSON.parse(msg.payload); } catch (e) { /* ignore */ }
+    try { payload = JSON.parse(msg.payload); } catch { /* ignore */ }
   }
   const text = (msg.text || '').trim();
   const cmd = payload && payload.c;
