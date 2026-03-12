@@ -42,4 +42,12 @@ function clearSession(vkUserId) {
   store.delete(String(vkUserId));
 }
 
+// Periodic cleanup of expired sessions every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of store.entries()) {
+    if (now - entry.updatedAt > SESSION_TTL_MS) store.delete(key);
+  }
+}, 5 * 60 * 1000).unref();
+
 module.exports = { getSession, setSession, clearSession };

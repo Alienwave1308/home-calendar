@@ -426,7 +426,8 @@ router.get('/master/:slug/client-calendar.ics', async (req, res) => {
 // Complexes must be booked alone (service_ids.length === 1 if any complex is selected).
 router.post('/master/:slug/book', authenticateToken, async (req, res) => {
   try {
-    const { start_at, client_note } = req.body;
+    const { start_at } = req.body;
+    const client_note = req.body.client_note ? String(req.body.client_note).slice(0, 500) : null;
 
     // Normalize to array of IDs
     let rawIds = req.body.service_ids;

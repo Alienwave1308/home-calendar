@@ -42,15 +42,20 @@ router.use(async (req, res, next) => {
 
 // Middleware: load master profile for the authenticated user
 async function loadMaster(req, res, next) {
-  const { rows } = await pool.query(
-    'SELECT * FROM masters WHERE user_id = $1',
-    [req.user.id]
-  );
-  if (rows.length === 0) {
-    return res.status(404).json({ error: 'Master profile not found. Use POST /api/master/setup first.' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM masters WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Master profile not found. Use POST /api/master/setup first.' });
+    }
+    req.master = rows[0];
+    next();
+  } catch (error) {
+    console.error('Error loading master profile:', error);
+    res.status(500).json({ error: 'Server error' });
   }
-  req.master = rows[0];
-  next();
 }
 
 const LEAD_PERIODS = {
@@ -1097,7 +1102,7 @@ router.put('/bookings/:id', loadMaster, async (req, res) => {
     }
     if (master_note !== undefined) {
       updates.push(`master_note = $${idx++}`);
-      values.push(master_note);
+      values.push(master_note ? String(master_note).slice(0, 500) : null);
     }
 
     updates.push('updated_at = NOW()');

@@ -19,7 +19,7 @@ router.post('/webhook', async (req, res) => {
 
   // Проверяем секретный ключ
   const secret = process.env.VK_SECRET;
-  if (secret && body.secret !== secret) {
+  if (!secret || body.secret !== secret) {
     return res.status(403).send('forbidden');
   }
 
@@ -49,6 +49,7 @@ router.post('/webhook', async (req, res) => {
       if (token && msg.from_id > 0) {
         const url = `https://api.vk.com/method/users.get?user_ids=${msg.from_id}&fields=first_name,last_name&access_token=${token}&v=5.131`;
         const vkRes = await fetch(url);
+        if (!vkRes.ok) throw new Error(`VK API ${vkRes.status}`);
         const vkData = await vkRes.json();
         if (vkData.response && vkData.response[0]) {
           info = vkData.response[0];
