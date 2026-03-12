@@ -1306,7 +1306,7 @@ router.put('/settings', loadMaster, async (req, res) => {
          master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled,
          first_visit_discount_percent, min_booking_notice_minutes
        )
-       VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, $5, $6, $7)
+       VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, COALESCE($5, false), COALESCE($6, 15), COALESCE($7, 60))
        ON CONFLICT (master_id) DO UPDATE SET
          reminder_hours = COALESCE($2::jsonb, master_settings.reminder_hours),
          quiet_hours_start = $3,
