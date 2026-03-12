@@ -44,37 +44,34 @@
   async function initAuth() {
     if (localStorage.getItem('token')) return true;
 
-    try {
-      if (hasTelegramSession) {
-        let res = await fetch(API_BASE + '/auth/telegram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData: tg.initData })
-        });
-        if (res.ok) {
-          let data = await res.json();
-          if (data.token) { localStorage.setItem('token', data.token); return true; }
-        }
-        let errData = await res.json().catch(function () { return {}; });
-        throw new Error(errData.error || 'Ошибка авторизации Telegram (' + res.status + ')');
+    if (hasTelegramSession) {
+      let res = await fetch(API_BASE + '/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData })
+      });
+      if (res.ok) {
+        let data = await res.json();
+        if (data.token) { localStorage.setItem('token', data.token); return true; }
       }
-
-      if (hasVkSession) {
-        let res = await fetch(API_BASE + '/auth/vk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ launchParams: window.location.search.slice(1) })
-        });
-        if (res.ok) {
-          let data = await res.json();
-          if (data.token) { localStorage.setItem('token', data.token); return true; }
-        }
-        let errData = await res.json().catch(function () { return {}; });
-        throw new Error(errData.error || 'Ошибка авторизации ВКонтакте (' + res.status + ')');
-      }
-    } catch (e) {
-      throw e;
+      let errData = await res.json().catch(function () { return {}; });
+      throw new Error(errData.error || 'Ошибка авторизации Telegram (' + res.status + ')');
     }
+
+    if (hasVkSession) {
+      let res = await fetch(API_BASE + '/auth/vk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ launchParams: window.location.search.slice(1) })
+      });
+      if (res.ok) {
+        let data = await res.json();
+        if (data.token) { localStorage.setItem('token', data.token); return true; }
+      }
+      let errData = await res.json().catch(function () { return {}; });
+      throw new Error(errData.error || 'Ошибка авторизации ВКонтакте (' + res.status + ')');
+    }
+
     return false;
   }
 
