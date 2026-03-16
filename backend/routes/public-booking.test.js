@@ -89,6 +89,33 @@ describe('Public Booking API', () => {
     expect(res.body.services[0].is_active).toBe(true);
   });
 
+  it('should load profile even when masters table has only minimal legacy columns', async () => {
+    const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+    pool.query
+      // loadMasterBySlug attempts 1-2 fail on missing columns
+      .mockRejectedValueOnce(missingColumnError)
+      .mockRejectedValueOnce(missingColumnError)
+      // attempt 3 succeeds with minimal projection
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, user_id: 10, booking_slug: 'master-slug' }]
+      })
+      // services and settings load normally
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      });
+
+    const res = await request(app)
+      .get('/api/public/master/master-slug')
+      .expect(200);
+
+    expect(res.body.master.display_name).toBeDefined();
+    expect(res.body.master.timezone).toBeDefined();
+    expect(res.body.master.cancel_policy_hours).toBe(24);
+  });
+
   it('should return 400 when slot query params are missing', async () => {
     await request(app)
       .get('/api/public/master/master-slug/slots')

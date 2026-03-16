@@ -56,29 +56,42 @@ function timeInTimezone(date, timezone) {
 }
 
 async function loadMasterBySlug(slug) {
-  try {
-    const { rows } = await pool.query(
-      `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
-       FROM masters
-       WHERE booking_slug = $1`,
-      [slug]
-    );
-    return rows[0] || null;
-  } catch (error) {
-    // Legacy schema compatibility: cancel_policy_hours can be absent.
-    if (error.code !== '42703') throw error;
-    const fallback = await pool.query(
-      `SELECT id, user_id, display_name, timezone, booking_slug
-       FROM masters
-       WHERE booking_slug = $1`,
-      [slug]
-    );
-    if (!fallback.rows.length) return null;
-    return {
-      ...fallback.rows[0],
-      cancel_policy_hours: 24
-    };
+  const attempts = [
+    `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
+     FROM masters
+     WHERE booking_slug = $1`,
+    `SELECT id, user_id, display_name, timezone, booking_slug
+     FROM masters
+     WHERE booking_slug = $1`,
+    `SELECT id, user_id, booking_slug
+     FROM masters
+     WHERE booking_slug = $1`,
+    `SELECT id, booking_slug
+     FROM masters
+     WHERE booking_slug = $1`
+  ];
+
+  for (const sql of attempts) {
+    try {
+      const { rows } = await pool.query(sql, [slug]);
+      if (!rows.length) return null;
+      const row = rows[0];
+      return {
+        id: Number(row.id),
+        user_id: row.user_id !== undefined ? Number(row.user_id) : null,
+        display_name: String(row.display_name || process.env.MASTER_DISPLAY_NAME || 'Мастер'),
+        timezone: String(row.timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk'),
+        booking_slug: String(row.booking_slug || slug),
+        cancel_policy_hours: Number(row.cancel_policy_hours ?? 24)
+      };
+    } catch (error) {
+      if (error.code === '42P01') return null;
+      if (error.code === '42703') continue;
+      throw error;
+    }
   }
+
+  return null;
 }
 
 async function loadService(masterId, serviceId) {
@@ -95,7 +108,7 @@ async function loadService(masterId, serviceId) {
     // Legacy schema compatibility: missing is_active / buffer_* columns.
     if (error.code !== '42703') throw error;
     const fallback = await pool.query(
-      `SELECT id, master_id, name, duration_minutes, price, description
+      `SELECT id, master_id, name, duration_minutes, price
        FROM services
        WHERE id = $1 AND master_id = $2`,
       [serviceId, masterId]
@@ -136,7 +149,7 @@ async function loadPublicServices(masterId) {
 
     // Legacy schema fallback for services table without newer columns.
     const fallback = await pool.query(
-      `SELECT id, master_id, name, duration_minutes, price, description
+      `SELECT id, master_id, name, duration_minutes, price
        FROM services
        WHERE master_id = $1
        ORDER BY id ASC`,

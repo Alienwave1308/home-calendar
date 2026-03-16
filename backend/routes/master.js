@@ -232,11 +232,12 @@ router.get('/services', loadMaster, async (req, res) => {
       try {
         // Legacy schema compatibility: created_at and optional service columns can be absent.
         const fallback = await pool.query(
-          'SELECT id, master_id, name, duration_minutes, price, description FROM services WHERE master_id = $1 ORDER BY id',
+          'SELECT id, master_id, name, duration_minutes, price FROM services WHERE master_id = $1 ORDER BY id',
           [req.master.id]
         );
         return res.json(fallback.rows.map((service) => ({
           ...service,
+          description: service.description || null,
           buffer_before_minutes: 0,
           buffer_after_minutes: 0,
           is_active: true
