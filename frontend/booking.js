@@ -89,7 +89,7 @@
 
   // State
   let master = null;
-  let masterSettings = { first_visit_discount_percent: 15, min_booking_notice_minutes: 60 };
+  let masterSettings = { min_booking_notice_minutes: 60 };
   let services = [];
   let visibleServices = [];
   // Multi-select: list of selected services (zones freely combined; complex is solo)
@@ -100,12 +100,9 @@
   let selectedSlot = null;
   let selectedPricing = null;
   let lastCreatedBookingId = null;
-  let isFirstVisitClient = false;
   let methodFilter = 'all';
   let categoryFilter = 'all';
   let rescheduleBookingId = null;
-  let currentDateOffset = 0; // days from today
-  const DAYS_TO_SHOW = 14;
 
   // === HELPERS ===
 
@@ -215,6 +212,22 @@
     return y + '-' + m + '-' + d;
   }
 
+  function startOfToday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  function endOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  }
+
+  function getDateStripDaysCount() {
+    const today = startOfToday();
+    const monthEnd = endOfMonth(today);
+    return Math.max(1, monthEnd.getDate() - today.getDate() + 1);
+  }
+
   // === SKELETONS ===
 
   function renderServiceSkeletons() {
@@ -260,22 +273,6 @@
       services = data.services || [];
 
       $('masterName').textContent = 'Лера';
-      try {
-        const bookings = await apiFetch('/client/bookings');
-        isFirstVisitClient = Array.isArray(bookings) && bookings.filter(function (b) {
-          return Number(b.master_id) === Number(master.id);
-        }).length === 0;
-      } catch (_) {
-        isFirstVisitClient = false;
-      }
-
-      if (isFirstVisitClient && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
-        $('firstVisitBanner').style.display = '';
-        $('firstVisitBannerText').textContent = 'Скидка на первый визит: '
-          + Number(masterSettings.first_visit_discount_percent) + '%';
-      } else {
-        $('firstVisitBanner').style.display = 'none';
-      }
 
       if (services.length === 0) {
         $('servicesList').innerHTML = '';
@@ -313,9 +310,7 @@
   function selectionTotals() {
     const totalMinutes = selectedServices.reduce(function (acc, s) { return acc + Number(s.duration_minutes || 0); }, 0);
     const totalPrice = selectedServices.reduce(function (acc, s) { return acc + Number(s.price || 0); }, 0);
-    const discountPct = isFirstVisitClient ? Number(masterSettings.first_visit_discount_percent || 0) : 0;
-    const finalPrice = discountPct > 0 ? Math.max(0, Math.round(totalPrice * (1 - discountPct / 100))) : totalPrice;
-    return { totalMinutes: totalMinutes, totalPrice: totalPrice, discountPct: discountPct, finalPrice: finalPrice };
+    return { totalMinutes: totalMinutes, totalPrice: totalPrice };
   }
 
   function updateSelectionBar() {
@@ -332,11 +327,7 @@
 
     let metaParts = [totals.totalMinutes + ' мин'];
     if (totals.totalPrice > 0) {
-      if (totals.discountPct > 0) {
-        metaParts.push(formatPriceRub(totals.finalPrice) + ' ₽ (−' + totals.discountPct + '%)');
-      } else {
-        metaParts.push(formatPriceRub(totals.totalPrice) + ' ₽');
-      }
+      metaParts.push(formatPriceRub(totals.totalPrice) + ' ₽');
     }
     $('selectionBarMeta').textContent = metaParts.join(' · ');
   }
@@ -378,12 +369,6 @@
       );
 
       let priceText = s.price ? formatPriceRub(s.price) + ' ₽' : '';
-      let discountedText = '';
-      if (!isDisabled && isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
-        const fp = Math.max(0, Number(s.price) * (1 - Number(masterSettings.first_visit_discount_percent) / 100));
-        discountedText = '<span class="service-meta service-meta-discount">Первый визит: ' + Math.round(fp) + ' ₽</span>';
-      }
-
       const cardClass = 'service-card'
         + (isSelected ? ' service-card--selected' : '')
         + (isDisabled ? ' service-card--disabled' : '');
@@ -394,7 +379,6 @@
         + '<div class="service-info">'
         + '<h3>' + escapeHtml(s.name) + '</h3>'
         + '<span class="service-meta">' + tax.category + ' · ' + s.duration_minutes + ' мин</span>'
-        + discountedText
         + '</div>'
         + (priceText ? '<span class="service-price">' + (isDisabled ? '<span style="opacity:.4">' + priceText + '</span>' : priceText) + '</span>' : '')
         + '</div>';
@@ -464,7 +448,6 @@
     }
 
     showStep('stepSlots');
-    currentDateOffset = 0;
     renderDateStrip();
     selectDate(toDateStr(new Date()));
   }
@@ -478,7 +461,6 @@
     $('selectedServiceName').textContent = selectedService.name;
     $('selectedServicesChips').style.display = 'none';
     showStep('stepSlots');
-    currentDateOffset = 0;
     renderDateStrip();
     selectDate(toDateStr(new Date()));
   }
@@ -487,10 +469,10 @@
 
   function renderDateStrip() {
     let html = '';
-    let today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = startOfToday();
+    const daysToShow = getDateStripDaysCount();
 
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
+    for (let i = 0; i < daysToShow; i++) {
       let d = new Date(today.getTime() + i * 86400000);
       let ds = toDateStr(d);
       let isActive = ds === selectedDate;
@@ -510,6 +492,11 @@
     document.querySelectorAll('.date-chip').forEach(function (c) {
       c.classList.toggle('active', c.dataset.date === dateStr);
     });
+
+    const activeChip = document.querySelector('.date-chip.active');
+    if (activeChip && typeof activeChip.scrollIntoView === 'function') {
+      activeChip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
 
     // Load slots
     $('slotsList').innerHTML = renderSlotSkeletons();
@@ -587,15 +574,8 @@
     if (totals.totalPrice > 0) {
       $('confirmPriceRow').style.display = '';
       $('confirmPrice').textContent = formatPriceRub(totals.totalPrice) + ' ₽';
-      if (totals.discountPct > 0) {
-        $('confirmDiscountRow').style.display = '';
-        $('confirmDiscount').textContent = '−' + totals.discountPct + '%';
-        $('confirmFinalPriceRow').style.display = '';
-        $('confirmFinalPrice').textContent = formatPriceRub(totals.finalPrice) + ' ₽';
-      } else {
-        $('confirmDiscountRow').style.display = 'none';
-        $('confirmFinalPriceRow').style.display = 'none';
-      }
+      $('confirmDiscountRow').style.display = 'none';
+      $('confirmFinalPriceRow').style.display = 'none';
     } else {
       $('confirmPriceRow').style.display = 'none';
       $('confirmDiscountRow').style.display = 'none';
@@ -603,6 +583,7 @@
     }
 
     $('confirmNote').value = '';
+    if ($('confirmPromoCode')) $('confirmPromoCode').value = '';
     showStep('stepConfirm');
   }
 
@@ -631,10 +612,19 @@
 
   function nextDate() {
     if (!selectedDate) return;
-    let d = new Date(selectedDate + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    let next = toDateStr(d);
-    renderDateStrip();
+    const d = new Date(selectedDate + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return;
+
+    const nextDateObj = new Date(d);
+    nextDateObj.setDate(nextDateObj.getDate() + 1);
+
+    const monthEnd = endOfMonth(startOfToday());
+    if (nextDateObj > monthEnd) {
+      showToast('Доступны даты только до конца текущего месяца');
+      return;
+    }
+
+    const next = toDateStr(nextDateObj);
     selectDate(next);
     showStep('stepSlots');
   }
@@ -649,11 +639,15 @@
 
     try {
       const note = $('confirmNote').value.trim();
+      const promoCodeValue = $('confirmPromoCode') ? $('confirmPromoCode').value.trim().toUpperCase() : '';
       let body = {
         service_ids: selectedServices.map(function (s) { return s.id; }),
         start_at: selectedSlot.start,
         client_note: note || undefined
       };
+      if (promoCodeValue) {
+        body.promo_code = promoCodeValue;
+      }
 
       const created = await apiPost('/public/master/' + slug + '/book', body);
       selectedPricing = created.pricing || null;
@@ -665,9 +659,17 @@
       $('doneDetails').textContent = serviceNamesText + '\n'
         + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end)
         + '\nАдрес: Мкр Околица д.1, квартира 60'
-        + (selectedPricing && selectedPricing.first_visit_discount_percent
-          ? '\nСкидка: ' + selectedPricing.first_visit_discount_percent + '%, итог: ' + selectedPricing.final_price + ' ₽'
-            + '\nПри отмене первой записи скидка аннулируется.'
+        + (selectedPricing && selectedPricing.final_price !== undefined
+          ? '\nСтоимость: ' + formatPriceRub(selectedPricing.final_price) + ' ₽'
+          : '')
+        + (selectedPricing && selectedPricing.promo_code
+          ? '\nПромокод: ' + selectedPricing.promo_code
+            + (selectedPricing.promo_reward_type === 'percent' && selectedPricing.promo_discount_percent
+              ? ' (скидка ' + selectedPricing.promo_discount_percent + '%)'
+              : '')
+            + (selectedPricing.promo_reward_type === 'gift_service' && selectedPricing.promo_gift_service_name
+              ? ' (подарок: ' + selectedPricing.promo_gift_service_name + ')'
+              : '')
           : '');
       lastCreatedBookingId = created.id || null;
       setupCalendarExport(note, lastCreatedBookingId);
@@ -675,10 +677,7 @@
 
       // Notify Telegram
       if (tg) {
-        const alertText = selectedPricing && selectedPricing.first_visit_discount_percent
-          ? 'Вы успешно записаны! Первая запись со скидкой. При отмене первой записи скидка аннулируется.'
-          : 'Вы успешно записаны!';
-        tg.showAlert(alertText);
+        tg.showAlert('Вы успешно записаны!');
       }
 
     } catch (err) {
@@ -784,6 +783,21 @@
 
         let statusClass = b.status || 'pending';
         let statusLabel = STATUS_LABELS[b.status] || b.status;
+        const basePrice = b.base_price !== null && b.base_price !== undefined
+          ? Number(b.base_price)
+          : (b.service_price !== null && b.service_price !== undefined ? Number(b.service_price) : null);
+        const finalPrice = b.final_price !== null && b.final_price !== undefined ? Number(b.final_price) : null;
+        const discountAmount = Number(b.discount_amount || 0);
+        const hasPrice = finalPrice !== null && Number.isFinite(finalPrice);
+        let promoText = '';
+        if (b.promo_code) {
+          promoText = 'Промокод: ' + escapeHtml(b.promo_code);
+          if (b.promo_reward_type === 'percent' && b.discount_percent > 0) {
+            promoText += ' (−' + b.discount_percent + '%)';
+          } else if (b.promo_reward_type === 'gift_service' && b.promo_gift_service_name) {
+            promoText += ' (подарок: ' + escapeHtml(b.promo_gift_service_name) + ')';
+          }
+        }
 
         const canExport = b.status !== 'canceled';
         const canManage = b.status === 'confirmed' || b.status === 'pending';
@@ -808,13 +822,14 @@
           + '</div>'
           + '<div class="my-booking-meta">'
           + '<span>' + dateStr + ', ' + timeStr + (endTimeStr ? ' — ' + endTimeStr : '') + '</span>'
-          + (b.service_price !== null && b.service_price !== undefined
+          + (hasPrice
             ? '<span class="my-booking-price">Стоимость: '
-              + (b.discount_percent > 0
-                ? '<s>' + formatPriceRub(b.service_price) + ' ₽</s> → ' + formatPriceRub(b.final_price) + ' ₽ (скидка ' + b.discount_percent + '%)'
-                : formatPriceRub(b.final_price) + ' ₽')
+              + (discountAmount > 0 && basePrice !== null && basePrice > finalPrice
+                ? '<s>' + formatPriceRub(basePrice) + ' ₽</s> → ' + formatPriceRub(finalPrice) + ' ₽'
+                : formatPriceRub(finalPrice) + ' ₽')
               + '</span>'
             : '')
+          + (promoText ? '<span class="my-booking-price">' + promoText + '</span>' : '')
           + '</div>'
           + actions
           + '</div>';
@@ -948,7 +963,10 @@
     selectedService = null;
     selectedDate = null;
     selectedSlot = null;
+    selectedPricing = null;
     rescheduleBookingId = null;
+    if ($('confirmPromoCode')) $('confirmPromoCode').value = '';
+    if ($('confirmNote')) $('confirmNote').value = '';
     renderServices();
     showStep('stepServices');
   }

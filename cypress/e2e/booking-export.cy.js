@@ -21,10 +21,18 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     }).as('getSlots');
 
     cy.intercept('POST', /\/api\/public\/master\/test-master\/book\/?$/, (req) => {
-      expect(req.body.service_ids).to.deep.equal([10]);
-      expect(req.body.start_at).to.equal('2026-02-20T10:00:00.000Z');
-      expect(req.body.client_note).to.equal('Зона подмышек');
-      req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed', pricing: {} } });
+      req.reply({
+        statusCode: 201,
+        body: {
+          id: 1,
+          status: 'confirmed',
+          pricing: {
+            promo_code: req.body.promo_code || null,
+            promo_reward_type: req.body.promo_code ? 'percent' : null,
+            promo_usage_mode: req.body.promo_code ? 'single_use' : null
+          }
+        }
+      });
     }).as('postBook');
 
     cy.intercept('GET', /\/api\/client\/bookings\/1\/calendar-feed\/?$/, {
@@ -63,7 +71,11 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('.slot-btn').first().click();
     cy.get('#confirmNote').type('Зона подмышек');
     cy.get('#btnBook').click();
-    cy.wait('@postBook');
+    cy.wait('@postBook').then((interception) => {
+      expect(interception.request.body.service_ids).to.deep.equal([10]);
+      expect(interception.request.body.start_at).to.equal('2026-02-20T10:00:00.000Z');
+      expect(interception.request.body.client_note).to.equal('Зона подмышек');
+    });
 
     cy.get('#stepDone').should('be.visible');
     cy.get('#doneGoogleLink')
@@ -79,5 +91,21 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('@openLink').its('lastCall.args.0').should('match', /^https?:\/\//);
     cy.get('@openLink').its('lastCall.args.0').should('include', 'client-calendar.ics');
     cy.get('@openLink').its('lastCall.args.0').should('include', 'token=test-client-token');
+  });
+
+  it('sends promo code from confirm screen to booking API', () => {
+    cy.contains('.service-card', 'Шугаринг').click();
+    cy.get('.selection-bar-btn').click();
+    cy.wait('@getSlots');
+
+    cy.get('.slot-btn').first().click();
+    cy.get('#confirmPromoCode').clear().type('once10');
+    cy.get('#btnBook').click();
+
+    cy.wait('@postBook').then((interception) => {
+      expect(interception.request.body.service_ids).to.deep.equal([10]);
+      expect(interception.request.body.promo_code).to.equal('ONCE10');
+    });
+    cy.get('#stepDone').should('be.visible');
   });
 });

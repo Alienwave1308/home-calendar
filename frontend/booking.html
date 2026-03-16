@@ -29,8 +29,11 @@
         </div>
         <p class="step-subtitle">Выберите услугу</p>
       </div>
-      <div id="firstVisitBanner" class="empty-state" style="display:none; margin-bottom:12px;">
-        <p id="firstVisitBannerText" style="margin:0;"></p>
+      <div class="empty-state gift-link-banner" style="margin-bottom:12px;">
+        <p style="margin:0;">
+          Подарок от меня на первое посещение по ссылке:
+          <a href="https://vk.cc/cVmuLI" target="_blank" rel="noopener noreferrer">vk.cc/cVmuLI</a>
+        </p>
       </div>
       <div class="service-tabs" id="serviceMethodTabs" style="display:none;">
         <button class="service-tab active" data-method="all" onclick="BookingApp.setMethodFilter('all')">Все</button>
@@ -119,6 +122,8 @@
           <span class="confirm-label">Итого</span>
           <span id="confirmFinalPrice" class="confirm-value confirm-price"></span>
         </div>
+        <input id="confirmPromoCode" class="confirm-promo-input" maxlength="64" placeholder="Промокод (необязательно)">
+        <p class="confirm-promo-hint">Промокод можно ввести перед подтверждением записи.</p>
         <textarea id="confirmNote" class="confirm-note" placeholder="Комментарий к записи (необязательно)" rows="2"></textarea>
       </div>
       <button class="btn-primary btn-book" id="btnBook" onclick="BookingApp.confirmBooking()">

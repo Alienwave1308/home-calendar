@@ -99,6 +99,11 @@ describe('Master Panel - Calendar Settings E2E', () => {
       });
     }).as('availabilityExclusions');
 
+    cy.intercept('GET', /\/api\/master\/promo-codes\/?(?:\?.*)?$/, {
+      statusCode: 200,
+      body: []
+    }).as('promoCodes');
+
     cy.visit('/master.html', {
       onBeforeLoad(win) {
         win.Telegram = {
@@ -150,6 +155,8 @@ describe('Master Panel - Calendar Settings E2E', () => {
 
     cy.wait('@availability');
     cy.wait('@availabilityExclusions');
+    cy.wait('@servicesEmpty');
+    cy.wait('@promoCodes');
     cy.get('#availabilityDate').type('2026-02-23');
     cy.get('#availabilityStart').clear().type('10:00');
     cy.get('#availabilityEnd').clear().type('18:00');
@@ -171,6 +178,8 @@ describe('Master Panel - Calendar Settings E2E', () => {
 
     cy.wait('@availability');
     cy.wait('@availabilityExclusions');
+    cy.wait('@servicesEmpty');
+    cy.wait('@promoCodes');
     cy.get('#availabilityBulkInput').should('not.exist');
     cy.contains('button', 'Добавить из строк').should('not.exist');
   });
