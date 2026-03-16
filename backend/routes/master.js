@@ -228,6 +228,27 @@ router.get('/services', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
+    if (error.code === '42703') {
+      try {
+        // Legacy schema compatibility: created_at and optional service columns can be absent.
+        const fallback = await pool.query(
+          'SELECT id, master_id, name, duration_minutes, price, description FROM services WHERE master_id = $1 ORDER BY id',
+          [req.master.id]
+        );
+        return res.json(fallback.rows.map((service) => ({
+          ...service,
+          buffer_before_minutes: 0,
+          buffer_after_minutes: 0,
+          is_active: true
+        })));
+      } catch (fallbackError) {
+        console.error('Error listing services (legacy fallback):', fallbackError);
+        return res.status(500).json({ error: 'Server error' });
+      }
+    }
+    if (error.code === '42P01') {
+      return res.json([]);
+    }
     console.error('Error listing services:', error);
     res.status(500).json({ error: 'Server error' });
   }

@@ -197,6 +197,24 @@ describe('Master API', () => {
 
       expect(res.body).toHaveLength(2);
     });
+
+    it('should fallback to legacy service schema when created_at is missing', async () => {
+      const missingColumnError = Object.assign(new Error('column "created_at" does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Маникюр', duration_minutes: 60 }] });
+
+      const res = await request(app)
+        .get('/api/master/services')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].buffer_before_minutes).toBe(0);
+      expect(res.body[0].buffer_after_minutes).toBe(0);
+      expect(res.body[0].is_active).toBe(true);
+    });
   });
 
   describe('PUT /api/master/services/:id', () => {

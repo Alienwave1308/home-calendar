@@ -56,24 +56,94 @@ function timeInTimezone(date, timezone) {
 }
 
 async function loadMasterBySlug(slug) {
-  const { rows } = await pool.query(
-    `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
-     FROM masters
-     WHERE booking_slug = $1`,
-    [slug]
-  );
-  return rows[0] || null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
+       FROM masters
+       WHERE booking_slug = $1`,
+      [slug]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    // Legacy schema compatibility: cancel_policy_hours can be absent.
+    if (error.code !== '42703') throw error;
+    const fallback = await pool.query(
+      `SELECT id, user_id, display_name, timezone, booking_slug
+       FROM masters
+       WHERE booking_slug = $1`,
+      [slug]
+    );
+    if (!fallback.rows.length) return null;
+    return {
+      ...fallback.rows[0],
+      cancel_policy_hours: 24
+    };
+  }
 }
 
 async function loadService(masterId, serviceId) {
-  const { rows } = await pool.query(
-    `SELECT id, master_id, name, duration_minutes, price, description,
-            buffer_before_minutes, buffer_after_minutes, is_active
-     FROM services
-     WHERE id = $1 AND master_id = $2 AND is_active = true`,
-    [serviceId, masterId]
-  );
-  return rows[0] || null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price, description,
+              buffer_before_minutes, buffer_after_minutes, is_active
+       FROM services
+       WHERE id = $1 AND master_id = $2 AND is_active = true`,
+      [serviceId, masterId]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    // Legacy schema compatibility: missing is_active / buffer_* columns.
+    if (error.code !== '42703') throw error;
+    const fallback = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price, description
+       FROM services
+       WHERE id = $1 AND master_id = $2`,
+      [serviceId, masterId]
+    );
+    if (!fallback.rows.length) return null;
+    return {
+      ...fallback.rows[0],
+      buffer_before_minutes: 0,
+      buffer_after_minutes: 0,
+      is_active: true
+    };
+  }
+}
+
+function normalizeServiceRow(service) {
+  return {
+    ...service,
+    buffer_before_minutes: Number(service && service.buffer_before_minutes ? service.buffer_before_minutes : 0),
+    buffer_after_minutes: Number(service && service.buffer_after_minutes ? service.buffer_after_minutes : 0),
+    is_active: service && service.is_active !== undefined ? Boolean(service.is_active) : true
+  };
+}
+
+async function loadPublicServices(masterId) {
+  try {
+    const services = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price, description,
+              buffer_before_minutes, buffer_after_minutes, is_active
+       FROM services
+       WHERE master_id = $1 AND is_active = true
+       ORDER BY created_at ASC`,
+      [masterId]
+    );
+    return services.rows.map(normalizeServiceRow);
+  } catch (error) {
+    if (error.code === '42P01') return [];
+    if (error.code !== '42703') throw error;
+
+    // Legacy schema fallback for services table without newer columns.
+    const fallback = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price, description
+       FROM services
+       WHERE master_id = $1
+       ORDER BY id ASC`,
+      [masterId]
+    );
+    return fallback.rows.map(normalizeServiceRow);
+  }
 }
 
 async function loadMasterSettings(masterId) {
@@ -215,14 +285,7 @@ router.get('/master/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Master not found' });
     }
 
-    const services = await pool.query(
-      `SELECT id, master_id, name, duration_minutes, price, description,
-              buffer_before_minutes, buffer_after_minutes, is_active
-       FROM services
-       WHERE master_id = $1 AND is_active = true
-       ORDER BY created_at ASC`,
-      [master.id]
-    );
+    const services = await loadPublicServices(master.id);
 
     const timezone = resolveMasterTimezone(master);
     return res.json({
@@ -233,7 +296,7 @@ router.get('/master/:slug', async (req, res) => {
         booking_slug: master.booking_slug,
         cancel_policy_hours: master.cancel_policy_hours
       },
-      services: services.rows,
+      services: services,
       settings: await loadMasterSettings(master.id)
     });
   } catch (error) {

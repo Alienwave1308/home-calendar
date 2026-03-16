@@ -58,6 +58,37 @@ describe('Public Booking API', () => {
     expect(res.body.services).toHaveLength(1);
   });
 
+  it('should load public master profile on legacy schema fallback', async () => {
+    const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+    pool.query
+      // loadMasterBySlug (primary query)
+      .mockRejectedValueOnce(missingColumnError)
+      // loadMasterBySlug (fallback query without cancel_policy_hours)
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, user_id: 10, display_name: 'Мастер', timezone: 'Europe/Moscow', booking_slug: 'master-slug' }]
+      })
+      // loadPublicServices (primary query)
+      .mockRejectedValueOnce(missingColumnError)
+      // loadPublicServices (fallback query without created_at/buffer columns)
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200 }]
+      })
+      // loadMasterSettings
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      });
+
+    const res = await request(app)
+      .get('/api/public/master/master-slug')
+      .expect(200);
+
+    expect(res.body.master.cancel_policy_hours).toBe(24);
+    expect(res.body.services).toHaveLength(1);
+    expect(res.body.services[0].buffer_before_minutes).toBe(0);
+    expect(res.body.services[0].buffer_after_minutes).toBe(0);
+    expect(res.body.services[0].is_active).toBe(true);
+  });
+
   it('should return 400 when slot query params are missing', async () => {
     await request(app)
       .get('/api/public/master/master-slug/slots')

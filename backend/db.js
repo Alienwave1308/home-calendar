@@ -50,6 +50,38 @@ async function ensureColumn(tableName, columnName, definitionSql) {
 }
 
 async function ensureRuntimeSchemaCompatibility() {
+  for (const [columnName, definition] of [
+    ['display_name', `VARCHAR(100) NOT NULL DEFAULT 'Мастер'`],
+    ['timezone', `VARCHAR(50) NOT NULL DEFAULT 'Asia/Novosibirsk'`],
+    ['cancel_policy_hours', 'INTEGER NOT NULL DEFAULT 24']
+  ]) {
+    try {
+      await ensureColumn('masters', columnName, definition);
+    } catch (error) {
+      console.error(`Schema compatibility: failed to ensure masters.${columnName}:`, error);
+    }
+  }
+
+  for (const [columnName, definition] of [
+    ['description', 'TEXT'],
+    ['buffer_before_minutes', 'INTEGER NOT NULL DEFAULT 0'],
+    ['buffer_after_minutes', 'INTEGER NOT NULL DEFAULT 0'],
+    ['is_active', 'BOOLEAN NOT NULL DEFAULT true'],
+    ['created_at', 'TIMESTAMP DEFAULT NOW()']
+  ]) {
+    try {
+      await ensureColumn('services', columnName, definition);
+    } catch (error) {
+      console.error(`Schema compatibility: failed to ensure services.${columnName}:`, error);
+    }
+  }
+
+  try {
+    await pool.query('UPDATE services SET is_active = true WHERE is_active IS NULL');
+  } catch (error) {
+    console.error('Schema compatibility: failed to backfill services.is_active:', error);
+  }
+
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS master_settings (
