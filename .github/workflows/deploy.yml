@@ -27,6 +27,8 @@ jobs:
         VK_APP_SECRET: ${{ secrets.VK_APP_SECRET }}
         MASTER_BOOKING_SLUG: ${{ secrets.MASTER_BOOKING_SLUG }}
       run: |
+        set -euo pipefail
+
         if [ -z "$APP_DOMAIN" ] || [ -z "$LETSENCRYPT_EMAIL" ] || [ -z "$JWT_SECRET" ] || [ -z "$TELEGRAM_BOT_TOKEN" ]; then
           echo "One or more required secrets are missing: APP_DOMAIN, LETSENCRYPT_EMAIL, JWT_SECRET, TELEGRAM_BOT_TOKEN"
           exit 1
@@ -38,8 +40,10 @@ jobs:
         ssh-keyscan -H $HOST >> ~/.ssh/known_hosts 2>/dev/null
 
         ssh -i ~/.ssh/deploy_key root@$HOST << ENDSSH
+          set -euo pipefail
+
           cd ~/home-calendar
-          git pull origin main
+          git pull --ff-only origin main
 
           printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\nVK_GROUP_TOKEN=%s\nVK_GROUP_ID=%s\nVK_SECRET=%s\nVK_CONFIRMATION_STRING=%s\nVK_APP_SECRET=%s\nMASTER_BOOKING_SLUG=%s\n" \
             "${APP_DOMAIN}" \
@@ -53,8 +57,15 @@ jobs:
             "${VK_APP_SECRET}" \
             "${MASTER_BOOKING_SLUG}" > .env
 
-          docker compose -f docker-compose.prod.yml down
-          docker compose -f docker-compose.prod.yml build --no-cache
-          docker compose -f docker-compose.prod.yml up -d
+          # Clean stale layers/images to avoid ENOSPC on long-lived host.
+          docker builder prune -af || true
+          docker image prune -af || true
+
+          # Build first; if build fails, workflow must fail and old app keeps running.
+          docker compose -f docker-compose.prod.yml build app
+
+          # Recreate app stack with freshly built image.
+          docker compose -f docker-compose.prod.yml up -d app caddy db
+          docker compose -f docker-compose.prod.yml ps
           echo "Deploy complete"
         ENDSSH
