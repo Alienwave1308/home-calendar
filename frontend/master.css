@@ -16,13 +16,13 @@
 
 /* Tabs */
 .master-tabs {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
   margin-bottom: 20px;
   border-bottom: 2px solid var(--border);
   padding-bottom: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: hidden;
 }
 
 .master-tabs::-webkit-scrollbar {
@@ -30,19 +30,20 @@
 }
 
 .master-tab {
-  flex: 1;
-  padding: 10px 8px;
+  padding: 10px 4px;
   border: none;
   background: none;
   color: var(--text-secondary);
   font-weight: 600;
-  font-size: 0.9em;
+  font-size: 0.84em;
   cursor: pointer;
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
-  min-width: 92px;
+  min-width: 0;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 .master-tab.active {
@@ -749,6 +750,15 @@
 }
 
 @media (max-width: 600px) {
+  .master-tabs {
+    margin-bottom: 14px;
+  }
+
+  .master-tab {
+    font-size: 0.78em;
+    padding: 9px 2px;
+  }
+
   .master-header h1 {
     font-size: 1.1em;
   }
