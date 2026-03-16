@@ -40,6 +40,7 @@
   let leadsHelpVisible = false;
   let leadsView = 'summary';
   let leadsUsersRaw = [];
+  let promoCodesCache = [];
 
   function $(id) { return document.getElementById(id); }
 
@@ -840,20 +841,18 @@
       let settings = await apiFetch('/settings');
       appleSettings = settings;
       const minBookingNotice = settings.min_booking_notice_minutes ?? 60;
-      const firstVisitDiscount = settings.first_visit_discount_percent ?? 15;
       $('reminderSettings').innerHTML = 'Напоминания за: <strong>' + (settings.reminder_hours || [24, 2]).join(', ') + '</strong> ч.'
-        + '<br>Минимум до записи: <strong>' + minBookingNotice + '</strong> мин'
-        + '<br>Скидка на первый визит: <strong>' + firstVisitDiscount + '%</strong>';
+        + '<br>Минимум до записи: <strong>' + minBookingNotice + '</strong> мин';
       $('reminderHoursFirst').value = Number((settings.reminder_hours || [24, 2])[0] || 24);
       $('reminderHoursSecond').value = Number((settings.reminder_hours || [24, 2])[1] || 2);
       $('minBookingNoticeMinutes').value = Number(minBookingNotice);
-      $('firstVisitDiscountPercent').value = Number(firstVisitDiscount);
     } catch (_) {
       $('reminderSettings').textContent = 'Не удалось загрузить';
     }
 
     renderAppleCalendarSettings(appleSettings);
     await loadAvailabilitySettings();
+    await loadPromoCodes();
   }
 
   async function loadAvailabilitySettings() {
@@ -957,15 +956,154 @@
   async function savePricingSettings() {
     try {
       const minMinutesRaw = $('minBookingNoticeMinutes').value;
-      const discountRaw = $('firstVisitDiscountPercent').value;
       const minMinutes = minMinutesRaw === '' ? 60 : Number(minMinutesRaw);
-      const discount = discountRaw === '' ? 15 : Number(discountRaw);
       await apiMethod('PUT', '/settings', {
-        min_booking_notice_minutes: minMinutes,
-        first_visit_discount_percent: discount
+        min_booking_notice_minutes: minMinutes
       });
       await loadSettings();
-      showToast('Ограничения и скидка сохранены');
+      showToast('Ограничение по времени сохранено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function onPromoRewardTypeChange() {
+    const typeEl = $('promoRewardType');
+    const discountEl = $('promoDiscountPercent');
+    const giftEl = $('promoGiftServiceId');
+    if (!typeEl || !discountEl || !giftEl) return;
+
+    const isPercent = typeEl.value === 'percent';
+    discountEl.style.display = isPercent ? '' : 'none';
+    giftEl.style.display = isPercent ? 'none' : '';
+  }
+
+  function renderPromoCodes() {
+    const listEl = $('promoCodesList');
+    if (!listEl) return;
+
+    if (!promoCodesCache.length) {
+      listEl.innerHTML = '<p class="settings-hint">Промокодов пока нет</p>';
+      return;
+    }
+
+    listEl.innerHTML = promoCodesCache.map(function (promo) {
+      const reward = promo.reward_type === 'percent'
+        ? 'Скидка ' + Number(promo.discount_percent || 0) + '%'
+        : 'Подарок: ' + escapeHtml(promo.gift_service_name || ('Зона #' + promo.gift_service_id));
+      const status = promo.is_active ? 'Активен' : 'Выключен';
+      const toggleLabel = promo.is_active ? 'Выключить' : 'Включить';
+      const nextActive = promo.is_active ? 'false' : 'true';
+
+      return '<div class="settings-list-item">'
+        + '<div>'
+        + '<strong>' + escapeHtml(promo.code) + '</strong>'
+        + '<div class="settings-hint">' + reward + ' · ' + status + '</div>'
+        + '</div>'
+        + '<div style="display:flex; gap:8px; flex-wrap:wrap;">'
+        + '<button class="btn-small btn-edit" onclick="MasterApp.togglePromoCodeActive(' + promo.id + ',' + nextActive + ')">' + toggleLabel + '</button>'
+        + '<button class="btn-small btn-cancel" onclick="MasterApp.deletePromoCode(' + promo.id + ')">Удалить</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  async function loadPromoCodes() {
+    const listEl = $('promoCodesList');
+    const giftSelect = $('promoGiftServiceId');
+    if (!listEl || !giftSelect) return;
+
+    listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+
+    try {
+      const prevGiftId = String(giftSelect.value || '');
+      const [services, promoCodes] = await Promise.all([
+        apiFetch('/services'),
+        apiFetch('/promo-codes')
+      ]);
+
+      const zoneServices = (services || []).filter(function (service) {
+        if (!service || service.is_active === false) return false;
+        return parseServiceTaxonomy(service).category === 'Услуги';
+      });
+      if (!zoneServices.length) {
+        giftSelect.innerHTML = '<option value="">Нет доступных зон</option>';
+      } else {
+        giftSelect.innerHTML = zoneServices.map(function (service) {
+          return '<option value="' + service.id + '">' + escapeHtml(service.name) + '</option>';
+        }).join('');
+        if (prevGiftId && zoneServices.some(function (service) { return String(service.id) === prevGiftId; })) {
+          giftSelect.value = prevGiftId;
+        }
+      }
+
+      promoCodesCache = Array.isArray(promoCodes) ? promoCodes : [];
+      renderPromoCodes();
+      onPromoRewardTypeChange();
+    } catch (err) {
+      promoCodesCache = [];
+      listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить промокоды</p>';
+      showToast(err.message);
+    }
+  }
+
+  async function createPromoCode() {
+    try {
+      const codeEl = $('promoCodeValue');
+      const typeEl = $('promoRewardType');
+      const discountEl = $('promoDiscountPercent');
+      const giftEl = $('promoGiftServiceId');
+      if (!codeEl || !typeEl || !discountEl || !giftEl) return;
+
+      const code = String(codeEl.value || '').trim().toUpperCase();
+      const rewardType = String(typeEl.value || '');
+      if (!code) {
+        showToast('Введите промокод');
+        return;
+      }
+
+      const payload = { code: code, reward_type: rewardType };
+      if (rewardType === 'percent') {
+        const discount = Number(discountEl.value);
+        if (!Number.isInteger(discount) || discount < 1 || discount > 90) {
+          showToast('Скидка должна быть целым числом от 1 до 90');
+          return;
+        }
+        payload.discount_percent = discount;
+      } else {
+        const giftServiceId = Number(giftEl.value);
+        if (!Number.isInteger(giftServiceId) || giftServiceId <= 0) {
+          showToast('Выберите подарочную зону');
+          return;
+        }
+        payload.gift_service_id = giftServiceId;
+      }
+
+      await apiMethod('POST', '/promo-codes', payload);
+      codeEl.value = '';
+      await loadPromoCodes();
+      showToast('Промокод создан');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function togglePromoCodeActive(promoId, isActive) {
+    try {
+      await apiMethod('PATCH', '/promo-codes/' + promoId, { is_active: Boolean(isActive) });
+      await loadPromoCodes();
+      showToast(isActive ? 'Промокод включен' : 'Промокод выключен');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deletePromoCode(promoId) {
+    if (!window.confirm('Удалить промокод?')) return;
+    try {
+      await apiMethod('DELETE', '/promo-codes/' + promoId);
+      await loadPromoCodes();
+      showToast('Промокод удален');
     } catch (err) {
       showToast(err.message);
     }
@@ -1172,6 +1310,10 @@
     disableAppleCalendar: disableAppleCalendar,
     saveReminderSettings: saveReminderSettings,
     savePricingSettings: savePricingSettings,
+    onPromoRewardTypeChange: onPromoRewardTypeChange,
+    createPromoCode: createPromoCode,
+    togglePromoCodeActive: togglePromoCodeActive,
+    deletePromoCode: deletePromoCode,
     addAvailabilityRule: addAvailabilityRule,
     deleteAvailabilityRule: deleteAvailabilityRule,
     addAvailabilityExclusion: addAvailabilityExclusion,

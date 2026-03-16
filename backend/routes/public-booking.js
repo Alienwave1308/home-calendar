@@ -78,7 +78,7 @@ async function loadService(masterId, serviceId) {
 
 async function loadMasterSettings(masterId) {
   const { rows } = await pool.query(
-    `SELECT reminder_hours, first_visit_discount_percent, min_booking_notice_minutes
+    `SELECT reminder_hours, min_booking_notice_minutes
      FROM master_settings
      WHERE master_id = $1`,
     [masterId]
@@ -86,11 +86,34 @@ async function loadMasterSettings(masterId) {
   if (!rows.length) {
     return {
       reminder_hours: [24, 2],
-      first_visit_discount_percent: 15,
       min_booking_notice_minutes: 60
     };
   }
   return rows[0];
+}
+
+function normalizePromoCode(rawPromoCode) {
+  return String(rawPromoCode || '').trim().toUpperCase();
+}
+
+async function loadActivePromoCode(masterId, normalizedCode) {
+  if (!normalizedCode) return null;
+
+  const { rows } = await pool.query(
+    `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active,
+            gs.id AS gift_id, gs.master_id AS gift_master_id, gs.name AS gift_name,
+            gs.duration_minutes AS gift_duration_minutes, gs.price AS gift_price,
+            gs.description AS gift_description, gs.buffer_before_minutes AS gift_buffer_before_minutes,
+            gs.buffer_after_minutes AS gift_buffer_after_minutes, gs.is_active AS gift_is_active
+     FROM master_promo_codes p
+     LEFT JOIN services gs ON gs.id = p.gift_service_id
+     WHERE p.master_id = $1
+       AND p.code = $2
+       AND p.is_active = true
+     LIMIT 1`,
+    [masterId, normalizedCode]
+  );
+  return rows[0] || null;
 }
 
 function resolveMasterTimezone(master) {
@@ -246,7 +269,7 @@ router.get('/master/:slug/slots', async (req, res) => {
       blocks: blocks.rows,
       timezone,
       stepMinutes: 10,
-      minLeadMinutes: settings.min_booking_notice_minutes || 60
+      minLeadMinutes: settings.min_booking_notice_minutes ?? 60
     });
 
     return res.json({ slots });
@@ -437,8 +460,9 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const serviceIds = (Array.isArray(rawIds) ? rawIds : [rawIds])
       .map((id) => parseInt(id, 10))
       .filter((id) => Number.isFinite(id) && id > 0);
+    const normalizedServiceIds = [...new Set(serviceIds)];
 
-    if (!serviceIds.length || !start_at) {
+    if (!normalizedServiceIds.length || !start_at) {
       return res.status(400).json({ error: 'service_ids (or service_id) and start_at are required' });
     }
 
@@ -449,11 +473,61 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
 
     // Load and validate all requested services
     const loadedServices = await Promise.all(
-      serviceIds.map((id) => loadService(master.id, id))
+      normalizedServiceIds.map((id) => loadService(master.id, id))
     );
     const missingIdx = loadedServices.findIndex((s) => !s);
     if (missingIdx !== -1) {
-      return res.status(404).json({ error: `Service ${serviceIds[missingIdx]} not found or inactive` });
+      return res.status(404).json({ error: `Service ${normalizedServiceIds[missingIdx]} not found or inactive` });
+    }
+    const servicesById = new Map(loadedServices.map((service) => [Number(service.id), service]));
+
+    const promoCodeInput = normalizePromoCode(req.body.promo_code);
+    let appliedPromo = null;
+    let promoGiftService = null;
+    let promoDiscountPercent = null;
+    let giftServiceAdded = false;
+
+    if (promoCodeInput) {
+      appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
+      if (!appliedPromo) {
+        return res.status(400).json({ error: 'Промокод не найден или неактивен' });
+      }
+
+      if (appliedPromo.reward_type === 'percent') {
+        promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
+      } else if (appliedPromo.reward_type === 'gift_service') {
+        const giftId = Number(appliedPromo.gift_id || appliedPromo.gift_service_id || 0);
+        const giftServiceIsValid = giftId > 0
+          && Number(appliedPromo.gift_master_id) === Number(master.id)
+          && Boolean(appliedPromo.gift_is_active);
+        if (!giftServiceIsValid) {
+          return res.status(400).json({ error: 'Подарочная зона промокода недоступна' });
+        }
+
+        promoGiftService = {
+          id: giftId,
+          master_id: Number(appliedPromo.gift_master_id),
+          name: appliedPromo.gift_name,
+          duration_minutes: Number(appliedPromo.gift_duration_minutes || 0),
+          price: Number(appliedPromo.gift_price || 0),
+          description: appliedPromo.gift_description || null,
+          buffer_before_minutes: Number(appliedPromo.gift_buffer_before_minutes || 0),
+          buffer_after_minutes: Number(appliedPromo.gift_buffer_after_minutes || 0),
+          is_active: true
+        };
+        if (!normalizedServiceIds.includes(giftId)) {
+          normalizedServiceIds.push(giftId);
+          giftServiceAdded = true;
+        }
+        servicesById.set(giftId, promoGiftService);
+      } else {
+        return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
+      }
+    }
+
+    const effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
+    if (effectiveServices.length !== normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'Не удалось собрать услуги для записи' });
     }
 
     const settings = await loadMasterSettings(master.id);
@@ -467,14 +541,22 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     if (minute % 10 !== 0) {
       return res.status(400).json({ error: 'Start time must be aligned to 10 minutes' });
     }
-    const minNoticeMinutes = Number(settings.min_booking_notice_minutes || 60);
+    const minNoticeMinutes = Number(settings.min_booking_notice_minutes ?? 60);
     if (startDate.getTime() < Date.now() + minNoticeMinutes * 60000) {
       return res.status(400).json({ error: `Booking is allowed at least ${minNoticeMinutes} minutes in advance` });
     }
 
     // Calculate totals across all services
-    const totalDurationMinutes = loadedServices.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
-    const totalBasePrice = loadedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+    const totalDurationMinutes = effectiveServices.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
+    const totalBasePrice = effectiveServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+    let discountAmount = 0;
+    if (promoDiscountPercent !== null) {
+      discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
+    } else if (promoGiftService) {
+      discountAmount = Number(promoGiftService.price || 0);
+    }
+    discountAmount = Math.min(totalBasePrice, Math.max(0, discountAmount));
+    const finalPrice = Math.max(0, Math.round((totalBasePrice - discountAmount) * 100) / 100);
 
     const localDate = dateInTimezone(startDate, timezone);
     const windowCoverage = await pool.query(
@@ -512,23 +594,17 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       });
     }
 
-    const firstBookingCheck = await pool.query(
-      `SELECT id FROM bookings WHERE master_id = $1 AND client_id = $2 LIMIT 1`,
-      [master.id, req.user.id]
-    );
-    const isFirstVisit = firstBookingCheck.rows.length === 0;
-    const discountPercent = isFirstVisit ? Number(settings.first_visit_discount_percent || 0) : 0;
-    const discountAmount = Math.round(totalBasePrice * discountPercent) / 100;
-    const finalPrice = Math.max(0, totalBasePrice - discountAmount);
-
-    const primaryServiceId = serviceIds[0];
-    const extraServiceIds = serviceIds.slice(1);
+    const primaryServiceId = normalizedServiceIds[0];
+    const extraServiceIds = normalizedServiceIds.slice(1);
     const endDate = new Date(startDate.getTime() + totalDurationMinutes * 60000);
 
     const result = await pool.query(
       `INSERT INTO bookings
-         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note)
-       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7)
+         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
+          promo_code_id, promo_code, promo_reward_type, promo_discount_percent, promo_gift_service_id,
+          pricing_base, pricing_final, pricing_discount_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7,
+               $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         master.id,
@@ -537,7 +613,15 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         JSON.stringify(extraServiceIds),
         startDate.toISOString(),
         endDate.toISOString(),
-        client_note || null
+        client_note || null,
+        appliedPromo ? Number(appliedPromo.id) : null,
+        appliedPromo ? String(appliedPromo.code) : null,
+        appliedPromo ? String(appliedPromo.reward_type) : null,
+        promoDiscountPercent,
+        promoGiftService ? Number(promoGiftService.id) : null,
+        totalBasePrice,
+        finalPrice,
+        discountAmount
       ]
     );
     const created = result.rows[0];
@@ -553,8 +637,13 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       ...created,
       pricing: {
         base_price: totalBasePrice,
-        first_visit_discount_percent: discountPercent,
-        final_price: finalPrice
+        final_price: finalPrice,
+        discount_amount: discountAmount,
+        promo_code: appliedPromo ? String(appliedPromo.code) : null,
+        promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
+        promo_discount_percent: promoDiscountPercent,
+        promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
+        promo_gift_service_added: giftServiceAdded
       }
     });
   } catch (error) {

@@ -17,7 +17,6 @@ router.get('/settings', loadMaster, asyncRoute(async (req, res) => {
       reminder_hours: [24, 2],
       quiet_hours_start: null,
       quiet_hours_end: null,
-      first_visit_discount_percent: 15,
       min_booking_notice_minutes: 60,
       apple_calendar_enabled: false,
       apple_calendar_token: null
@@ -33,7 +32,6 @@ router.put('/settings', loadMaster, asyncRoute(async (req, res) => {
     quiet_hours_start,
     quiet_hours_end,
     apple_calendar_enabled,
-    first_visit_discount_percent,
     min_booking_notice_minutes
   } = req.body;
   let reminderHoursValue = null;
@@ -56,12 +54,6 @@ router.put('/settings', loadMaster, asyncRoute(async (req, res) => {
     return res.status(400).json({ error: 'apple_calendar_enabled must be boolean' });
   }
   if (
-    first_visit_discount_percent !== undefined
-    && (!Number.isInteger(Number(first_visit_discount_percent)) || Number(first_visit_discount_percent) < 0 || Number(first_visit_discount_percent) > 90)
-  ) {
-    return res.status(400).json({ error: 'first_visit_discount_percent must be between 0 and 90' });
-  }
-  if (
     min_booking_notice_minutes !== undefined
     && (!Number.isInteger(Number(min_booking_notice_minutes)) || Number(min_booking_notice_minutes) < 0 || Number(min_booking_notice_minutes) > 1440)
   ) {
@@ -71,16 +63,15 @@ router.put('/settings', loadMaster, asyncRoute(async (req, res) => {
   const result = await pool.query(
     `INSERT INTO master_settings (
        master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled,
-       first_visit_discount_percent, min_booking_notice_minutes
+       min_booking_notice_minutes
      )
-     VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, COALESCE($5, false), COALESCE($6, 15), COALESCE($7, 60))
+     VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, COALESCE($5, false), COALESCE($6, 60))
      ON CONFLICT (master_id) DO UPDATE SET
        reminder_hours = COALESCE($2::jsonb, master_settings.reminder_hours),
        quiet_hours_start = $3,
        quiet_hours_end = $4,
        apple_calendar_enabled = COALESCE($5, master_settings.apple_calendar_enabled),
-       first_visit_discount_percent = COALESCE($6, master_settings.first_visit_discount_percent),
-       min_booking_notice_minutes = COALESCE($7, master_settings.min_booking_notice_minutes)
+       min_booking_notice_minutes = COALESCE($6, master_settings.min_booking_notice_minutes)
      RETURNING *`,
     [
       req.master.id,
@@ -88,7 +79,6 @@ router.put('/settings', loadMaster, asyncRoute(async (req, res) => {
       quiet_hours_start || null,
       quiet_hours_end || null,
       apple_calendar_enabled,
-      first_visit_discount_percent !== undefined ? Number(first_visit_discount_percent) : null,
       min_booking_notice_minutes !== undefined ? Number(min_booking_notice_minutes) : null
     ]
   );

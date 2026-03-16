@@ -395,6 +395,144 @@ router.post('/services/bootstrap-default', loadMaster, async (req, res) => {
   }
 });
 
+function normalizePromoCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
+function isComplexServiceRow(service) {
+  const name = String(service && service.name ? service.name : '');
+  const description = String(service && service.description ? service.description : '');
+  return /комплекс/i.test(name) || /комплекс/i.test(description);
+}
+
+// === PROMO CODES ===
+
+// GET /api/master/promo-codes
+router.get('/promo-codes', loadMaster, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
+              p.is_active, p.created_at, p.updated_at,
+              s.name AS gift_service_name
+       FROM master_promo_codes p
+       LEFT JOIN services s ON s.id = p.gift_service_id
+       WHERE p.master_id = $1
+       ORDER BY p.created_at DESC, p.id DESC`,
+      [req.master.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error loading promo codes:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/promo-codes
+router.post('/promo-codes', loadMaster, async (req, res) => {
+  try {
+    const rawCode = normalizePromoCode(req.body.code);
+    const rewardType = String(req.body.reward_type || '').trim();
+
+    if (!rawCode || rawCode.length < 3 || rawCode.length > 64) {
+      return res.status(400).json({ error: 'code must be 3-64 chars' });
+    }
+    if (!/^[A-Z0-9_-]+$/.test(rawCode)) {
+      return res.status(400).json({ error: 'code may contain only A-Z, 0-9, _ and -' });
+    }
+    if (!['percent', 'gift_service'].includes(rewardType)) {
+      return res.status(400).json({ error: 'reward_type must be percent or gift_service' });
+    }
+
+    let discountPercent = null;
+    let giftServiceId = null;
+
+    if (rewardType === 'percent') {
+      discountPercent = Number(req.body.discount_percent);
+      if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 90) {
+        return res.status(400).json({ error: 'discount_percent must be integer between 1 and 90' });
+      }
+    }
+
+    if (rewardType === 'gift_service') {
+      giftServiceId = Number(req.body.gift_service_id);
+      if (!Number.isInteger(giftServiceId) || giftServiceId <= 0) {
+        return res.status(400).json({ error: 'gift_service_id must be a positive integer' });
+      }
+
+      const giftServiceRes = await pool.query(
+        `SELECT id, master_id, name, description, is_active
+         FROM services
+         WHERE id = $1 AND master_id = $2
+         LIMIT 1`,
+        [giftServiceId, req.master.id]
+      );
+      if (!giftServiceRes.rows.length || !giftServiceRes.rows[0].is_active) {
+        return res.status(400).json({ error: 'gift service is not available' });
+      }
+      if (isComplexServiceRow(giftServiceRes.rows[0])) {
+        return res.status(400).json({ error: 'gift service must be an epilation zone, not a complex' });
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO master_promo_codes
+         (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
+       VALUES ($1, $2, $3, $4, $5, true)
+       RETURNING *`,
+      [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'promo code already exists' });
+    }
+    console.error('Error creating promo code:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /api/master/promo-codes/:id
+router.patch('/promo-codes/:id', loadMaster, async (req, res) => {
+  try {
+    if (typeof req.body.is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be boolean' });
+    }
+
+    const result = await pool.query(
+      `UPDATE master_promo_codes
+       SET is_active = $1, updated_at = NOW()
+       WHERE id = $2 AND master_id = $3
+       RETURNING *`,
+      [req.body.is_active, req.params.id, req.master.id]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Promo code not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating promo code:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/master/promo-codes/:id
+router.delete('/promo-codes/:id', loadMaster, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM master_promo_codes WHERE id = $1 AND master_id = $2 RETURNING id',
+      [req.params.id, req.master.id]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Promo code not found' });
+    }
+    res.json({ message: 'Promo code deleted' });
+  } catch (error) {
+    console.error('Error deleting promo code:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // === AVAILABILITY ===
 
 // GET /api/master/availability
@@ -1186,7 +1324,6 @@ router.get('/settings', loadMaster, async (req, res) => {
         reminder_hours: [24, 2],
         quiet_hours_start: null,
         quiet_hours_end: null,
-        first_visit_discount_percent: 15,
         min_booking_notice_minutes: 60,
         apple_calendar_enabled: false,
         apple_calendar_token: null
@@ -1207,7 +1344,6 @@ router.put('/settings', loadMaster, async (req, res) => {
       quiet_hours_start,
       quiet_hours_end,
       apple_calendar_enabled,
-      first_visit_discount_percent,
       min_booking_notice_minutes
     } = req.body;
     let reminderHoursValue = null;
@@ -1230,12 +1366,6 @@ router.put('/settings', loadMaster, async (req, res) => {
       return res.status(400).json({ error: 'apple_calendar_enabled must be boolean' });
     }
     if (
-      first_visit_discount_percent !== undefined
-      && (!Number.isInteger(Number(first_visit_discount_percent)) || Number(first_visit_discount_percent) < 0 || Number(first_visit_discount_percent) > 90)
-    ) {
-      return res.status(400).json({ error: 'first_visit_discount_percent must be between 0 and 90' });
-    }
-    if (
       min_booking_notice_minutes !== undefined
       && (!Number.isInteger(Number(min_booking_notice_minutes)) || Number(min_booking_notice_minutes) < 0 || Number(min_booking_notice_minutes) > 1440)
     ) {
@@ -1245,16 +1375,15 @@ router.put('/settings', loadMaster, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO master_settings (
          master_id, reminder_hours, quiet_hours_start, quiet_hours_end, apple_calendar_enabled,
-         first_visit_discount_percent, min_booking_notice_minutes
+         min_booking_notice_minutes
        )
-       VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, COALESCE($5, false), COALESCE($6, 15), COALESCE($7, 60))
+       VALUES ($1, COALESCE($2::jsonb, '[24, 2]'::jsonb), $3, $4, COALESCE($5, false), COALESCE($6, 60))
        ON CONFLICT (master_id) DO UPDATE SET
          reminder_hours = COALESCE($2::jsonb, master_settings.reminder_hours),
          quiet_hours_start = $3,
          quiet_hours_end = $4,
          apple_calendar_enabled = COALESCE($5, master_settings.apple_calendar_enabled),
-         first_visit_discount_percent = COALESCE($6, master_settings.first_visit_discount_percent),
-         min_booking_notice_minutes = COALESCE($7, master_settings.min_booking_notice_minutes)
+         min_booking_notice_minutes = COALESCE($6, master_settings.min_booking_notice_minutes)
        RETURNING *`,
       [
         req.master.id,
@@ -1262,7 +1391,6 @@ router.put('/settings', loadMaster, async (req, res) => {
         quiet_hours_start || null,
         quiet_hours_end || null,
         apple_calendar_enabled,
-        first_visit_discount_percent !== undefined ? Number(first_visit_discount_percent) : null,
         min_booking_notice_minutes !== undefined ? Number(min_booking_notice_minutes) : null
       ]
     );

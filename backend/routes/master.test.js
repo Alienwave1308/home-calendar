@@ -299,6 +299,69 @@ describe('Master API', () => {
     });
   });
 
+  describe('Promo codes', () => {
+    it('should list promo codes', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, is_active: true }] });
+
+      const res = await request(app)
+        .get('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].code).toBe('SAVE20');
+    });
+
+    it('should create percent promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 10, code: 'SAVE15', reward_type: 'percent', discount_percent: 15, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'save15', reward_type: 'percent', discount_percent: 15 })
+        .expect(201);
+
+      expect(res.body.code).toBe('SAVE15');
+      expect(res.body.reward_type).toBe('percent');
+      expect(res.body.discount_percent).toBe(15);
+    });
+
+    it('should create gift-service promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 12, master_id: 1, name: 'Сахар: Голень', description: 'Услуги', is_active: true }] })
+        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: 12, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'giftleg', reward_type: 'gift_service', gift_service_id: 12 })
+        .expect(201);
+
+      expect(res.body.code).toBe('GIFTLEG');
+      expect(res.body.reward_type).toBe('gift_service');
+      expect(res.body.gift_service_id).toBe(12);
+    });
+
+    it('should toggle promo code activity', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', is_active: false }] });
+
+      const res = await request(app)
+        .patch('/api/master/promo-codes/1')
+        .set('Authorization', authHeader)
+        .send({ is_active: false })
+        .expect(200);
+
+      expect(res.body.is_active).toBe(false);
+    });
+  });
+
   // === AVAILABILITY ===
 
   describe('POST /api/master/availability', () => {

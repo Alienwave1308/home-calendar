@@ -224,9 +224,23 @@
         </div>
         <div class="availability-form">
           <input id="minBookingNoticeMinutes" type="number" min="0" max="1440" value="60" placeholder="Минимум до записи, минут">
-          <input id="firstVisitDiscountPercent" type="number" min="0" max="90" value="15" placeholder="Скидка на первый визит, %">
-          <button class="btn-secondary" onclick="MasterApp.savePricingSettings()">Сохранить ограничения и скидку</button>
+          <button class="btn-secondary" onclick="MasterApp.savePricingSettings()">Сохранить ограничение</button>
         </div>
+      </div>
+      <div class="settings-card">
+        <h3>Промокоды</h3>
+        <p class="settings-hint">Промокод может давать процент скидки или подарочную зону эпиляции.</p>
+        <div class="availability-form">
+          <input id="promoCodeValue" type="text" maxlength="64" placeholder="Код, например SPRING30">
+          <select id="promoRewardType" onchange="MasterApp.onPromoRewardTypeChange()">
+            <option value="percent">Скидка, %</option>
+            <option value="gift_service">Зона в подарок</option>
+          </select>
+          <input id="promoDiscountPercent" type="number" min="1" max="90" value="10" placeholder="Скидка, %">
+          <select id="promoGiftServiceId" style="display:none;"></select>
+          <button class="btn-secondary" onclick="MasterApp.createPromoCode()">Создать промокод</button>
+        </div>
+        <div id="promoCodesList" class="settings-list"></div>
       </div>
       <div class="settings-card">
         <h3>Свободные окна для записи</h3>
