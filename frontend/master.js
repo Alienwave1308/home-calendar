@@ -839,13 +839,15 @@
     try {
       let settings = await apiFetch('/settings');
       appleSettings = settings;
+      const minBookingNotice = settings.min_booking_notice_minutes ?? 60;
+      const firstVisitDiscount = settings.first_visit_discount_percent ?? 15;
       $('reminderSettings').innerHTML = 'Напоминания за: <strong>' + (settings.reminder_hours || [24, 2]).join(', ') + '</strong> ч.'
-        + '<br>Минимум до записи: <strong>' + (settings.min_booking_notice_minutes || 60) + '</strong> мин'
-        + '<br>Скидка на первый визит: <strong>' + (settings.first_visit_discount_percent || 15) + '%</strong>';
+        + '<br>Минимум до записи: <strong>' + minBookingNotice + '</strong> мин'
+        + '<br>Скидка на первый визит: <strong>' + firstVisitDiscount + '%</strong>';
       $('reminderHoursFirst').value = Number((settings.reminder_hours || [24, 2])[0] || 24);
       $('reminderHoursSecond').value = Number((settings.reminder_hours || [24, 2])[1] || 2);
-      $('minBookingNoticeMinutes').value = Number(settings.min_booking_notice_minutes || 60);
-      $('firstVisitDiscountPercent').value = Number(settings.first_visit_discount_percent || 15);
+      $('minBookingNoticeMinutes').value = Number(minBookingNotice);
+      $('firstVisitDiscountPercent').value = Number(firstVisitDiscount);
     } catch (_) {
       $('reminderSettings').textContent = 'Не удалось загрузить';
     }
@@ -954,8 +956,10 @@
 
   async function savePricingSettings() {
     try {
-      const minMinutes = Number($('minBookingNoticeMinutes').value || 60);
-      const discount = Number($('firstVisitDiscountPercent').value || 15);
+      const minMinutesRaw = $('minBookingNoticeMinutes').value;
+      const discountRaw = $('firstVisitDiscountPercent').value;
+      const minMinutes = minMinutesRaw === '' ? 60 : Number(minMinutesRaw);
+      const discount = discountRaw === '' ? 15 : Number(discountRaw);
       await apiMethod('PUT', '/settings', {
         min_booking_notice_minutes: minMinutes,
         first_visit_discount_percent: discount

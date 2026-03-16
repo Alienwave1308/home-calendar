@@ -104,8 +104,6 @@
   let methodFilter = 'all';
   let categoryFilter = 'all';
   let rescheduleBookingId = null;
-  let currentDateOffset = 0; // days from today
-  const DAYS_TO_SHOW = 14;
 
   // === HELPERS ===
 
@@ -213,6 +211,22 @@
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return y + '-' + m + '-' + d;
+  }
+
+  function startOfToday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  function endOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  }
+
+  function getDateStripDaysCount() {
+    const today = startOfToday();
+    const monthEnd = endOfMonth(today);
+    return Math.max(1, monthEnd.getDate() - today.getDate() + 1);
   }
 
   // === SKELETONS ===
@@ -464,7 +478,6 @@
     }
 
     showStep('stepSlots');
-    currentDateOffset = 0;
     renderDateStrip();
     selectDate(toDateStr(new Date()));
   }
@@ -478,7 +491,6 @@
     $('selectedServiceName').textContent = selectedService.name;
     $('selectedServicesChips').style.display = 'none';
     showStep('stepSlots');
-    currentDateOffset = 0;
     renderDateStrip();
     selectDate(toDateStr(new Date()));
   }
@@ -487,10 +499,10 @@
 
   function renderDateStrip() {
     let html = '';
-    let today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = startOfToday();
+    const daysToShow = getDateStripDaysCount();
 
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
+    for (let i = 0; i < daysToShow; i++) {
       let d = new Date(today.getTime() + i * 86400000);
       let ds = toDateStr(d);
       let isActive = ds === selectedDate;
@@ -510,6 +522,11 @@
     document.querySelectorAll('.date-chip').forEach(function (c) {
       c.classList.toggle('active', c.dataset.date === dateStr);
     });
+
+    const activeChip = document.querySelector('.date-chip.active');
+    if (activeChip && typeof activeChip.scrollIntoView === 'function') {
+      activeChip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
 
     // Load slots
     $('slotsList').innerHTML = renderSlotSkeletons();
@@ -631,10 +648,19 @@
 
   function nextDate() {
     if (!selectedDate) return;
-    let d = new Date(selectedDate + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    let next = toDateStr(d);
-    renderDateStrip();
+    const d = new Date(selectedDate + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return;
+
+    const nextDateObj = new Date(d);
+    nextDateObj.setDate(nextDateObj.getDate() + 1);
+
+    const monthEnd = endOfMonth(startOfToday());
+    if (nextDateObj > monthEnd) {
+      showToast('Доступны даты только до конца текущего месяца');
+      return;
+    }
+
+    const next = toDateStr(nextDateObj);
     selectDate(next);
     showStep('stepSlots');
   }
