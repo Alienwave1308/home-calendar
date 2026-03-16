@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>RoVa Epil — Панель мастера (мокап)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-0: #f5fff9;
+      --bg-1: #ecfaf2;
+      --bg-2: #dff2e7;
+      --surface: rgba(255, 255, 255, 0.86);
+      --surface-strong: rgba(255, 255, 255, 0.95);
+      --line: rgba(31, 134, 88, 0.24);
+      --line-strong: rgba(21, 112, 72, 0.45);
+      --text: #143025;
+      --text-soft: #527467;
+      --primary: #2a9a66;
+      --primary-strong: #197a4e;
+      --mint: #1ed093;
+      --danger: #d64f6d;
+      --warning: #efb83f;
+      --radius-xl: 28px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --shadow-phone: 0 26px 52px rgba(21, 92, 59, 0.2);
+      --shadow-card: 0 12px 24px rgba(21, 90, 59, 0.12);
+      --shadow-soft: 0 8px 14px rgba(17, 82, 53, 0.1);
+      --transition: 180ms ease;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1080px 620px at -8% -16%, #d4f3e1 0%, transparent 58%),
+        radial-gradient(960px 640px at 108% -8%, #d3eedf 0%, transparent 62%),
+        linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 52%, var(--bg-2) 100%);
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    .grain {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.08;
+      z-index: -2;
+      background-image: radial-gradient(rgba(17, 88, 58, 0.35) 0.5px, transparent 0.5px);
+      background-size: 3px 3px;
+    }
+
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(30px);
+      pointer-events: none;
+      z-index: -1;
+      animation: drift 12s ease-in-out infinite;
+    }
+
+    .orb.a {
+      width: 250px;
+      height: 250px;
+      background: rgba(35, 182, 124, 0.2);
+      left: -80px;
+      top: 12%;
+    }
+
+    .orb.b {
+      width: 320px;
+      height: 320px;
+      background: rgba(34, 159, 120, 0.14);
+      right: -120px;
+      top: 2%;
+      animation-delay: 2.4s;
+    }
+
+    .layout {
+      max-width: 440px;
+      margin: 0 auto;
+      display: block;
+    }
+
+    .device {
+      position: sticky;
+      top: 12px;
+      border-radius: var(--radius-xl);
+      border: 1px solid #cee8da;
+      background: linear-gradient(180deg, #eff9f3 0%, #e5f3ec 100%);
+      box-shadow: var(--shadow-phone);
+      overflow: hidden;
+      min-height: 780px;
+      isolation: isolate;
+    }
+
+    .device::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, transparent 26%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .statusbar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px 6px;
+      color: #5f7d70;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .device-header {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 36px 1fr 36px;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px 10px;
+    }
+
+    .icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      border: 1px solid #c8e1d2;
+      background: rgba(255, 255, 255, 0.84);
+      color: #295f49;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .device-title {
+      margin: 0;
+      text-align: center;
+      font-family: "Manrope", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-size: 15px;
+    }
+
+    .device-subtitle {
+      margin: 2px 0 0;
+      text-align: center;
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .phone-content {
+      position: relative;
+      z-index: 1;
+      padding: 10px 12px 90px;
+    }
+
+    .preview-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+      padding: 12px;
+      backdrop-filter: blur(10px);
+      margin-bottom: 10px;
+    }
+
+    .preview-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .brand-name {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      font-size: 23px;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-sub {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--text-soft);
+      font-weight: 600;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(34, 138, 91, 0.24);
+      background: rgba(255, 255, 255, 0.86);
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #2f624d;
+      white-space: nowrap;
+    }
+
+    .preview-grid {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.62);
+      border-radius: 12px;
+      padding: 8px;
+    }
+
+    .stat-label {
+      margin: 0;
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .stat-value {
+      margin: 4px 0 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .preview-text {
+      margin: 10px 0 0;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #244d3c;
+    }
+
+    .preview-link {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary-strong);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(25, 122, 78, 0.4);
+    }
+
+    .preview-link:hover {
+      color: #105f3b;
+      border-bottom-color: rgba(16, 95, 59, 0.6);
+    }
+
+    .preview-services {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .preview-service {
+      border-radius: 13px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.63);
+      padding: 9px;
+    }
+
+    .preview-service h4 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .preview-service p {
+      margin: 4px 0 0;
+      color: var(--text-soft);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .device-nav {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      background: rgba(250, 255, 252, 0.94);
+      box-shadow: var(--shadow-soft);
+      border-radius: 16px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .device-nav button {
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 10px;
+      padding: 7px 4px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      color: #628578;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .device-nav button.active {
+      background: rgba(42, 154, 102, 0.14);
+      border-color: rgba(42, 154, 102, 0.35);
+      color: #1d7248;
+      transform: translateY(-1px);
+    }
+
+    .panel {
+      border-radius: var(--radius-xl);
+      border: 1px solid #cde6d8;
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(240, 252, 246, 0.84));
+      box-shadow: var(--shadow-phone);
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+      min-height: calc(100vh - 40px);
+    }
+
+    .panel-header {
+      padding: 12px 12px 10px;
+      border-bottom: 1px solid rgba(33, 126, 84, 0.18);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-sub {
+      margin: 4px 0 0;
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.84);
+      color: #245441;
+      border-radius: 12px;
+      padding: 9px 12px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, var(--primary), #1f8c5a);
+      border-color: rgba(19, 107, 69, 0.8);
+      color: #f2fff8;
+    }
+
+    .btn.ghost {
+      background: rgba(236, 249, 242, 0.65);
+    }
+
+    .btn.danger {
+      border-color: rgba(214, 79, 109, 0.4);
+      color: #8d2d44;
+      background: rgba(255, 237, 242, 0.76);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      border: 1px solid rgba(35, 138, 91, 0.25);
+      background: rgba(255, 255, 255, 0.74);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      color: #487062;
+      cursor: pointer;
+      transition: all var(--transition);
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, rgba(42, 154, 102, 0.18), rgba(30, 208, 147, 0.16));
+      color: #145738;
+      border-color: rgba(27, 130, 84, 0.45);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 14px rgba(24, 99, 64, 0.14);
+    }
+
+    .screens {
+      padding: 12px;
+    }
+
+    .screen {
+      display: none;
+      animation: fadeIn 220ms ease;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .card {
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+      padding: 14px;
+      margin-bottom: 10px;
+      backdrop-filter: blur(10px);
+    }
+
+    .card h3 {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .card-sub {
+      margin: 6px 0 0;
+      color: var(--text-soft);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.68);
+    }
+
+    .kpi p {
+      margin: 0;
+      color: var(--text-soft);
+      font-size: 12px;
+    }
+
+    .kpi strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+      font-family: "Manrope", sans-serif;
+    }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .quick-actions .btn:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .overview-controls {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .period-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .period-grid .btn {
+      padding-left: 10px;
+      padding-right: 10px;
+      white-space: nowrap;
+    }
+
+    .period-badge {
+      margin: 0;
+      color: #4f7567;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .timeline {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .timeline-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px;
+      display: grid;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .timeline-item h4 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .meta {
+      color: var(--text-soft);
+      font-size: 12px;
+    }
+
+    .form-grid {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: #4f7264;
+      font-weight: 700;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid rgba(31, 129, 84, 0.25);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 11px;
+      font: inherit;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: all var(--transition);
+    }
+
+    textarea {
+      min-height: 94px;
+      resize: vertical;
+      line-height: 1.35;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      border-color: rgba(31, 129, 84, 0.58);
+      box-shadow: 0 0 0 3px rgba(39, 170, 116, 0.14);
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      font-size: 12px;
+      color: var(--text-soft);
+      line-height: 1.35;
+    }
+
+    .service-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+
+    .seg {
+      border: 1px solid rgba(33, 131, 87, 0.26);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #496f61;
+      background: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .seg.active {
+      color: #155a39;
+      border-color: rgba(25, 122, 78, 0.45);
+      background: rgba(42, 154, 102, 0.16);
+    }
+
+    .services-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .service-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.63);
+      display: grid;
+      gap: 6px;
+    }
+
+    .service-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .service-head h4 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .tag {
+      border: 1px solid rgba(30, 117, 76, 0.28);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #3d6758;
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .service-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .service-muted {
+      opacity: 0.58;
+    }
+
+    .calendar-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      gap: 8px;
+    }
+
+    .calendar-title {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      font-size: 19px;
+      letter-spacing: -0.02em;
+    }
+
+    .calendar-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .weekday,
+    .day {
+      border-radius: 10px;
+      text-align: center;
+      font-size: 12px;
+      padding: 7px 4px;
+    }
+
+    .weekday {
+      color: #5d8172;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(31, 129, 84, 0.16);
+    }
+
+    .day {
+      border: 1px solid rgba(31, 129, 84, 0.2);
+      background: rgba(255, 255, 255, 0.72);
+      color: #275441;
+      cursor: pointer;
+      transition: all var(--transition);
+      position: relative;
+      font-weight: 700;
+    }
+
+    .day.off-month {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    .day.status-open::after,
+    .day.status-busy::after,
+    .day.status-off::after {
+      content: "";
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      bottom: 5px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .day.status-open::after {
+      background: #1ecf8f;
+    }
+
+    .day.status-busy::after {
+      background: #f1bb4a;
+    }
+
+    .day.status-off::after {
+      background: #e16a87;
+    }
+
+    .day.active {
+      border-color: rgba(24, 118, 76, 0.8);
+      box-shadow: 0 0 0 2px rgba(24, 118, 76, 0.18);
+      transform: translateY(-1px);
+    }
+
+    .interval-list {
+      margin-top: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .interval {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.66);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .promo-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .promo {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.65);
+      display: grid;
+      gap: 6px;
+    }
+
+    .promo-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .promo-code {
+      font-family: "Manrope", sans-serif;
+      font-size: 18px;
+      letter-spacing: 0.05em;
+      margin: 0;
+    }
+
+    .badge {
+      border-radius: 999px;
+      border: 1px solid rgba(24, 122, 78, 0.3);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #2c5c49;
+    }
+
+    .badge.off {
+      color: #8a3550;
+      border-color: rgba(214, 79, 109, 0.32);
+      background: rgba(255, 235, 241, 0.84);
+    }
+
+    .promo-actions,
+    .stack-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .empty {
+      border: 1px dashed rgba(31, 129, 84, 0.36);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      font-size: 13px;
+      color: #588071;
+      background: rgba(255, 255, 255, 0.48);
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: rgba(19, 87, 56, 0.92);
+      color: #f2fff8;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 14px 24px rgba(13, 66, 42, 0.26);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: all 200ms ease;
+      z-index: 50;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translateY(0) translateX(0); }
+      50% { transform: translateY(-14px) translateX(10px); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 680px) {
+      body {
+        padding: 8px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-header {
+        padding: 10px 10px 8px;
+      }
+
+      .screens {
+        padding: 10px;
+      }
+
+      .period-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="grain"></div>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="statusbar">
+        <span>08:19</span>
+        <span>Telegram Mini App</span>
+      </div>
+      <header class="device-header">
+        <div class="icon">‹</div>
+        <div>
+          <h1 class="device-title">Профиль мастера</h1>
+          <p class="device-subtitle">Кабинет в Telegram</p>
+        </div>
+        <div class="icon">⋯</div>
+      </header>
+      <header class="panel-header">
+        <div>
+          <h2 class="panel-title">Панель мастера</h2>
+          <p class="panel-sub">Мобильный мокап под Telegram Mini App.</p>
+        </div>
+        <div class="row" style="margin-top:0;">
+          <button class="btn" id="copyLinkBtn">Скопировать ссылку</button>
+          <button class="btn ghost" id="resetBtn">Сбросить демо</button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs"></nav>
+      <div class="screens" id="screens"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var STORAGE_KEY = 'hc-master-profile-mockup-v1';
+      var monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+      var weekNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+      var tabs = [
+        { id: 'overview', label: 'Обзор' },
+        { id: 'profile', label: 'Профиль' },
+        { id: 'services', label: 'Услуги' },
+        { id: 'schedule', label: 'График' },
+        { id: 'promo', label: 'Промокоды' }
+      ];
+
+      function seedState() {
+        var today = new Date();
+        var todayIso = isoDate(today);
+        var m = new Date(today.getFullYear(), today.getMonth(), 1);
+        var y = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var services = [
+          { id: 101, name: 'Сахар: Глубокое бикини + голень', method: 'sugar', category: 'Комплекс', duration: 75, price: 1500, active: true },
+          { id: 102, name: 'Сахар: Ноги полностью + бикини классика', method: 'sugar', category: 'Комплекс', duration: 105, price: 2200, active: true },
+          { id: 103, name: 'Воск: Подмышки + голень', method: 'wax', category: 'Комплекс', duration: 45, price: 1700, active: true },
+          { id: 104, name: 'Сахар: Подмышечные впадины', method: 'sugar', category: 'Зоны', duration: 20, price: 700, active: false }
+        ];
+        var bookings = generateBookings(today, services);
+
+        return {
+          master: {
+            brand: 'Ro Va Epil',
+            name: 'Лера',
+            role: 'Мастер эпиляции',
+            city: 'Новосибирск',
+            experience: '5 лет',
+            phone: '+7 999 123-45-67',
+            address: 'Красный проспект, 17',
+            bio: 'Делаю эпиляцию деликатно и без спешки. Всегда объясняю, как подготовиться, и подбираю удобные окна.',
+            bookingLink: 'https://m.vk.ru/rova-epil',
+            giftText: 'Подарок от меня на первое посещение по ссылке:',
+            giftUrl: 'https://vk.cc/cVmuLI'
+          },
+          bookings: bookings,
+          services: services,
+          promoCodes: [
+            { id: 1, code: 'WELCOME15', type: 'percent', percent: 15, giftZone: '', active: true },
+            { id: 2, code: 'GIFTLEG', type: 'gift', percent: 0, giftZone: 'Голень', active: true }
+          ],
+          schedule: {
+            [y + '-' + mm + '-23']: { status: 'open', intervals: ['10:00-13:00', '15:00-20:00'] },
+            [y + '-' + mm + '-24']: { status: 'open', intervals: ['11:00-19:00'] },
+            [y + '-' + mm + '-25']: { status: 'busy', intervals: ['10:00-14:00'] },
+            [y + '-' + mm + '-26']: { status: 'off', intervals: [] }
+          },
+          ui: {
+            tab: 'overview',
+            serviceFilter: 'all',
+            currentMonth: m.toISOString(),
+            selectedDate: todayIso,
+            metricsPreset: 'month',
+            periodFrom: '',
+            periodTo: ''
+          }
+        };
+      }
+
+      function plusDays(base, add) {
+        var d = new Date(base);
+        d.setDate(d.getDate() + add);
+        return isoDate(d);
+      }
+
+      function pseudo(seed) {
+        var x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+        return x - Math.floor(x);
+      }
+
+      function timeStamp(day, time) {
+        return new Date(day + 'T' + time + ':00');
+      }
+
+      function addMinutes(date, minutes) {
+        return new Date(date.getTime() + minutes * 60000);
+      }
+
+      function buildStatus(dayOffset, value) {
+        if (dayOffset >= 1) return value > 0.86 ? 'pending' : 'confirmed';
+        if (dayOffset <= -1) {
+          if (value > 0.9) return 'canceled';
+          if (value > 0.78) return 'no_show';
+          if (value > 0.12) return 'completed';
+          return 'confirmed';
+        }
+        if (value > 0.82) return 'canceled';
+        return value > 0.3 ? 'completed' : 'confirmed';
+      }
+
+      function generateBookings(today, services) {
+        var clients = [
+          { id: 1, name: 'Алина' },
+          { id: 2, name: 'Мария' },
+          { id: 3, name: 'Полина' },
+          { id: 4, name: 'Ольга' },
+          { id: 5, name: 'Анастасия' },
+          { id: 6, name: 'Дарья' },
+          { id: 7, name: 'Софья' }
+        ];
+        var slots = ['09:30', '11:00', '12:40', '14:20', '16:00', '17:40', '19:10'];
+        var list = [];
+        var id = 1;
+
+        for (var offset = -220; offset <= 20; offset += 1) {
+          var date = new Date(today);
+          date.setDate(today.getDate() + offset);
+          var weekday = date.getDay();
+          var dayIso = isoDate(date);
+          var planned = weekday === 0 ? 0 : (weekday === 6 ? 2 : 3);
+          if (offset > 0) planned = Math.max(1, planned - 1);
+
+          for (var i = 0; i < planned; i += 1) {
+            var seed = (offset + 500) * 17 + i * 29;
+            var service = services[Math.floor(pseudo(seed) * services.length)];
+            var client = clients[Math.floor(pseudo(seed + 3) * clients.length)];
+            var time = slots[(i + Math.floor(pseudo(seed + 6) * 3)) % slots.length];
+            var startAt = timeStamp(dayIso, time);
+            var endAt = addMinutes(startAt, Number(service.duration || 60));
+            var status = buildStatus(offset, pseudo(seed + 9));
+            var discountFactor = 1 - Math.round(pseudo(seed + 12) * 18) / 100;
+            var finalPrice = Math.round(Number(service.price || 0) * discountFactor);
+
+            list.push({
+              id: id++,
+              clientId: client.id,
+              client: client.name,
+              service: service.name,
+              status: status,
+              startAt: startAt.toISOString(),
+              endAt: endAt.toISOString(),
+              finalPrice: finalPrice
+            });
+          }
+        }
+
+        return list;
+      }
+
+      function isoDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+
+      function loadState() {
+        var seed = seedState();
+        try {
+          var raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return seed;
+          var parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object') return seed;
+
+          return {
+            master: Object.assign({}, seed.master, parsed.master || {}),
+            bookings: Array.isArray(parsed.bookings) && parsed.bookings.length ? parsed.bookings : seed.bookings,
+            services: Array.isArray(parsed.services) ? parsed.services : seed.services,
+            promoCodes: Array.isArray(parsed.promoCodes) ? parsed.promoCodes : seed.promoCodes,
+            schedule: parsed.schedule && typeof parsed.schedule === 'object' ? parsed.schedule : seed.schedule,
+            ui: Object.assign({}, seed.ui, parsed.ui || {})
+          };
+        } catch (e) {
+          return seed;
+        }
+      }
+
+      var state = loadState();
+
+      var el = {
+        tabs: document.getElementById('tabs'),
+        screens: document.getElementById('screens'),
+        toast: document.getElementById('toast'),
+        copyLinkBtn: document.getElementById('copyLinkBtn'),
+        resetBtn: document.getElementById('resetBtn')
+      };
+
+      var toastTimer = null;
+
+      function persist() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function showToast(text) {
+        el.toast.textContent = text;
+        el.toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+          el.toast.classList.remove('show');
+        }, 1500);
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function money(v) {
+        return Number(v || 0).toLocaleString('ru-RU');
+      }
+
+      function formatDateRu(iso) {
+        var d = new Date(iso + 'T00:00:00');
+        return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' });
+      }
+
+      function formatTimeRu(isoTs) {
+        var d = new Date(isoTs);
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function getCurrentMonth() {
+        var d = new Date(state.ui.currentMonth);
+        if (Number.isNaN(d.getTime())) {
+          d = new Date();
+        }
+        return new Date(d.getFullYear(), d.getMonth(), 1);
+      }
+
+      function setTab(tabId) {
+        state.ui.tab = tabId;
+        persist();
+        render();
+      }
+
+      function renderTabs() {
+        el.tabs.innerHTML = tabs.map(function (t) {
+          var active = t.id === state.ui.tab ? 'active' : '';
+          return '<button class="tab ' + active + '" data-tab="' + t.id + '">' + t.label + '</button>';
+        }).join('');
+
+        Array.prototype.slice.call(el.tabs.querySelectorAll('[data-tab]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            setTab(btn.getAttribute('data-tab'));
+          });
+        });
+      }
+
+      function getDoneNonCanceledBookings() {
+        var nowMs = Date.now();
+        return (state.bookings || []).filter(function (item) {
+          if (!item || item.status === 'canceled') return false;
+          var endMs = new Date(item.endAt).getTime();
+          return Number.isFinite(endMs) && endMs <= nowMs;
+        });
+      }
+
+      function getUpcomingBookings() {
+        var nowMs = Date.now();
+        return (state.bookings || [])
+          .filter(function (item) {
+            if (!item || item.status === 'canceled') return false;
+            var startMs = new Date(item.startAt).getTime();
+            return Number.isFinite(startMs) && startMs > nowMs;
+          })
+          .sort(function (a, b) {
+            return new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
+          });
+      }
+
+      function getAnalyticsBounds() {
+        var done = getDoneNonCanceledBookings();
+        if (!done.length) {
+          var nowIso = isoDate(new Date());
+          return { min: nowIso, max: nowIso };
+        }
+        return done.reduce(function (acc, item) {
+          var d = isoDate(new Date(item.endAt));
+          if (!acc.min || d < acc.min) acc.min = d;
+          if (!acc.max || d > acc.max) acc.max = d;
+          return acc;
+        }, { min: '', max: '' });
+      }
+
+      function clampIso(iso, minIso, maxIso) {
+        var value = String(iso || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return minIso;
+        if (value < minIso) return minIso;
+        if (value > maxIso) return maxIso;
+        return value;
+      }
+
+      function getRangeByPreset(preset, bounds) {
+        var toDate = new Date(bounds.max + 'T00:00:00');
+        var fromDate = new Date(toDate);
+        if (preset === 'day') {
+          fromDate = new Date(toDate);
+        } else if (preset === 'week') {
+          fromDate.setDate(fromDate.getDate() - 6);
+        } else if (preset === 'month') {
+          fromDate = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+        } else {
+          fromDate = new Date(bounds.min + 'T00:00:00');
+        }
+
+        var minDate = new Date(bounds.min + 'T00:00:00');
+        if (fromDate.getTime() < minDate.getTime()) {
+          fromDate = minDate;
+        }
+        return { from: isoDate(fromDate), to: bounds.max };
+      }
+
+      function ensureMetricsPeriod() {
+        var bounds = getAnalyticsBounds();
+        if (!state.ui.metricsPreset) state.ui.metricsPreset = 'month';
+
+        if (!state.ui.periodFrom || !state.ui.periodTo) {
+          var presetRange = getRangeByPreset(state.ui.metricsPreset, bounds);
+          state.ui.periodFrom = presetRange.from;
+          state.ui.periodTo = presetRange.to;
+        }
+
+        var fromIso = clampIso(state.ui.periodFrom, bounds.min, bounds.max);
+        var toIso = clampIso(state.ui.periodTo, bounds.min, bounds.max);
+        if (fromIso > toIso) {
+          var t = fromIso;
+          fromIso = toIso;
+          toIso = t;
+        }
+        state.ui.periodFrom = fromIso;
+        state.ui.periodTo = toIso;
+      }
+
+      function detectPresetForRange(fromIso, toIso) {
+        var bounds = getAnalyticsBounds();
+        var presets = ['day', 'week', 'month', 'all'];
+        for (var i = 0; i < presets.length; i += 1) {
+          var p = presets[i];
+          var r = getRangeByPreset(p, bounds);
+          if (r.from === fromIso && r.to === toIso) return p;
+        }
+        return 'custom';
+      }
+
+      function formatRangeLabel(fromIso, toIso) {
+        if (!fromIso || !toIso) return 'Период не выбран';
+        if (fromIso === toIso) return formatDateRu(fromIso);
+        return formatDateRu(fromIso) + ' — ' + formatDateRu(toIso);
+      }
+
+      function calculateMetricsSnapshot() {
+        ensureMetricsPeriod();
+        var fromIso = state.ui.periodFrom;
+        var toIso = state.ui.periodTo;
+        var done = getDoneNonCanceledBookings();
+        var rows = done.filter(function (item) {
+          var d = isoDate(new Date(item.endAt));
+          return d >= fromIso && d <= toIso;
+        });
+
+        var totals = rows.reduce(function (acc, row) {
+          acc.revenue += Number(row.finalPrice || 0);
+          acc.bookings += 1;
+          acc.completed += row.status === 'completed' ? 1 : 0;
+          return acc;
+        }, { revenue: 0, bookings: 0, completed: 0 });
+
+        var rowsById = rows.reduce(function (acc, item) {
+          acc[item.id] = true;
+          return acc;
+        }, {});
+        var ordered = done.slice().sort(function (a, b) {
+          return new Date(a.endAt).getTime() - new Date(b.endAt).getTime();
+        });
+        var seenByClient = {};
+        var repeat = 0;
+        ordered.forEach(function (item) {
+          var key = String(item.clientId || item.client || '');
+          var seen = seenByClient[key] || 0;
+          if (rowsById[item.id] && seen > 0) {
+            repeat += 1;
+          }
+          seenByClient[key] = seen + 1;
+        });
+
+        var fromDate = new Date(fromIso + 'T00:00:00');
+        var toDate = new Date(toIso + 'T00:00:00');
+        var days = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / 86400000) + 1);
+
+        return {
+          from: fromIso,
+          to: toIso,
+          label: formatRangeLabel(fromIso, toIso),
+          revenue: totals.revenue,
+          bookings: totals.bookings,
+          repeatRate: totals.bookings ? Math.round((repeat / totals.bookings) * 100) : 0,
+          fillRate: totals.bookings ? Math.round((totals.completed / totals.bookings) * 100) : 0,
+          days: days
+        };
+      }
+
+      function renderOverview() {
+        var upcoming = getUpcomingBookings().slice(0, 4);
+        var metrics = calculateMetricsSnapshot();
+        var activePromo = state.promoCodes.find(function (p) { return p.active; });
+        var promoLabel = activePromo
+          ? (activePromo.type === 'percent' ? ('Скидка ' + activePromo.percent + '%') : ('Подарок: ' + activePromo.giftZone))
+          : 'Нет активного промо';
+        var presets = [
+          { id: 'day', label: 'День' },
+          { id: 'week', label: 'Неделя' },
+          { id: 'month', label: 'Месяц' },
+          { id: 'all', label: 'Все время' }
+        ];
+        return ''
+          + '<section class="screen ' + (state.ui.tab === 'overview' ? 'active' : '') + '" data-screen="overview">'
+            + '<article class="card">'
+              + '<h3>Пульс кабинета</h3>'
+              + '<p class="card-sub">Telegram-формат: быстрые фильтры периода + ручной выбор дат.</p>'
+              + '<p class="hint" style="margin-top:8px;">В статистике учитываются только неотмененные записи, у которых уже прошло время выполнения.</p>'
+              + '<div class="overview-controls">'
+                + '<div class="service-toolbar">'
+                  + presets.map(function (item) {
+                    return '<button class="seg ' + (state.ui.metricsPreset === item.id ? 'active' : '') + '" data-metrics-preset="' + item.id + '">' + item.label + '</button>';
+                  }).join('')
+                + '</div>'
+                + '<div class="period-grid">'
+                  + '<div class="field"><label>С</label><input id="metricsFrom" type="date" value="' + metrics.from + '"></div>'
+                  + '<div class="field"><label>По</label><input id="metricsTo" type="date" value="' + metrics.to + '"></div>'
+                  + '<button class="btn" id="applyMetricsPeriod">Применить</button>'
+                + '</div>'
+                + '<p class="period-badge">Период: ' + metrics.label + ' · дней: ' + metrics.days + '</p>'
+              + '</div>'
+              + '<div class="kpi-grid">'
+                + '<div class="kpi"><p>Выручка</p><strong>' + money(metrics.revenue) + ' ₽</strong></div>'
+                + '<div class="kpi"><p>Завершенные</p><strong>' + Number(metrics.bookings) + '</strong></div>'
+                + '<div class="kpi"><p>Повторные</p><strong>' + Number(metrics.repeatRate) + '%</strong></div>'
+                + '<div class="kpi"><p>Выполнение</p><strong>' + Number(metrics.fillRate) + '%</strong></div>'
+              + '</div>'
+              + '<div class="quick-actions">'
+                + '<button class="btn" data-jump="profile">Редактировать профиль</button>'
+                + '<button class="btn" data-jump="schedule">Окна на месяц</button>'
+                + '<button class="btn" data-jump="promo">Промокоды</button>'
+              + '</div>'
+            + '</article>'
+            + '<article class="card">'
+              + '<h3>Публичная карточка</h3>'
+              + '<div class="preview-top" style="margin-top:10px;">'
+                + '<div>'
+                  + '<h4 class="brand-name" style="font-size:22px;">' + escapeHtml(state.master.brand) + '</h4>'
+                  + '<p class="brand-sub">' + escapeHtml(state.master.name) + ' · ' + escapeHtml(state.master.role) + '</p>'
+                + '</div>'
+                + '<span class="chip">' + escapeHtml(state.master.city) + '</span>'
+              + '</div>'
+              + '<div class="preview-grid">'
+                + '<article class="stat"><p class="stat-label">Опыт</p><p class="stat-value">' + escapeHtml(state.master.experience) + '</p></article>'
+                + '<article class="stat"><p class="stat-label">Завершено</p><p class="stat-value">' + Number(metrics.bookings) + '</p></article>'
+                + '<article class="stat"><p class="stat-label">Повторные</p><p class="stat-value">' + Number(metrics.repeatRate) + '%</p></article>'
+                + '<article class="stat"><p class="stat-label">Промо</p><p class="stat-value" style="font-size:13px;line-height:1.2;">' + escapeHtml(promoLabel) + '</p></article>'
+              + '</div>'
+              + '<p class="preview-text">' + escapeHtml(state.master.giftText) + '</p>'
+              + '<a class="preview-link" href="' + escapeHtml(state.master.giftUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(state.master.giftUrl.replace('https://', '')) + '</a>'
+            + '</article>'
+            + '<article class="card">'
+              + '<h3>Ближайшие записи</h3>'
+              + '<div class="timeline">'
+                + (upcoming.length ? upcoming.map(function (item) {
+                  return '<div class="timeline-item">'
+                    + '<h4>' + escapeHtml(item.client) + '</h4>'
+                    + '<div class="meta">' + escapeHtml(item.service) + '</div>'
+                    + '<div class="meta">' + formatDateRu(isoDate(new Date(item.startAt))) + ' · ' + formatTimeRu(item.startAt) + '</div>'
+                  + '</div>';
+                }).join('') : '<div class="empty">Нет запланированных визитов.</div>')
+              + '</div>'
+            + '</article>'
+          + '</section>';
+      }
+
+      function renderProfile() {
+        var m = state.master;
+        return ''
+          + '<section class="screen ' + (state.ui.tab === 'profile' ? 'active' : '') + '" data-screen="profile">'
+            + '<article class="card">'
+              + '<h3>Карточка мастера</h3>'
+              + '<p class="card-sub">Меняй поля и сразу смотри, как выглядит публичная карточка клиента.</p>'
+              + '<div class="form-grid">'
+                + '<div class="field"><label>Бренд</label><input id="fBrand" value="' + escapeHtml(m.brand) + '"></div>'
+                + '<div class="field"><label>Имя мастера</label><input id="fName" value="' + escapeHtml(m.name) + '"></div>'
+                + '<div class="field"><label>Роль</label><input id="fRole" value="' + escapeHtml(m.role) + '"></div>'
+                + '<div class="field"><label>Опыт</label><input id="fExp" value="' + escapeHtml(m.experience) + '"></div>'
+                + '<div class="field"><label>Город</label><input id="fCity" value="' + escapeHtml(m.city) + '"></div>'
+                + '<div class="field"><label>Телефон</label><input id="fPhone" value="' + escapeHtml(m.phone) + '"></div>'
+                + '<div class="field full"><label>Адрес</label><input id="fAddress" value="' + escapeHtml(m.address) + '"></div>'
+                + '<div class="field full"><label>О себе</label><textarea id="fBio">' + escapeHtml(m.bio) + '</textarea></div>'
+                + '<div class="field full"><label>Ссылка записи</label><input id="fBooking" value="' + escapeHtml(m.bookingLink) + '"></div>'
+                + '<div class="field full"><label>Подарочный текст</label><input id="fGiftText" value="' + escapeHtml(m.giftText) + '"></div>'
+                + '<div class="field full"><label>Ссылка на подарок (кликабельная)</label><input id="fGiftUrl" value="' + escapeHtml(m.giftUrl) + '"></div>'
+              + '</div>'
+              + '<div class="row">'
+                + '<button class="btn primary" id="saveProfileBtn">Сохранить профиль</button>'
+                + '<button class="btn" id="openGiftBtn">Открыть подарок</button>'
+              + '</div>'
+              + '<p class="hint">Ссылка в превью всегда кликабельна и ведет на URL из поля выше.</p>'
+            + '</article>'
+          + '</section>';
+      }
+
+      function renderServices() {
+        var filter = state.ui.serviceFilter;
+        var services = state.services.filter(function (s) {
+          return filter === 'all' || s.method === filter;
+        });
+
+        return ''
+          + '<section class="screen ' + (state.ui.tab === 'services' ? 'active' : '') + '" data-screen="services">'
+            + '<article class="card">'
+              + '<h3>Услуги мастера</h3>'
+              + '<p class="card-sub">Фильтр, активация, редактирование и добавление новых услуг прямо в мокапе.</p>'
+              + '<div class="service-toolbar">'
+                + '<button class="seg ' + (filter === 'all' ? 'active' : '') + '" data-service-filter="all">Все</button>'
+                + '<button class="seg ' + (filter === 'sugar' ? 'active' : '') + '" data-service-filter="sugar">Сахар</button>'
+                + '<button class="seg ' + (filter === 'wax' ? 'active' : '') + '" data-service-filter="wax">Воск</button>'
+              + '</div>'
+              + '<div class="services-list">'
+                + (services.length ? services.map(function (s) {
+                  var methodLabel = s.method === 'sugar' ? 'Сахар' : 'Воск';
+                  return '<article class="service-item ' + (s.active ? '' : 'service-muted') + '">'
+                    + '<div class="service-head">'
+                      + '<h4>' + escapeHtml(s.name) + '</h4>'
+                      + '<span class="tag">' + methodLabel + ' · ' + escapeHtml(s.category) + '</span>'
+                    + '</div>'
+                    + '<div class="meta">' + Number(s.duration) + ' мин · ' + money(s.price) + ' ₽</div>'
+                    + '<div class="service-actions">'
+                      + '<button class="btn" data-service-action="toggle" data-id="' + s.id + '">' + (s.active ? 'Выключить' : 'Включить') + '</button>'
+                      + '<button class="btn" data-service-action="edit" data-id="' + s.id + '">+100 ₽</button>'
+                      + '<button class="btn danger" data-service-action="delete" data-id="' + s.id + '">Удалить</button>'
+                    + '</div>'
+                  + '</article>';
+                }).join('') : '<div class="empty">Нет услуг в выбранном фильтре.</div>')
+              + '</div>'
+            + '</article>'
+            + '<article class="card">'
+              + '<h3>Добавить услугу</h3>'
+              + '<div class="form-grid">'
+                + '<div class="field full"><label>Название</label><input id="newServiceName" placeholder="Сахар: бедра + голень"></div>'
+                + '<div class="field"><label>Метод</label><select id="newServiceMethod"><option value="sugar">Сахар</option><option value="wax">Воск</option></select></div>'
+                + '<div class="field"><label>Категория</label><select id="newServiceCategory"><option value="Зоны">Зоны</option><option value="Комплекс">Комплекс</option></select></div>'
+                + '<div class="field"><label>Длительность, мин</label><input id="newServiceDuration" type="number" min="10" max="240" value="60"></div>'
+                + '<div class="field"><label>Цена, ₽</label><input id="newServicePrice" type="number" min="0" value="1500"></div>'
+              + '</div>'
+              + '<div class="row"><button class="btn primary" id="addServiceBtn">Добавить в прайс</button></div>'
+            + '</article>'
+          + '</section>';
+      }
+
+      function getDayState(iso) {
+        var raw = state.schedule[iso];
+        if (!raw) return { status: 'open', intervals: ['10:00-20:00'] };
+        var copy = {
+          status: raw.status || 'open',
+          intervals: Array.isArray(raw.intervals) ? raw.intervals.slice() : []
+        };
+        return copy;
+      }
+
+      function setDayState(iso, dayState) {
+        state.schedule[iso] = {
+          status: dayState.status,
+          intervals: Array.isArray(dayState.intervals) ? dayState.intervals.slice() : []
+        };
+      }
+
+      function renderSchedule() {
+        var month = getCurrentMonth();
+        var first = new Date(month.getFullYear(), month.getMonth(), 1);
+        var last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+        var leading = (first.getDay() + 6) % 7;
+        var daysInMonth = last.getDate();
+        var cells = [];
+
+        weekNames.forEach(function (d) {
+          cells.push('<div class="weekday">' + d + '</div>');
+        });
+
+        for (var i = 0; i < leading; i += 1) {
+          cells.push('<button class="day off-month" disabled>·</button>');
+        }
+
+        for (var day = 1; day <= daysInMonth; day += 1) {
+          var iso = month.getFullYear() + '-' + String(month.getMonth() + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+          var ds = getDayState(iso);
+          var cls = 'day status-' + ds.status + (iso === state.ui.selectedDate ? ' active' : '');
+          cells.push('<button class="' + cls + '" data-day="' + iso + '">' + day + '</button>');
+        }
+
+        var selected = getDayState(state.ui.selectedDate);
+        var selectedLabel = formatDateRu(state.ui.selectedDate);
+
+        return ''
+          + '<section class="screen ' + (state.ui.tab === 'schedule' ? 'active' : '') + '" data-screen="schedule">'
+            + '<article class="card">'
+              + '<h3>Рабочий календарь</h3>'
+              + '<p class="card-sub">Управляй окнами на месяц вперед: рабочий день, частично занят или выходной.</p>'
+              + '<div class="calendar-head">'
+                + '<button class="btn" id="monthPrev">‹ Месяц</button>'
+                + '<p class="calendar-title">' + monthNames[month.getMonth()] + ' ' + month.getFullYear() + '</p>'
+                + '<button class="btn" id="monthNext">Месяц ›</button>'
+              + '</div>'
+              + '<div class="calendar-grid">' + cells.join('') + '</div>'
+            + '</article>'
+            + '<article class="card">'
+              + '<h3>День: ' + selectedLabel + '</h3>'
+              + '<div class="service-toolbar">'
+                + '<button class="seg ' + (selected.status === 'open' ? 'active' : '') + '" data-day-status="open">Рабочий</button>'
+                + '<button class="seg ' + (selected.status === 'busy' ? 'active' : '') + '" data-day-status="busy">Частично занят</button>'
+                + '<button class="seg ' + (selected.status === 'off' ? 'active' : '') + '" data-day-status="off">Выходной</button>'
+              + '</div>'
+              + '<div class="form-grid">'
+                + '<div class="field"><label>Начало интервала</label><input id="slotStart" type="time" value="10:00"></div>'
+                + '<div class="field"><label>Конец интервала</label><input id="slotEnd" type="time" value="20:00"></div>'
+              + '</div>'
+              + '<div class="row">'
+                + '<button class="btn primary" id="addSlotBtn">Добавить интервал</button>'
+                + '<button class="btn" id="cloneWeekdayBtn">Скопировать на этот день недели</button>'
+              + '</div>'
+              + '<div class="interval-list">'
+                + (selected.intervals.length ? selected.intervals.map(function (slot, idx) {
+                  return '<div class="interval"><span>' + escapeHtml(slot) + '</span><button class="btn danger" data-slot-remove="' + idx + '">Удалить</button></div>';
+                }).join('') : '<div class="empty">Интервалов нет. Добавь хотя бы один, чтобы открыть запись.</div>')
+              + '</div>'
+            + '</article>'
+          + '</section>';
+      }
+
+      function renderPromo() {
+        var items = state.promoCodes;
+        return ''
+          + '<section class="screen ' + (state.ui.tab === 'promo' ? 'active' : '') + '" data-screen="promo">'
+            + '<article class="card">'
+              + '<h3>Создать промокод</h3>'
+              + '<p class="card-sub">Промокод может давать процент скидки или подарочную зону эпиляции.</p>'
+              + '<div class="form-grid">'
+                + '<div class="field"><label>Код</label><input id="promoCode" placeholder="SPRING20"></div>'
+                + '<div class="field"><label>Тип бонуса</label><select id="promoType"><option value="percent">Скидка %</option><option value="gift">Зона в подарок</option></select></div>'
+                + '<div class="field" id="promoPercentWrap"><label>Процент скидки</label><input id="promoPercent" type="number" min="1" max="90" value="20"></div>'
+                + '<div class="field" id="promoGiftWrap" style="display:none;"><label>Зона в подарок</label><select id="promoGift"><option value="Подмышки">Подмышки</option><option value="Голень">Голень</option><option value="Бикини классика">Бикини классика</option></select></div>'
+              + '</div>'
+              + '<div class="row"><button class="btn primary" id="addPromoBtn">Создать промокод</button></div>'
+            + '</article>'
+            + '<article class="card">'
+              + '<h3>Активные промокоды</h3>'
+              + '<div class="promo-list">'
+                + (items.length ? items.map(function (p) {
+                  var desc = p.type === 'percent'
+                    ? ('Скидка ' + Number(p.percent || 0) + '%')
+                    : ('Подарок: ' + escapeHtml(p.giftZone || 'Зона'));
+                  return '<article class="promo">'
+                    + '<div class="promo-head">'
+                      + '<h4 class="promo-code">' + escapeHtml(p.code) + '</h4>'
+                      + '<span class="badge ' + (p.active ? '' : 'off') + '">' + (p.active ? 'Включен' : 'Выключен') + '</span>'
+                    + '</div>'
+                    + '<div class="meta">' + desc + '</div>'
+                    + '<div class="promo-actions">'
+                      + '<button class="btn" data-promo-action="toggle" data-id="' + p.id + '">' + (p.active ? 'Отключить' : 'Включить') + '</button>'
+                      + '<button class="btn" data-promo-action="copy" data-id="' + p.id + '">Копировать код</button>'
+                      + '<button class="btn danger" data-promo-action="delete" data-id="' + p.id + '">Удалить</button>'
+                    + '</div>'
+                  + '</article>';
+                }).join('') : '<div class="empty">Список пуст. Создай первый промокод.</div>')
+              + '</div>'
+            + '</article>'
+          + '</section>';
+      }
+
+      function renderScreens() {
+        el.screens.innerHTML = ''
+          + renderOverview()
+          + renderProfile()
+          + renderServices()
+          + renderSchedule()
+          + renderPromo();
+      }
+
+      function onJump(tabId) {
+        if (!tabs.find(function (x) { return x.id === tabId; })) return;
+        state.ui.tab = tabId;
+        persist();
+        render();
+      }
+
+      function bindOverview() {
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-jump]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            onJump(btn.getAttribute('data-jump'));
+          });
+        });
+
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-metrics-preset]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var preset = btn.getAttribute('data-metrics-preset');
+            var bounds = getAnalyticsBounds();
+            var range = getRangeByPreset(preset, bounds);
+            state.ui.metricsPreset = preset;
+            state.ui.periodFrom = range.from;
+            state.ui.periodTo = range.to;
+            persist();
+            render();
+          });
+        });
+
+        var applyBtn = document.getElementById('applyMetricsPeriod');
+        if (applyBtn) {
+          applyBtn.addEventListener('click', function () {
+            var fromInput = document.getElementById('metricsFrom');
+            var toInput = document.getElementById('metricsTo');
+            var bounds = getAnalyticsBounds();
+            var fromIso = clampIso(fromInput ? fromInput.value : '', bounds.min, bounds.max);
+            var toIso = clampIso(toInput ? toInput.value : '', bounds.min, bounds.max);
+            if (fromIso > toIso) {
+              showToast('Период задан некорректно');
+              return;
+            }
+            state.ui.periodFrom = fromIso;
+            state.ui.periodTo = toIso;
+            state.ui.metricsPreset = detectPresetForRange(fromIso, toIso);
+            persist();
+            render();
+          });
+        }
+      }
+
+      function bindProfile() {
+        var saveBtn = document.getElementById('saveProfileBtn');
+        if (!saveBtn) return;
+        saveBtn.addEventListener('click', function () {
+          state.master.brand = document.getElementById('fBrand').value.trim() || state.master.brand;
+          state.master.name = document.getElementById('fName').value.trim() || state.master.name;
+          state.master.role = document.getElementById('fRole').value.trim() || state.master.role;
+          state.master.experience = document.getElementById('fExp').value.trim() || state.master.experience;
+          state.master.city = document.getElementById('fCity').value.trim() || state.master.city;
+          state.master.phone = document.getElementById('fPhone').value.trim() || state.master.phone;
+          state.master.address = document.getElementById('fAddress').value.trim() || state.master.address;
+          state.master.bio = document.getElementById('fBio').value.trim() || state.master.bio;
+          state.master.bookingLink = document.getElementById('fBooking').value.trim() || state.master.bookingLink;
+          state.master.giftText = document.getElementById('fGiftText').value.trim() || state.master.giftText;
+          state.master.giftUrl = document.getElementById('fGiftUrl').value.trim() || state.master.giftUrl;
+          persist();
+          render();
+          showToast('Профиль обновлен');
+        });
+
+        var openGiftBtn = document.getElementById('openGiftBtn');
+        if (openGiftBtn) {
+          openGiftBtn.addEventListener('click', function () {
+            var url = state.master.giftUrl;
+            if (!url) {
+              showToast('Ссылка на подарок не указана');
+              return;
+            }
+            window.open(url, '_blank', 'noopener');
+          });
+        }
+      }
+
+      function bindServices() {
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-service-filter]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            state.ui.serviceFilter = btn.getAttribute('data-service-filter');
+            persist();
+            render();
+          });
+        });
+
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-service-action]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = Number(btn.getAttribute('data-id'));
+            var action = btn.getAttribute('data-service-action');
+            var item = state.services.find(function (s) { return s.id === id; });
+            if (!item) return;
+
+            if (action === 'toggle') {
+              item.active = !item.active;
+              showToast(item.active ? 'Услуга включена' : 'Услуга выключена');
+            }
+            if (action === 'edit') {
+              item.price = Number(item.price || 0) + 100;
+              showToast('Цена увеличена на 100 ₽');
+            }
+            if (action === 'delete') {
+              state.services = state.services.filter(function (s) { return s.id !== id; });
+              showToast('Услуга удалена');
+            }
+            persist();
+            render();
+          });
+        });
+
+        var addBtn = document.getElementById('addServiceBtn');
+        if (addBtn) {
+          addBtn.addEventListener('click', function () {
+            var name = document.getElementById('newServiceName').value.trim();
+            var method = document.getElementById('newServiceMethod').value;
+            var category = document.getElementById('newServiceCategory').value;
+            var duration = Number(document.getElementById('newServiceDuration').value || 0);
+            var price = Number(document.getElementById('newServicePrice').value || 0);
+
+            if (!name || duration <= 0 || price < 0) {
+              showToast('Проверь поля новой услуги');
+              return;
+            }
+
+            var id = Date.now();
+            state.services.unshift({
+              id: id,
+              name: name,
+              method: method,
+              category: category,
+              duration: duration,
+              price: price,
+              active: true
+            });
+
+            persist();
+            render();
+            showToast('Услуга добавлена');
+          });
+        }
+      }
+
+      function shiftMonth(diff) {
+        var m = getCurrentMonth();
+        m.setMonth(m.getMonth() + diff);
+        state.ui.currentMonth = m.toISOString();
+
+        var day = new Date(state.ui.selectedDate + 'T00:00:00');
+        if (day.getMonth() !== m.getMonth() || day.getFullYear() !== m.getFullYear()) {
+          state.ui.selectedDate = isoDate(new Date(m.getFullYear(), m.getMonth(), 1));
+        }
+
+        persist();
+        render();
+      }
+
+      function cloneToWeekday() {
+        var selectedIso = state.ui.selectedDate;
+        var selectedDateObj = new Date(selectedIso + 'T00:00:00');
+        var selectedWeekday = selectedDateObj.getDay();
+        var src = getDayState(selectedIso);
+        var m = getCurrentMonth();
+        var end = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+        var applied = 0;
+
+        for (var d = 1; d <= end.getDate(); d += 1) {
+          var date = new Date(m.getFullYear(), m.getMonth(), d);
+          if (date.getDay() === selectedWeekday) {
+            var iso = isoDate(date);
+            setDayState(iso, src);
+            applied += 1;
+          }
+        }
+
+        persist();
+        render();
+        showToast('Скопировано на ' + applied + ' дн. недели');
+      }
+
+      function bindSchedule() {
+        var prev = document.getElementById('monthPrev');
+        var next = document.getElementById('monthNext');
+        if (prev) prev.addEventListener('click', function () { shiftMonth(-1); });
+        if (next) next.addEventListener('click', function () { shiftMonth(1); });
+
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-day]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            state.ui.selectedDate = btn.getAttribute('data-day');
+            persist();
+            render();
+          });
+        });
+
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-day-status]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var status = btn.getAttribute('data-day-status');
+            var day = getDayState(state.ui.selectedDate);
+            day.status = status;
+            if (status === 'off') {
+              day.intervals = [];
+            }
+            setDayState(state.ui.selectedDate, day);
+            persist();
+            render();
+            showToast('Статус дня обновлен');
+          });
+        });
+
+        var addSlot = document.getElementById('addSlotBtn');
+        if (addSlot) {
+          addSlot.addEventListener('click', function () {
+            var from = document.getElementById('slotStart').value;
+            var to = document.getElementById('slotEnd').value;
+            if (!from || !to || from >= to) {
+              showToast('Проверь время интервала');
+              return;
+            }
+            var day = getDayState(state.ui.selectedDate);
+            day.status = 'open';
+            var slot = from + '-' + to;
+            if (day.intervals.indexOf(slot) === -1) day.intervals.push(slot);
+            setDayState(state.ui.selectedDate, day);
+            persist();
+            render();
+            showToast('Интервал добавлен');
+          });
+        }
+
+        var clone = document.getElementById('cloneWeekdayBtn');
+        if (clone) {
+          clone.addEventListener('click', cloneToWeekday);
+        }
+
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-slot-remove]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var idx = Number(btn.getAttribute('data-slot-remove'));
+            var day = getDayState(state.ui.selectedDate);
+            day.intervals.splice(idx, 1);
+            if (!day.intervals.length && day.status !== 'off') {
+              day.status = 'busy';
+            }
+            setDayState(state.ui.selectedDate, day);
+            persist();
+            render();
+            showToast('Интервал удален');
+          });
+        });
+      }
+
+      function bindPromo() {
+        var type = document.getElementById('promoType');
+        if (type) {
+          type.addEventListener('change', function () {
+            var isPercent = type.value === 'percent';
+            var pWrap = document.getElementById('promoPercentWrap');
+            var gWrap = document.getElementById('promoGiftWrap');
+            pWrap.style.display = isPercent ? '' : 'none';
+            gWrap.style.display = isPercent ? 'none' : '';
+          });
+        }
+
+        var add = document.getElementById('addPromoBtn');
+        if (add) {
+          add.addEventListener('click', function () {
+            var code = (document.getElementById('promoCode').value || '').trim().toUpperCase();
+            var promoType = document.getElementById('promoType').value;
+            if (!code) {
+              showToast('Введи код промокода');
+              return;
+            }
+            if (state.promoCodes.some(function (p) { return p.code === code; })) {
+              showToast('Такой код уже существует');
+              return;
+            }
+
+            var item = {
+              id: Date.now(),
+              code: code,
+              type: promoType,
+              percent: 0,
+              giftZone: '',
+              active: true
+            };
+
+            if (promoType === 'percent') {
+              var percent = Number(document.getElementById('promoPercent').value || 0);
+              if (percent < 1 || percent > 90) {
+                showToast('Скидка должна быть от 1 до 90%');
+                return;
+              }
+              item.percent = percent;
+            } else {
+              item.giftZone = document.getElementById('promoGift').value;
+            }
+
+            state.promoCodes.unshift(item);
+            persist();
+            render();
+            showToast('Промокод создан');
+          });
+        }
+
+        Array.prototype.slice.call(el.screens.querySelectorAll('[data-promo-action]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = Number(btn.getAttribute('data-id'));
+            var action = btn.getAttribute('data-promo-action');
+            var promo = state.promoCodes.find(function (p) { return p.id === id; });
+            if (!promo) return;
+
+            if (action === 'toggle') {
+              promo.active = !promo.active;
+              showToast(promo.active ? 'Промокод включен' : 'Промокод отключен');
+            }
+
+            if (action === 'copy') {
+              navigator.clipboard.writeText(promo.code)
+                .then(function () { showToast('Код скопирован'); })
+                .catch(function () { showToast('Не удалось скопировать'); });
+            }
+
+            if (action === 'delete') {
+              state.promoCodes = state.promoCodes.filter(function (p) { return p.id !== id; });
+              showToast('Промокод удален');
+            }
+
+            persist();
+            if (action !== 'copy') {
+              render();
+            }
+          });
+        });
+      }
+
+      function bindGlobalButtons() {
+        el.copyLinkBtn.addEventListener('click', function () {
+          navigator.clipboard.writeText(state.master.bookingLink)
+            .then(function () { showToast('Ссылка скопирована'); })
+            .catch(function () { showToast('Не удалось скопировать'); });
+        });
+
+        el.resetBtn.addEventListener('click', function () {
+          state = seedState();
+          persist();
+          render();
+          showToast('Демо-данные сброшены');
+        });
+      }
+
+      function render() {
+        ensureMetricsPeriod();
+        renderTabs();
+        renderScreens();
+
+        bindOverview();
+        bindProfile();
+        bindServices();
+        bindSchedule();
+        bindPromo();
+      }
+
+      bindGlobalButtons();
+      render();
+    })();
+  </script>
+</body>
+</html>

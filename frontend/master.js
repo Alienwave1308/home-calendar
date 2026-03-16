@@ -41,6 +41,9 @@
   let leadsView = 'summary';
   let leadsUsersRaw = [];
   let promoCodesCache = [];
+  let overviewPreset = 'day';
+  let overviewFrom = '';
+  let overviewTo = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -129,6 +132,29 @@
     return d.toISOString();
   }
 
+  function toIsoDate(dateValue) {
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  }
+
+  function startOfLocalDay(dateValue) {
+    const d = new Date(dateValue);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function endOfLocalDay(dateValue) {
+    const d = startOfLocalDay(dateValue);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
+
+  function formatMoney(value) {
+    const num = Number(value || 0);
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(num)) + ' ₽';
+  }
+
   // === TABS ===
 
   function switchTab(tabName) {
@@ -149,12 +175,152 @@
     if (tabName === 'settings') loadSettings();
   }
 
+  function getFinishedNonCanceledBookings(bookings) {
+    const nowTs = Date.now();
+    return (bookings || []).filter(function (item) {
+      if (!item || item.status === 'canceled') return false;
+      const endTs = item.end_at ? new Date(item.end_at).getTime() : new Date(item.start_at).getTime();
+      if (!Number.isFinite(endTs)) return false;
+      return endTs < nowTs;
+    });
+  }
+
+  function getOverviewBounds(bookings) {
+    const done = getFinishedNonCanceledBookings(bookings);
+    if (!done.length) return null;
+    const sorted = done.slice().sort(function (a, b) {
+      return new Date(a.end_at || a.start_at).getTime() - new Date(b.end_at || b.start_at).getTime();
+    });
+    return {
+      min: toIsoDate(sorted[0].end_at || sorted[0].start_at),
+      max: toIsoDate(sorted[sorted.length - 1].end_at || sorted[sorted.length - 1].start_at)
+    };
+  }
+
+  function getOverviewRange(bounds) {
+    const now = new Date();
+    const maxDate = bounds && bounds.max ? startOfLocalDay(bounds.max) : startOfLocalDay(now);
+    const minDate = bounds && bounds.min ? startOfLocalDay(bounds.min) : startOfLocalDay(now);
+    let from;
+    let to = startOfLocalDay(maxDate);
+
+    if (overviewPreset === 'week') {
+      from = startOfLocalDay(maxDate);
+      from.setDate(from.getDate() - 6);
+    } else if (overviewPreset === 'month') {
+      from = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+    } else if (overviewPreset === 'all') {
+      from = startOfLocalDay(minDate);
+    } else {
+      from = startOfLocalDay(maxDate);
+    }
+
+    if (!from) from = startOfLocalDay(maxDate);
+    if (from < minDate) from = startOfLocalDay(minDate);
+    if (to < from) to = startOfLocalDay(from);
+    return { from: toIsoDate(from), to: toIsoDate(to) };
+  }
+
+  function renderOverviewPresetButtons() {
+    const mapping = {
+      day: 'overviewPresetDay',
+      week: 'overviewPresetWeek',
+      month: 'overviewPresetMonth',
+      all: 'overviewPresetAll'
+    };
+    Object.keys(mapping).forEach(function (key) {
+      const node = $(mapping[key]);
+      if (node) node.classList.toggle('active', overviewPreset === key);
+    });
+  }
+
+  function setOverviewPreset(preset) {
+    overviewPreset = preset;
+    overviewFrom = '';
+    overviewTo = '';
+    refreshOverview();
+  }
+
+  function applyOverviewPeriod() {
+    const from = $('overviewFrom') ? $('overviewFrom').value : '';
+    const to = $('overviewTo') ? $('overviewTo').value : '';
+    if (!from || !to) {
+      showToast('Укажите обе даты периода');
+      return;
+    }
+    if (from > to) {
+      showToast('Дата начала позже даты окончания');
+      return;
+    }
+    overviewPreset = 'custom';
+    overviewFrom = from;
+    overviewTo = to;
+    refreshOverview();
+  }
+
+  async function refreshOverview() {
+    const label = $('overviewRangeLabel');
+    if (label) label.textContent = 'Период: загрузка...';
+    renderOverviewPresetButtons();
+
+    try {
+      const bookings = await apiFetch('/bookings');
+      const finished = getFinishedNonCanceledBookings(bookings);
+      const bounds = getOverviewBounds(bookings);
+      let range = null;
+      if (overviewPreset === 'custom' && overviewFrom && overviewTo) {
+        range = { from: overviewFrom, to: overviewTo };
+      } else {
+        range = getOverviewRange(bounds);
+      }
+
+      if ($('overviewFrom') && range && range.from) $('overviewFrom').value = range.from;
+      if ($('overviewTo') && range && range.to) $('overviewTo').value = range.to;
+
+      const fromTs = range ? startOfLocalDay(range.from).getTime() : -Infinity;
+      const toTs = range ? endOfLocalDay(range.to).getTime() : Infinity;
+
+      const rows = finished.filter(function (item) {
+        const endTs = new Date(item.end_at || item.start_at).getTime();
+        return endTs >= fromTs && endTs <= toTs;
+      });
+
+      const revenue = rows.reduce(function (sum, item) {
+        const finalPrice = Number(item.final_price);
+        const fallbackPrice = Number(item.service_price);
+        if (Number.isFinite(finalPrice)) return sum + finalPrice;
+        if (Number.isFinite(fallbackPrice)) return sum + fallbackPrice;
+        return sum;
+      }, 0);
+      const clients = new Set(rows.map(function (item) { return item.client_id || item.client_name || item.client_telegram_id || item.id; }));
+      const avg = rows.length ? (revenue / rows.length) : 0;
+
+      if ($('overviewKpiBookings')) $('overviewKpiBookings').textContent = String(rows.length);
+      if ($('overviewKpiRevenue')) $('overviewKpiRevenue').textContent = formatMoney(revenue);
+      if ($('overviewKpiAvg')) $('overviewKpiAvg').textContent = formatMoney(avg);
+      if ($('overviewKpiClients')) $('overviewKpiClients').textContent = String(clients.size);
+      if (label) {
+        label.textContent = range
+          ? ('Период: ' + range.from + ' — ' + range.to)
+          : 'Период: —';
+      }
+    } catch (err) {
+      if (label) label.textContent = 'Период: —';
+      if ($('overviewKpiBookings')) $('overviewKpiBookings').textContent = '0';
+      if ($('overviewKpiRevenue')) $('overviewKpiRevenue').textContent = '0 ₽';
+      if ($('overviewKpiAvg')) $('overviewKpiAvg').textContent = '0 ₽';
+      if ($('overviewKpiClients')) $('overviewKpiClients').textContent = '0';
+      showToast('Ошибка загрузки метрик: ' + err.message);
+    }
+  }
+
   // === TODAY ===
 
   async function loadToday() {
     let container = $('todayBookings');
     container.innerHTML = skeletonBookings(3);
     $('todayEmpty').style.display = 'none';
+    refreshOverview();
 
     try {
       let today = new Date().toISOString().slice(0, 10);
@@ -1299,6 +1465,8 @@
     showAddService: showAddService,
     setServiceMethodFilter: setServiceMethodFilter,
     setServiceCategoryFilter: setServiceCategoryFilter,
+    setOverviewPreset: setOverviewPreset,
+    applyOverviewPeriod: applyOverviewPeriod,
     setLeadsPeriod: setLeadsPeriod,
     setLeadsView: setLeadsView,
     updateLeadsUsersFilters: updateLeadsUsersFilters,

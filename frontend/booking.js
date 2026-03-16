@@ -103,6 +103,7 @@
   let methodFilter = 'all';
   let categoryFilter = 'all';
   let rescheduleBookingId = null;
+  let calendarMonthAnchor = null;
 
   // === HELPERS ===
 
@@ -167,7 +168,7 @@
   }
 
   // Format date helpers
-  let DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  let MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
   function parseServiceTaxonomy(service) {
     const name = String(service && service.name ? service.name : '');
@@ -222,10 +223,8 @@
     return new Date(date.getFullYear(), date.getMonth() + 1, 0);
   }
 
-  function getDateStripDaysCount() {
-    const today = startOfToday();
-    const monthEnd = endOfMonth(today);
-    return Math.max(1, monthEnd.getDate() - today.getDate() + 1);
+  function startOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
   }
 
   // === SKELETONS ===
@@ -448,6 +447,7 @@
     }
 
     showStep('stepSlots');
+    calendarMonthAnchor = startOfMonth(startOfToday());
     renderDateStrip();
     selectDate(toDateStr(new Date()));
   }
@@ -461,6 +461,7 @@
     $('selectedServiceName').textContent = selectedService.name;
     $('selectedServicesChips').style.display = 'none';
     showStep('stepSlots');
+    calendarMonthAnchor = startOfMonth(startOfToday());
     renderDateStrip();
     selectDate(toDateStr(new Date()));
   }
@@ -468,35 +469,98 @@
   // === STEP 2: DATE & SLOTS ===
 
   function renderDateStrip() {
-    let html = '';
-    const today = startOfToday();
-    const daysToShow = getDateStripDaysCount();
+    const gridEl = $('dateStrip');
+    if (!gridEl) return;
 
-    for (let i = 0; i < daysToShow; i++) {
-      let d = new Date(today.getTime() + i * 86400000);
-      let ds = toDateStr(d);
-      let isActive = ds === selectedDate;
-      html += '<div class="date-chip' + (isActive ? ' active' : '') + '" data-date="' + ds + '" onclick="BookingApp.selectDate(\'' + ds + '\')">'
-        + '<div class="date-day">' + DAY_NAMES[d.getDay()] + '</div>'
-        + '<div class="date-num">' + d.getDate() + '</div>'
-        + '</div>';
+    const today = startOfToday();
+    const monthLimitStart = startOfMonth(today);
+    const monthLimitEnd = startOfMonth(endOfMonth(today));
+    if (!calendarMonthAnchor) {
+      calendarMonthAnchor = selectedDate
+        ? startOfMonth(new Date(selectedDate + 'T00:00:00'))
+        : monthLimitStart;
     }
-    $('dateStrip').innerHTML = html;
+    if (calendarMonthAnchor < monthLimitStart) calendarMonthAnchor = monthLimitStart;
+    if (calendarMonthAnchor > monthLimitEnd) calendarMonthAnchor = monthLimitEnd;
+
+    const monthStart = startOfMonth(calendarMonthAnchor);
+    const monthEnd = endOfMonth(monthStart);
+    const visibleMonth = monthStart.getMonth();
+    const visibleYear = monthStart.getFullYear();
+
+    const labelEl = $('calMonth');
+    if (labelEl) {
+      labelEl.textContent = MONTH_NAMES[visibleMonth] + ' ' + visibleYear;
+    }
+
+    const prevEl = $('calPrev');
+    if (prevEl) {
+      prevEl.disabled = monthStart <= monthLimitStart;
+    }
+    const nextEl = $('calNext');
+    if (nextEl) {
+      nextEl.disabled = monthStart >= monthLimitEnd;
+    }
+
+    const firstWeekDay = (monthStart.getDay() + 6) % 7; // Monday-first
+    const daysInMonth = monthEnd.getDate();
+    const allowedEnd = endOfMonth(today);
+    let html = '';
+
+    for (let i = 0; i < firstWeekDay; i++) {
+      html += '<div class="calendar-cell calendar-cell--empty" aria-hidden="true"></div>';
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = new Date(visibleYear, visibleMonth, day);
+      const ds = toDateStr(dateObj);
+      const inAllowedRange = dateObj >= today && dateObj <= allowedEnd;
+      const isActive = ds === selectedDate;
+      const classes = ['calendar-cell'];
+      if (isActive) classes.push('active');
+      if (!inAllowedRange) classes.push('disabled');
+      const disabledAttr = inAllowedRange ? '' : ' disabled';
+      html += '<button type="button" class="' + classes.join(' ') + '" data-date="' + ds + '"' + disabledAttr
+        + ' onclick="BookingApp.selectDate(\'' + ds + '\')">'
+        + '<span>' + day + '</span>'
+        + '</button>';
+    }
+
+    const totalCells = firstWeekDay + daysInMonth;
+    const tail = (7 - (totalCells % 7)) % 7;
+    for (let j = 0; j < tail; j++) {
+      html += '<div class="calendar-cell calendar-cell--empty" aria-hidden="true"></div>';
+    }
+
+    gridEl.innerHTML = html;
+  }
+
+  function shiftCalendarMonth(diff) {
+    const base = calendarMonthAnchor || startOfMonth(startOfToday());
+    const candidate = startOfMonth(new Date(base.getFullYear(), base.getMonth() + diff, 1));
+    const minMonth = startOfMonth(startOfToday());
+    const maxMonth = startOfMonth(endOfMonth(startOfToday()));
+    if (candidate < minMonth || candidate > maxMonth) {
+      showToast('Доступны даты только до конца текущего месяца');
+      return;
+    }
+    calendarMonthAnchor = candidate;
+    renderDateStrip();
   }
 
   async function selectDate(dateStr) {
+    const parsedDate = new Date(dateStr + 'T00:00:00');
+    const today = startOfToday();
+    const allowedEnd = endOfMonth(today);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate < today || parsedDate > allowedEnd) {
+      showToast('Дата недоступна для записи');
+      return;
+    }
+
     selectedDate = dateStr;
     selectedSlot = null;
-
-    // Update active chip
-    document.querySelectorAll('.date-chip').forEach(function (c) {
-      c.classList.toggle('active', c.dataset.date === dateStr);
-    });
-
-    const activeChip = document.querySelector('.date-chip.active');
-    if (activeChip && typeof activeChip.scrollIntoView === 'function') {
-      activeChip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-    }
+    calendarMonthAnchor = startOfMonth(parsedDate);
+    renderDateStrip();
 
     // Load slots
     $('slotsList').innerHTML = renderSlotSkeletons();
@@ -885,6 +949,7 @@
       selectedService = service;
       $('selectedServiceName').textContent = service.name;
       showStep('stepSlots');
+      calendarMonthAnchor = startOfMonth(startOfToday());
       renderDateStrip();
       selectDate(toDateStr(new Date()));
       showToast('Выберите новый слот для переноса');
@@ -965,6 +1030,7 @@
     selectedSlot = null;
     selectedPricing = null;
     rescheduleBookingId = null;
+    calendarMonthAnchor = startOfMonth(startOfToday());
     if ($('confirmPromoCode')) $('confirmPromoCode').value = '';
     if ($('confirmNote')) $('confirmNote').value = '';
     renderServices();
@@ -982,6 +1048,7 @@
     }
     showStep(toStepId);
     if (toStepId === 'stepSlots' && selectedDate) {
+      calendarMonthAnchor = startOfMonth(new Date(selectedDate + 'T00:00:00'));
       renderDateStrip();
       selectDate(selectedDate);
     }
@@ -1016,6 +1083,7 @@
     selectDate: selectDate,
     selectSlot: selectSlot,
     nextDate: nextDate,
+    shiftCalendarMonth: shiftCalendarMonth,
     confirmBooking: confirmBooking,
     showMyBookings: showMyBookings,
     cancelBooking: cancelBooking,

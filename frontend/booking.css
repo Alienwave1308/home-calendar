@@ -290,58 +290,108 @@ body {
   margin-top: 2px;
 }
 
-/* === DATE STRIP === */
+/* === MONTH CALENDAR === */
 
-.date-strip {
+.booking-calendar {
+  background: color-mix(in srgb, var(--card) 85%, white 15%);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, white 22%);
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 10px 22px rgba(13, 71, 43, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.calendar-head {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px 0 12px;
-  margin-bottom: 16px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.date-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.date-chip {
-  flex-shrink: 0;
-  min-width: 56px;
-  padding: 8px 12px;
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  background: var(--card);
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.date-chip:active {
-  transform: scale(0.95);
-}
-
-.date-chip.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
-}
-
-.date-chip .date-day {
-  font-size: 0.75em;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.date-chip .date-num {
-  font-size: 1.2em;
+.cal-title {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.2;
   font-weight: 700;
+  color: var(--text);
 }
 
-.date-chip.active .date-day,
-.date-chip.active .date-num {
-  color: white;
+.cal-sub {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  color: color-mix(in srgb, var(--text-secondary) 80%, white 20%);
+}
+
+.cal-nav {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cal-nav:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-cell {
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, white 28%);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-cell.active {
+  background: linear-gradient(135deg, #2f9f68 0%, #3fb677 100%);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 8px 16px rgba(29, 127, 78, 0.25);
+}
+
+.calendar-cell.disabled {
+  color: color-mix(in srgb, var(--text-secondary) 60%, white 40%);
+  background: color-mix(in srgb, var(--bg) 82%, white 18%);
+  cursor: not-allowed;
+}
+
+.calendar-cell--empty {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* === SLOTS GRID === */

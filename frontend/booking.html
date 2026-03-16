@@ -71,8 +71,27 @@
         <div id="selectedServicesChips" class="selected-chips" style="display:none;"></div>
         <p class="step-subtitle">Выберите дату и время</p>
       </div>
-      <div class="date-strip" id="dateStrip">
-        <!-- horizontal scrollable dates -->
+      <div class="booking-calendar">
+        <div class="calendar-head">
+          <button type="button" class="cal-nav" id="calPrev" onclick="BookingApp.shiftCalendarMonth(-1)" aria-label="Предыдущий месяц">&lsaquo;</button>
+          <div>
+            <p class="cal-title" id="calMonth">Месяц</p>
+            <p class="cal-sub">Доступные дни до конца месяца</p>
+          </div>
+          <button type="button" class="cal-nav" id="calNext" onclick="BookingApp.shiftCalendarMonth(1)" aria-label="Следующий месяц">&rsaquo;</button>
+        </div>
+        <div class="calendar-weekdays">
+          <span>Пн</span>
+          <span>Вт</span>
+          <span>Ср</span>
+          <span>Чт</span>
+          <span>Пт</span>
+          <span>Сб</span>
+          <span>Вс</span>
+        </div>
+        <div class="calendar-grid" id="dateStrip">
+          <!-- month grid -->
+        </div>
       </div>
       <div id="slotsList" class="slots-grid">
         <!-- skeleton or slots -->
