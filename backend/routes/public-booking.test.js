@@ -376,7 +376,7 @@ describe('Public Booking API', () => {
         rows: [{ id: 11, master_id: 3, name: 'Сахар: Бёдра', duration_minutes: 40, price: 1000, is_active: true }]
       })
       .mockResolvedValueOnce({
-        rows: [{ id: 501, master_id: 3, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, gift_service_id: null }]
+        rows: [{ id: 501, master_id: 3, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, gift_service_id: null, usage_mode: 'always', uses_count: 0 }]
       })
       .mockResolvedValueOnce({
         rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
@@ -398,6 +398,71 @@ describe('Public Booking API', () => {
     expect(res.body.pricing.discount_amount).toBe(200);
     expect(res.body.pricing.promo_code).toBe('SAVE20');
     expect(res.body.pricing.promo_reward_type).toBe('percent');
+    expect(res.body.pricing.promo_usage_mode).toBe('always');
+  });
+
+  it('should allow single-use promo code exactly once', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Сахар: Бёдра', duration_minutes: 40, price: 1000, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 700, master_id: 3, code: 'ONCE10', reward_type: 'percent', discount_percent: 10, usage_mode: 'single_use', uses_count: 0 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ id: 700 }] }) // consume promo
+      .mockResolvedValueOnce({
+        rows: [{ id: 120, master_id: 3, client_id: 42, service_id: 11, extra_service_ids: '[]', start_at: startAt, status: 'confirmed' }]
+      })
+      .mockResolvedValueOnce({ rows: [] }); // COMMIT
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, promo_code: 'once10' })
+      .expect(201);
+
+    expect(res.body.pricing.final_price).toBe(900);
+    expect(res.body.pricing.promo_usage_mode).toBe('single_use');
+  });
+
+  it('should reject already used single-use promo code', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Сахар: Бёдра', duration_minutes: 40, price: 1000, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 701, master_id: 3, code: 'ONCE20', reward_type: 'percent', discount_percent: 20, usage_mode: 'single_use', uses_count: 0 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [] }) // consume promo failed
+      .mockResolvedValueOnce({ rows: [] }); // ROLLBACK
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, promo_code: 'once20' })
+      .expect(400);
+
+    expect(res.body.error).toContain('уже использован');
   });
 
   it('should apply gift-service promo code and extend duration window check', async () => {

@@ -101,6 +101,7 @@ async function loadActivePromoCode(masterId, normalizedCode) {
 
   const { rows } = await pool.query(
     `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active,
+            p.usage_mode, p.uses_count,
             gs.id AS gift_id, gs.master_id AS gift_master_id, gs.name AS gift_name,
             gs.duration_minutes AS gift_duration_minutes, gs.price AS gift_price,
             gs.description AS gift_description, gs.buffer_before_minutes AS gift_buffer_before_minutes,
@@ -110,6 +111,7 @@ async function loadActivePromoCode(masterId, normalizedCode) {
      WHERE p.master_id = $1
        AND p.code = $2
        AND p.is_active = true
+       AND (p.usage_mode <> 'single_use' OR p.uses_count < 1)
      LIMIT 1`,
     [masterId, normalizedCode]
   );
@@ -598,33 +600,72 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const extraServiceIds = normalizedServiceIds.slice(1);
     const endDate = new Date(startDate.getTime() + totalDurationMinutes * 60000);
 
-    const result = await pool.query(
-      `INSERT INTO bookings
+    const insertSql = `INSERT INTO bookings
          (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
           promo_code_id, promo_code, promo_reward_type, promo_discount_percent, promo_gift_service_id,
           pricing_base, pricing_final, pricing_discount_amount)
        VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7,
                $8, $9, $10, $11, $12, $13, $14, $15)
-       RETURNING *`,
-      [
-        master.id,
-        req.user.id,
-        primaryServiceId,
-        JSON.stringify(extraServiceIds),
-        startDate.toISOString(),
-        endDate.toISOString(),
-        client_note || null,
-        appliedPromo ? Number(appliedPromo.id) : null,
-        appliedPromo ? String(appliedPromo.code) : null,
-        appliedPromo ? String(appliedPromo.reward_type) : null,
-        promoDiscountPercent,
-        promoGiftService ? Number(promoGiftService.id) : null,
-        totalBasePrice,
-        finalPrice,
-        discountAmount
-      ]
-    );
-    const created = result.rows[0];
+       RETURNING *`;
+    const insertParams = [
+      master.id,
+      req.user.id,
+      primaryServiceId,
+      JSON.stringify(extraServiceIds),
+      startDate.toISOString(),
+      endDate.toISOString(),
+      client_note || null,
+      appliedPromo ? Number(appliedPromo.id) : null,
+      appliedPromo ? String(appliedPromo.code) : null,
+      appliedPromo ? String(appliedPromo.reward_type) : null,
+      promoDiscountPercent,
+      promoGiftService ? Number(promoGiftService.id) : null,
+      totalBasePrice,
+      finalPrice,
+      discountAmount
+    ];
+
+    let created = null;
+    const promoUsageMode = appliedPromo ? String(appliedPromo.usage_mode || 'always') : 'always';
+    if (appliedPromo && promoUsageMode === 'single_use') {
+      let txOpened = false;
+      try {
+        await pool.query('BEGIN');
+        txOpened = true;
+
+        const consumeRes = await pool.query(
+          `UPDATE master_promo_codes
+           SET uses_count = uses_count + 1,
+               is_active = false,
+               updated_at = NOW()
+           WHERE id = $1
+             AND master_id = $2
+             AND is_active = true
+             AND usage_mode = 'single_use'
+             AND uses_count < 1
+           RETURNING id`,
+          [Number(appliedPromo.id), master.id]
+        );
+        if (!consumeRes.rows.length) {
+          await pool.query('ROLLBACK');
+          txOpened = false;
+          return res.status(400).json({ error: 'Промокод уже использован' });
+        }
+
+        const txResult = await pool.query(insertSql, insertParams);
+        created = txResult.rows[0];
+
+        await pool.query('COMMIT');
+      } catch (txError) {
+        if (txOpened) {
+          await pool.query('ROLLBACK').catch(() => {});
+        }
+        throw txError;
+      }
+    } else {
+      const result = await pool.query(insertSql, insertParams);
+      created = result.rows[0];
+    }
 
     try {
       await createReminders(created.id, created.master_id, created.start_at);
@@ -641,6 +682,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         discount_amount: discountAmount,
         promo_code: appliedPromo ? String(appliedPromo.code) : null,
         promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
+        promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
         promo_discount_percent: promoDiscountPercent,
         promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
         promo_gift_service_added: giftServiceAdded

@@ -412,6 +412,7 @@ router.get('/promo-codes', loadMaster, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
+              p.usage_mode, p.uses_count,
               p.is_active, p.created_at, p.updated_at,
               s.name AS gift_service_name
        FROM master_promo_codes p
@@ -432,6 +433,7 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
   try {
     const rawCode = normalizePromoCode(req.body.code);
     const rewardType = String(req.body.reward_type || '').trim();
+    const usageMode = String(req.body.usage_mode || 'always').trim();
 
     if (!rawCode || rawCode.length < 3 || rawCode.length > 64) {
       return res.status(400).json({ error: 'code must be 3-64 chars' });
@@ -441,6 +443,9 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
     }
     if (!['percent', 'gift_service'].includes(rewardType)) {
       return res.status(400).json({ error: 'reward_type must be percent or gift_service' });
+    }
+    if (!['always', 'single_use'].includes(usageMode)) {
+      return res.status(400).json({ error: 'usage_mode must be always or single_use' });
     }
 
     let discountPercent = null;
@@ -476,10 +481,10 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO master_promo_codes
-         (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)
+         (master_id, code, reward_type, discount_percent, gift_service_id, usage_mode, uses_count, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, 0, true)
        RETURNING *`,
-      [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
+      [req.master.id, rawCode, rewardType, discountPercent, giftServiceId, usageMode]
     );
 
     res.status(201).json(result.rows[0]);
@@ -499,6 +504,23 @@ router.patch('/promo-codes/:id', loadMaster, async (req, res) => {
       return res.status(400).json({ error: 'is_active must be boolean' });
     }
 
+    const promoRes = await pool.query(
+      `SELECT id, usage_mode, uses_count
+       FROM master_promo_codes
+       WHERE id = $1 AND master_id = $2
+       LIMIT 1`,
+      [req.params.id, req.master.id]
+    );
+    if (!promoRes.rows.length) {
+      return res.status(404).json({ error: 'Promo code not found' });
+    }
+    const promo = promoRes.rows[0];
+    if (req.body.is_active === true
+      && String(promo.usage_mode) === 'single_use'
+      && Number(promo.uses_count || 0) >= 1) {
+      return res.status(400).json({ error: 'Одноразовый промокод уже использован и не может быть включён' });
+    }
+
     const result = await pool.query(
       `UPDATE master_promo_codes
        SET is_active = $1, updated_at = NOW()
@@ -506,9 +528,6 @@ router.patch('/promo-codes/:id', loadMaster, async (req, res) => {
        RETURNING *`,
       [req.body.is_active, req.params.id, req.master.id]
     );
-    if (!result.rows.length) {
-      return res.status(404).json({ error: 'Promo code not found' });
-    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating promo code:', error);

@@ -991,6 +991,11 @@
       const reward = promo.reward_type === 'percent'
         ? 'Скидка ' + Number(promo.discount_percent || 0) + '%'
         : 'Подарок: ' + escapeHtml(promo.gift_service_name || ('Зона #' + promo.gift_service_id));
+      const usageMode = String(promo.usage_mode || 'always');
+      const usageLabel = usageMode === 'single_use' ? 'Одноразовый' : 'Постоянный';
+      const usageState = usageMode === 'single_use'
+        ? (Number(promo.uses_count || 0) > 0 ? 'использован' : 'не использован')
+        : ('использований: ' + Number(promo.uses_count || 0));
       const status = promo.is_active ? 'Активен' : 'Выключен';
       const toggleLabel = promo.is_active ? 'Выключить' : 'Включить';
       const nextActive = promo.is_active ? 'false' : 'true';
@@ -998,7 +1003,7 @@
       return '<div class="settings-list-item">'
         + '<div>'
         + '<strong>' + escapeHtml(promo.code) + '</strong>'
-        + '<div class="settings-hint">' + reward + ' · ' + status + '</div>'
+        + '<div class="settings-hint">' + reward + ' · ' + usageLabel + ' · ' + usageState + ' · ' + status + '</div>'
         + '</div>'
         + '<div style="display:flex; gap:8px; flex-wrap:wrap;">'
         + '<button class="btn-small btn-edit" onclick="MasterApp.togglePromoCodeActive(' + promo.id + ',' + nextActive + ')">' + toggleLabel + '</button>'
@@ -1051,18 +1056,20 @@
     try {
       const codeEl = $('promoCodeValue');
       const typeEl = $('promoRewardType');
+      const usageModeEl = $('promoUsageMode');
       const discountEl = $('promoDiscountPercent');
       const giftEl = $('promoGiftServiceId');
-      if (!codeEl || !typeEl || !discountEl || !giftEl) return;
+      if (!codeEl || !typeEl || !usageModeEl || !discountEl || !giftEl) return;
 
       const code = String(codeEl.value || '').trim().toUpperCase();
       const rewardType = String(typeEl.value || '');
+      const usageMode = String(usageModeEl.value || 'always');
       if (!code) {
         showToast('Введите промокод');
         return;
       }
 
-      const payload = { code: code, reward_type: rewardType };
+      const payload = { code: code, reward_type: rewardType, usage_mode: usageMode };
       if (rewardType === 'percent') {
         const discount = Number(discountEl.value);
         if (!Number.isInteger(discount) || discount < 1 || discount > 90) {

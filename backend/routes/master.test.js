@@ -303,7 +303,7 @@ describe('Master API', () => {
     it('should list promo codes', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
-        .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, is_active: true }] });
+        .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, usage_mode: 'always', uses_count: 0, is_active: true }] });
 
       const res = await request(app)
         .get('/api/master/promo-codes')
@@ -317,7 +317,7 @@ describe('Master API', () => {
     it('should create percent promo code', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
-        .mockResolvedValueOnce({ rows: [{ id: 10, code: 'SAVE15', reward_type: 'percent', discount_percent: 15, is_active: true }] });
+        .mockResolvedValueOnce({ rows: [{ id: 10, code: 'SAVE15', reward_type: 'percent', discount_percent: 15, usage_mode: 'always', uses_count: 0, is_active: true }] });
 
       const res = await request(app)
         .post('/api/master/promo-codes')
@@ -334,7 +334,7 @@ describe('Master API', () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
         .mockResolvedValueOnce({ rows: [{ id: 12, master_id: 1, name: 'Сахар: Голень', description: 'Услуги', is_active: true }] })
-        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: 12, is_active: true }] });
+        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: 12, usage_mode: 'always', uses_count: 0, is_active: true }] });
 
       const res = await request(app)
         .post('/api/master/promo-codes')
@@ -347,9 +347,25 @@ describe('Master API', () => {
       expect(res.body.gift_service_id).toBe(12);
     });
 
+    it('should create single-use promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 15, code: 'ONCE10', reward_type: 'percent', discount_percent: 10, usage_mode: 'single_use', uses_count: 0, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'once10', reward_type: 'percent', discount_percent: 10, usage_mode: 'single_use' })
+        .expect(201);
+
+      expect(res.body.code).toBe('ONCE10');
+      expect(res.body.usage_mode).toBe('single_use');
+    });
+
     it('should toggle promo code activity', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, usage_mode: 'always', uses_count: 0 }] })
         .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', is_active: false }] });
 
       const res = await request(app)
@@ -359,6 +375,20 @@ describe('Master API', () => {
         .expect(200);
 
       expect(res.body.is_active).toBe(false);
+    });
+
+    it('should not re-enable used single-use promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 22, usage_mode: 'single_use', uses_count: 1 }] });
+
+      const res = await request(app)
+        .patch('/api/master/promo-codes/22')
+        .set('Authorization', authHeader)
+        .send({ is_active: true })
+        .expect(400);
+
+      expect(res.body.error).toContain('Одноразовый');
     });
   });
 
