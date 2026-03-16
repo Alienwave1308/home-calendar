@@ -567,6 +567,16 @@ body {
   margin-bottom: 8px;
 }
 
+.gift-link-banner {
+  padding: 10px 14px;
+}
+
+.gift-link-banner a {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 /* === SKELETONS === */
 
 .skeleton-service {
