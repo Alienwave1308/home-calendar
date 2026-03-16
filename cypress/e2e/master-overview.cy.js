@@ -81,22 +81,22 @@ describe('Master Panel - Overview Metrics E2E', () => {
     cy.wait('@bookings');
 
     cy.get('#overviewKpiBookings').should('have.text', '1');
-    cy.get('#overviewKpiRevenue').should('contain.text', '1 000 ₽');
-    cy.get('#overviewKpiAvg').should('contain.text', '1 000 ₽');
+    cy.get('#overviewKpiRevenue').invoke('text').should('match', /1[\s\u00a0]000 ₽/);
+    cy.get('#overviewKpiAvg').invoke('text').should('match', /1[\s\u00a0]000 ₽/);
     cy.get('#overviewKpiClients').should('have.text', '1');
 
     cy.get('#overviewPresetWeek').click();
     cy.wait('@bookings');
     cy.get('#overviewKpiBookings').should('have.text', '2');
-    cy.get('#overviewKpiRevenue').should('contain.text', '3 000 ₽');
-    cy.get('#overviewKpiAvg').should('contain.text', '1 500 ₽');
+    cy.get('#overviewKpiRevenue').invoke('text').should('match', /3[\s\u00a0]000 ₽/);
+    cy.get('#overviewKpiAvg').invoke('text').should('match', /1[\s\u00a0]500 ₽/);
     cy.get('#overviewKpiClients').should('have.text', '2');
 
     cy.get('#overviewPresetAll').click();
     cy.wait('@bookings');
     cy.get('#overviewKpiBookings').should('have.text', '3');
-    cy.get('#overviewKpiRevenue').should('contain.text', '6 000 ₽');
-    cy.get('#overviewKpiAvg').should('contain.text', '2 000 ₽');
+    cy.get('#overviewKpiRevenue').invoke('text').should('match', /6[\s\u00a0]000 ₽/);
+    cy.get('#overviewKpiAvg').invoke('text').should('match', /2[\s\u00a0]000 ₽/);
     cy.get('#overviewKpiClients').should('have.text', '2');
 
     const oldDate = new Date();
@@ -108,7 +108,7 @@ describe('Master Panel - Overview Metrics E2E', () => {
 
     cy.wait('@bookings');
     cy.get('#overviewKpiBookings').should('have.text', '1');
-    cy.get('#overviewKpiRevenue').should('contain.text', '3 000 ₽');
+    cy.get('#overviewKpiRevenue').invoke('text').should('match', /3[\s\u00a0]000 ₽/);
     cy.get('#overviewKpiClients').should('have.text', '1');
   });
 });

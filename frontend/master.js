@@ -258,13 +258,22 @@
     refreshOverview();
   }
 
+  async function fetchOverviewBookings() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    const res = await fetch(API_BASE + '/bookings', { headers: headers });
+    if (!res.ok) return [];
+    const data = await res.json().catch(function () { return []; });
+    return Array.isArray(data) ? data : [];
+  }
+
   async function refreshOverview() {
     const label = $('overviewRangeLabel');
     if (label) label.textContent = 'Период: загрузка...';
     renderOverviewPresetButtons();
 
     try {
-      const bookings = await apiFetch('/bookings');
+      const bookings = await fetchOverviewBookings();
       const finished = getFinishedNonCanceledBookings(bookings);
       const bounds = getOverviewBounds(bookings);
       let range = null;
@@ -310,7 +319,6 @@
       if ($('overviewKpiRevenue')) $('overviewKpiRevenue').textContent = '0 ₽';
       if ($('overviewKpiAvg')) $('overviewKpiAvg').textContent = '0 ₽';
       if ($('overviewKpiClients')) $('overviewKpiClients').textContent = '0';
-      showToast('Ошибка загрузки метрик: ' + err.message);
     }
   }
 
