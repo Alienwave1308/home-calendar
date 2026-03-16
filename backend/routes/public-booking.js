@@ -77,19 +77,42 @@ async function loadService(masterId, serviceId) {
 }
 
 async function loadMasterSettings(masterId) {
-  const { rows } = await pool.query(
-    `SELECT reminder_hours, min_booking_notice_minutes
-     FROM master_settings
-     WHERE master_id = $1`,
-    [masterId]
-  );
-  if (!rows.length) {
+  const defaults = {
+    reminder_hours: [24, 2],
+    min_booking_notice_minutes: 60
+  };
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT reminder_hours, min_booking_notice_minutes
+       FROM master_settings
+       WHERE master_id = $1`,
+      [masterId]
+    );
+    if (!rows.length) return defaults;
     return {
-      reminder_hours: [24, 2],
-      min_booking_notice_minutes: 60
+      reminder_hours: rows[0].reminder_hours || defaults.reminder_hours,
+      min_booking_notice_minutes: Number(rows[0].min_booking_notice_minutes ?? defaults.min_booking_notice_minutes)
     };
+  } catch (error) {
+    // Compatibility for partially migrated DB: fallback to minimal settings.
+    if (!['42703', '42P01'].includes(error.code)) throw error;
+    try {
+      const { rows } = await pool.query(
+        `SELECT reminder_hours
+         FROM master_settings
+         WHERE master_id = $1`,
+        [masterId]
+      );
+      if (!rows.length) return defaults;
+      return {
+        reminder_hours: rows[0].reminder_hours || defaults.reminder_hours,
+        min_booking_notice_minutes: defaults.min_booking_notice_minutes
+      };
+    } catch {
+      return defaults;
+    }
   }
-  return rows[0];
 }
 
 function normalizePromoCode(rawPromoCode) {
@@ -99,23 +122,29 @@ function normalizePromoCode(rawPromoCode) {
 async function loadActivePromoCode(masterId, normalizedCode) {
   if (!normalizedCode) return null;
 
-  const { rows } = await pool.query(
-    `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active,
-            p.usage_mode, p.uses_count,
-            gs.id AS gift_id, gs.master_id AS gift_master_id, gs.name AS gift_name,
-            gs.duration_minutes AS gift_duration_minutes, gs.price AS gift_price,
-            gs.description AS gift_description, gs.buffer_before_minutes AS gift_buffer_before_minutes,
-            gs.buffer_after_minutes AS gift_buffer_after_minutes, gs.is_active AS gift_is_active
-     FROM master_promo_codes p
-     LEFT JOIN services gs ON gs.id = p.gift_service_id
-     WHERE p.master_id = $1
-       AND p.code = $2
-       AND p.is_active = true
-       AND (p.usage_mode <> 'single_use' OR p.uses_count < 1)
-     LIMIT 1`,
-    [masterId, normalizedCode]
-  );
-  return rows[0] || null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active,
+              p.usage_mode, p.uses_count,
+              gs.id AS gift_id, gs.master_id AS gift_master_id, gs.name AS gift_name,
+              gs.duration_minutes AS gift_duration_minutes, gs.price AS gift_price,
+              gs.description AS gift_description, gs.buffer_before_minutes AS gift_buffer_before_minutes,
+              gs.buffer_after_minutes AS gift_buffer_after_minutes, gs.is_active AS gift_is_active
+       FROM master_promo_codes p
+       LEFT JOIN services gs ON gs.id = p.gift_service_id
+       WHERE p.master_id = $1
+         AND p.code = $2
+         AND p.is_active = true
+         AND (p.usage_mode <> 'single_use' OR p.uses_count < 1)
+       LIMIT 1`,
+      [masterId, normalizedCode]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    // Compatibility mode: promo schema can be absent on partially migrated DB.
+    if (error.code === '42P01' || error.code === '42703') return null;
+    throw error;
+  }
 }
 
 function resolveMasterTimezone(master) {
@@ -243,26 +272,36 @@ router.get('/master/:slug/slots', async (req, res) => {
     const queryStartUtc = new Date(localDateTimeToUtcMs(date_from, '00:00:00', timezone)).toISOString();
     const queryEndUtc = new Date(localDateTimeToUtcMs(date_to, '23:59:59', timezone)).toISOString();
 
-    const [windows, bookings, blocks] = await Promise.all([
-      pool.query(
+    let windows = { rows: [] };
+    try {
+      windows = await pool.query(
         `SELECT id, date, start_time, end_time
          FROM availability_windows
          WHERE master_id = $1 AND date >= $2 AND date <= $3
          ORDER BY date, start_time`,
         [master.id, date_from, date_to]
-      ),
-      pool.query(
-        `SELECT start_at, end_at FROM bookings
-         WHERE master_id = $1 AND status NOT IN ('canceled')
-           AND start_at < $3 AND end_at > $2`,
-        [master.id, queryStartUtc, queryEndUtc]
-      ),
-      pool.query(
+      );
+    } catch (windowError) {
+      if (windowError.code !== '42P01') throw windowError;
+    }
+
+    const bookings = await pool.query(
+      `SELECT start_at, end_at FROM bookings
+       WHERE master_id = $1 AND status NOT IN ('canceled')
+         AND start_at < $3 AND end_at > $2`,
+      [master.id, queryStartUtc, queryEndUtc]
+    );
+
+    let blocks = { rows: [] };
+    try {
+      blocks = await pool.query(
         `SELECT start_at, end_at FROM master_blocks
          WHERE master_id = $1 AND start_at < $3 AND end_at > $2`,
         [master.id, queryStartUtc, queryEndUtc]
-      )
-    ]);
+      );
+    } catch (blockError) {
+      if (blockError.code !== '42P01') throw blockError;
+    }
 
     const slots = generateSlotsFromWindows({
       service: effectiveService,

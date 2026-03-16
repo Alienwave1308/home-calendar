@@ -423,6 +423,9 @@ router.get('/promo-codes', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json([]);
+    }
     console.error('Error loading promo codes:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -660,6 +663,9 @@ router.get('/availability/exclusions', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
+    if (error.code === '42P01') {
+      return res.json([]);
+    }
     console.error('Error listing exclusions:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -732,6 +738,9 @@ router.get('/availability/windows', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
+    if (error.code === '42P01') {
+      return res.json([]);
+    }
     console.error('Error listing availability windows:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -803,8 +812,8 @@ router.get('/availability/preview', loadMaster, async (req, res) => {
       return res.status(404).json({ error: 'Service not found' });
     }
 
-    // Load rules, exclusions, bookings, blocks
-    const [rules, exclusions, bookings, blocks] = await Promise.all([
+    // Load rules, exclusions and bookings.
+    const [rules, exclusions, bookings] = await Promise.all([
       pool.query('SELECT * FROM availability_rules WHERE master_id = $1', [req.master.id]),
       pool.query('SELECT date FROM availability_exclusions WHERE master_id = $1', [req.master.id]),
       pool.query(
@@ -812,20 +821,27 @@ router.get('/availability/preview', loadMaster, async (req, res) => {
          WHERE master_id = $1 AND status NOT IN ('canceled')
            AND start_at < $3 AND end_at > $2`,
         [req.master.id, date_from, date_to]
-      ),
-      pool.query(
+      )
+    ]);
+
+    let blocksRows = [];
+    try {
+      const blocks = await pool.query(
         `SELECT start_at, end_at FROM master_blocks
          WHERE master_id = $1 AND start_at < $3 AND end_at > $2`,
         [req.master.id, date_from, date_to]
-      )
-    ]);
+      );
+      blocksRows = blocks.rows;
+    } catch (blockError) {
+      if (blockError.code !== '42P01') throw blockError;
+    }
 
     const slots = generateSlots({
       service: svc.rows[0],
       rules: rules.rows,
       exclusions: exclusions.rows.map(e => e.date),
       bookings: bookings.rows,
-      blocks: blocks.rows,
+      blocks: blocksRows,
       dateFrom: date_from,
       dateTo: date_to,
       timezone: req.master.timezone
@@ -886,29 +902,34 @@ router.get('/calendar', loadMaster, async (req, res) => {
       return res.status(400).json({ error: 'date_from and date_to are required' });
     }
 
-    const [bookingsRes, blocksRes] = await Promise.all([
-      pool.query(
-        `SELECT b.*, s.name AS service_name, s.duration_minutes,
-                u.username AS client_name
-         FROM bookings b
-         JOIN services s ON b.service_id = s.id
-         JOIN users u ON b.client_id = u.id
-         WHERE b.master_id = $1 AND b.status != 'canceled'
-           AND b.start_at < $3 AND b.end_at > $2
-         ORDER BY b.start_at`,
-        [req.master.id, date_from, date_to]
-      ),
-      pool.query(
+    const bookingsRes = await pool.query(
+      `SELECT b.*, s.name AS service_name, s.duration_minutes,
+              u.username AS client_name
+       FROM bookings b
+       JOIN services s ON b.service_id = s.id
+       JOIN users u ON b.client_id = u.id
+       WHERE b.master_id = $1 AND b.status != 'canceled'
+         AND b.start_at < $3 AND b.end_at > $2
+       ORDER BY b.start_at`,
+      [req.master.id, date_from, date_to]
+    );
+
+    let blocks = [];
+    try {
+      const blocksRes = await pool.query(
         `SELECT * FROM master_blocks
          WHERE master_id = $1 AND start_at < $3 AND end_at > $2
          ORDER BY start_at`,
         [req.master.id, date_from, date_to]
-      )
-    ]);
+      );
+      blocks = blocksRes.rows;
+    } catch (blockError) {
+      if (blockError.code !== '42P01') throw blockError;
+    }
 
     res.json({
       bookings: bookingsRes.rows,
-      blocks: blocksRes.rows
+      blocks: blocks
     });
   } catch (error) {
     console.error('Error loading master calendar:', error);
@@ -1332,24 +1353,35 @@ router.delete('/blocks/:id', loadMaster, async (req, res) => {
 
 // GET /api/master/settings
 router.get('/settings', loadMaster, async (req, res) => {
+  const defaults = {
+    master_id: req.master.id,
+    reminder_hours: [24, 2],
+    quiet_hours_start: null,
+    quiet_hours_end: null,
+    min_booking_notice_minutes: 60,
+    apple_calendar_enabled: false,
+    apple_calendar_token: null
+  };
+
   try {
     const { rows } = await pool.query(
       'SELECT * FROM master_settings WHERE master_id = $1',
       [req.master.id]
     );
     if (rows.length === 0) {
-      return res.json({
-        master_id: req.master.id,
-        reminder_hours: [24, 2],
-        quiet_hours_start: null,
-        quiet_hours_end: null,
-        min_booking_notice_minutes: 60,
-        apple_calendar_enabled: false,
-        apple_calendar_token: null
-      });
+      return res.json(defaults);
     }
-    res.json(rows[0]);
+    const settings = rows[0] || {};
+    res.json({
+      ...defaults,
+      ...settings,
+      reminder_hours: settings.reminder_hours || defaults.reminder_hours,
+      min_booking_notice_minutes: Number(settings.min_booking_notice_minutes ?? defaults.min_booking_notice_minutes)
+    });
   } catch (error) {
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json(defaults);
+    }
     console.error('Error loading settings:', error);
     res.status(500).json({ error: 'Server error' });
   }

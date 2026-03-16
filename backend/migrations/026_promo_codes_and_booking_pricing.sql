@@ -25,15 +25,96 @@ CREATE INDEX IF NOT EXISTS idx_master_promo_codes_master
 CREATE INDEX IF NOT EXISTS idx_master_promo_codes_master_active
   ON master_promo_codes(master_id, is_active);
 
-ALTER TABLE bookings
-  ADD COLUMN IF NOT EXISTS promo_code_id INTEGER REFERENCES master_promo_codes(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS promo_code VARCHAR(64),
-  ADD COLUMN IF NOT EXISTS promo_reward_type VARCHAR(20),
-  ADD COLUMN IF NOT EXISTS promo_discount_percent INTEGER,
-  ADD COLUMN IF NOT EXISTS promo_gift_service_id INTEGER REFERENCES services(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS pricing_base NUMERIC(10, 2),
-  ADD COLUMN IF NOT EXISTS pricing_final NUMERIC(10, 2),
-  ADD COLUMN IF NOT EXISTS pricing_discount_amount NUMERIC(10, 2);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'promo_code_id'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN promo_code_id INTEGER REFERENCES master_promo_codes(id) ON DELETE SET NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'promo_code'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN promo_code VARCHAR(64);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'promo_reward_type'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN promo_reward_type VARCHAR(20);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'promo_discount_percent'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN promo_discount_percent INTEGER;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'promo_gift_service_id'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN promo_gift_service_id INTEGER REFERENCES services(id) ON DELETE SET NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'pricing_base'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN pricing_base NUMERIC(10, 2);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'pricing_final'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN pricing_final NUMERIC(10, 2);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'bookings'
+      AND column_name = 'pricing_discount_amount'
+  ) THEN
+    ALTER TABLE bookings
+      ADD COLUMN pricing_discount_amount NUMERIC(10, 2);
+  END IF;
+END $$;
 
 UPDATE bookings b
 SET

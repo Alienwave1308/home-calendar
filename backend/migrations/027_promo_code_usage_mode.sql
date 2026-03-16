@@ -1,8 +1,27 @@
-ALTER TABLE master_promo_codes
-  ADD COLUMN IF NOT EXISTS usage_mode VARCHAR(20) NOT NULL DEFAULT 'always';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'master_promo_codes'
+      AND column_name = 'usage_mode'
+  ) THEN
+    ALTER TABLE master_promo_codes
+      ADD COLUMN usage_mode VARCHAR(20) NOT NULL DEFAULT 'always';
+  END IF;
 
-ALTER TABLE master_promo_codes
-  ADD COLUMN IF NOT EXISTS uses_count INTEGER NOT NULL DEFAULT 0;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'master_promo_codes'
+      AND column_name = 'uses_count'
+  ) THEN
+    ALTER TABLE master_promo_codes
+      ADD COLUMN uses_count INTEGER NOT NULL DEFAULT 0;
+  END IF;
+END $$;
 
 DO $$
 BEGIN

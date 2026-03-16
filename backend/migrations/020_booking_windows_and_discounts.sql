@@ -13,9 +13,30 @@ CREATE TABLE IF NOT EXISTS availability_windows (
 CREATE INDEX IF NOT EXISTS idx_availability_windows_master_date
   ON availability_windows(master_id, date);
 
-ALTER TABLE master_settings
-  ADD COLUMN IF NOT EXISTS first_visit_discount_percent INTEGER NOT NULL DEFAULT 15,
-  ADD COLUMN IF NOT EXISTS min_booking_notice_minutes INTEGER NOT NULL DEFAULT 60;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'master_settings'
+      AND column_name = 'first_visit_discount_percent'
+  ) THEN
+    ALTER TABLE master_settings
+      ADD COLUMN first_visit_discount_percent INTEGER NOT NULL DEFAULT 15;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'master_settings'
+      AND column_name = 'min_booking_notice_minutes'
+  ) THEN
+    ALTER TABLE master_settings
+      ADD COLUMN min_booking_notice_minutes INTEGER NOT NULL DEFAULT 60;
+  END IF;
+END $$;
 
 UPDATE master_settings
 SET first_visit_discount_percent = 15
