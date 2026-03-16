@@ -93,6 +93,19 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('@openLink').its('lastCall.args.0').should('include', 'token=test-client-token');
   });
 
+  it('renders month calendar view for date picking', () => {
+    cy.contains('.service-card', 'Шугаринг').click();
+    cy.get('.selection-bar-btn').click();
+    cy.wait('@getSlots');
+
+    cy.get('#calMonth').should('not.have.text', '');
+    cy.get('#calPrev').should('be.disabled');
+    cy.get('#dateStrip .calendar-cell').not('.calendar-cell--empty').should('have.length.at.least', 28);
+    cy.get('#dateStrip .calendar-cell').not('.calendar-cell--empty').not('.disabled').eq(1).click();
+    cy.wait('@getSlots');
+    cy.get('.slot-btn').should('have.length.at.least', 1);
+  });
+
   it('sends promo code from confirm screen to booking API', () => {
     cy.contains('.service-card', 'Шугаринг').click();
     cy.get('.selection-bar-btn').click();

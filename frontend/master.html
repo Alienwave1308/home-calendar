@@ -17,7 +17,7 @@
 
     <!-- Tabs -->
     <nav class="master-tabs" id="masterTabs">
-      <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Сегодня</button>
+      <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Обзор</button>
       <button class="master-tab" data-tab="bookings" onclick="MasterApp.switchTab('bookings')">Записи</button>
       <button class="master-tab" data-tab="leads" onclick="MasterApp.switchTab('leads')">Лиды</button>
       <button class="master-tab" data-tab="services" onclick="MasterApp.switchTab('services')">Услуги</button>
@@ -26,6 +26,42 @@
 
     <!-- Tab: Today -->
     <section class="tab-panel" id="tabToday">
+      <article class="settings-card overview-card">
+        <h3>Метрики</h3>
+        <div class="overview-controls">
+          <div class="overview-period-grid">
+            <button class="btn-secondary active" id="overviewPresetDay" onclick="MasterApp.setOverviewPreset('day')">День</button>
+            <button class="btn-secondary" id="overviewPresetWeek" onclick="MasterApp.setOverviewPreset('week')">Неделя</button>
+            <button class="btn-secondary" id="overviewPresetMonth" onclick="MasterApp.setOverviewPreset('month')">Месяц</button>
+            <button class="btn-secondary" id="overviewPresetAll" onclick="MasterApp.setOverviewPreset('all')">Все время</button>
+          </div>
+          <div class="overview-custom-period">
+            <input id="overviewFrom" type="date">
+            <input id="overviewTo" type="date">
+            <button class="btn-secondary" onclick="MasterApp.applyOverviewPeriod()">Применить</button>
+          </div>
+          <p id="overviewRangeLabel" class="settings-hint">Период: —</p>
+        </div>
+        <div class="overview-kpi-grid">
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Записей</p>
+            <p id="overviewKpiBookings" class="overview-kpi-value">0</p>
+          </article>
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Выручка</p>
+            <p id="overviewKpiRevenue" class="overview-kpi-value">0 ₽</p>
+          </article>
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Средний чек</p>
+            <p id="overviewKpiAvg" class="overview-kpi-value">0 ₽</p>
+          </article>
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Клиентов</p>
+            <p id="overviewKpiClients" class="overview-kpi-value">0</p>
+          </article>
+        </div>
+        <p class="settings-hint overview-kpi-note">В расчет попадают только неотмененные записи, время которых уже прошло.</p>
+      </article>
       <div id="todayBookings" class="bookings-list"></div>
       <div id="todayEmpty" class="empty-state" style="display:none;">
         <div class="empty-icon">🎉</div>
