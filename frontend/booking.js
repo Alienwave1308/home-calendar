@@ -151,6 +151,7 @@
     dock: document.getElementById('dock'),
     dockTitle: document.getElementById('dockTitle'),
     dockInfo: document.getElementById('dockInfo'),
+    dockSelectedList: document.getElementById('dockSelectedList'),
     dockAction: document.getElementById('dockAction'),
     tabButtons: Array.prototype.slice.call(document.querySelectorAll('.tab-btn')),
     toast: document.getElementById('toast'),
@@ -532,6 +533,7 @@
         + '<span class="price">' + money(service.price || 0) + ' ₽</span>'
         + '</div>'
         + '<p class="meta">' + categoryLabel + ' · ' + Number(service.duration_minutes || 0) + ' мин</p>'
+        + (selected ? '<span class="service-selected-tag">Выбрана</span>' : '')
         + '<div class="badge-row">' + badges.map(function (b) { return '<span class="badge">' + b + '</span>'; }).join('') + '</div>'
         + '</article>';
     }).join('');
@@ -629,23 +631,37 @@
   }
 
   function renderDock() {
-    const visible = state.tab === 'services' && (state.flowScreen === 'services' || state.flowScreen === 'calendar');
+    const selected = selectedServices();
+    const visible = state.tab === 'services'
+      && (
+        state.flowScreen === 'calendar'
+        || (state.flowScreen === 'services' && selected.length > 0)
+      );
     el.dock.classList.toggle('visible', visible);
-    if (!visible) return;
+    if (!visible) {
+      el.dockSelectedList.classList.remove('visible');
+      el.dockSelectedList.innerHTML = '';
+      return;
+    }
 
     if (state.flowScreen === 'services') {
-      const selected = selectedServices();
       const totals = selectedTotals();
       const count = selected.length;
       const label = count + ' ' + (count === 1 ? 'услуга' : (count < 5 ? 'услуги' : 'услуг'));
       el.dockTitle.textContent = label;
       el.dockInfo.textContent = totals.duration + ' мин · ' + money(totals.price) + ' ₽';
+      el.dockSelectedList.innerHTML = selected.map(function (service) {
+        return '<li>' + escapeHtml(service.name) + '</li>';
+      }).join('');
+      el.dockSelectedList.classList.add('visible');
       el.dockAction.textContent = 'Выбрать дату →';
     } else {
       const selectedDay = state.selectedDate ? formatDateByKey(state.selectedDate) : 'Дата не выбрана';
       const slotText = state.selectedSlot ? state.selectedSlot.label + ' · ' : '';
       el.dockTitle.textContent = selectedDay;
       el.dockInfo.textContent = slotText + (state.selectedSlot ? 'К подтверждению' : 'Выберите слот');
+      el.dockSelectedList.classList.remove('visible');
+      el.dockSelectedList.innerHTML = '';
       el.dockAction.textContent = 'К подтверждению →';
     }
   }
