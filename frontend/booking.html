@@ -3,197 +3,163 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#2f9f68">
+  <meta name="theme-color" content="#1f8c5a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
-  <!-- Telegram Mini App -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- VK Mini App Bridge -->
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-  <title>Запись</title>
+  <title>RoVa Epil — Запись</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/booking.css">
 </head>
 <body>
-  <div id="app">
-    <!-- Шаг 1: Выбор услуги -->
-    <section class="step" id="stepServices">
-      <div class="step-header">
-        <div class="step-header-row">
-          <div class="studio-brand-wrap">
-            <div id="studioBrand" class="studio-brand">RoVa</div>
-            <div id="studioSubtitle" class="studio-subtitle">Epil &amp; Care</div>
-            <div id="masterName" class="master-name"></div>
-          </div>
-          <button class="btn-my-bookings" onclick="BookingApp.showMyBookings()">Мои записи</button>
-        </div>
-        <p class="step-subtitle">Выберите услугу</p>
-      </div>
-      <div class="empty-state gift-link-banner" style="margin-bottom:12px;">
-        <p style="margin:0;">
-          Подарок от меня на первое посещение по ссылке:
-          <a href="https://vk.cc/cVmuLI" target="_blank" rel="noopener noreferrer">vk.cc/cVmuLI</a>
-        </p>
-      </div>
-      <div class="service-tabs" id="serviceMethodTabs" style="display:none;">
-        <button class="service-tab active" data-method="all" onclick="BookingApp.setMethodFilter('all')">Все</button>
-        <button class="service-tab" data-method="sugar" onclick="BookingApp.setMethodFilter('sugar')">Сахар</button>
-        <button class="service-tab" data-method="wax" onclick="BookingApp.setMethodFilter('wax')">Воск</button>
-      </div>
-      <div class="service-tabs service-subtabs" id="serviceCategoryTabs" style="display:none;">
-        <button class="service-tab active" data-category="all" onclick="BookingApp.setCategoryFilter('all')">Все</button>
-        <button class="service-tab" data-category="Услуги" onclick="BookingApp.setCategoryFilter('Услуги')">Зоны</button>
-        <button class="service-tab" data-category="Комплексы" onclick="BookingApp.setCategoryFilter('Комплексы')">Комплексы</button>
-      </div>
-      <div id="servicesList" class="services-list">
-        <!-- skeleton or services -->
-      </div>
-      <div id="servicesEmpty" class="empty-state" style="display:none;">
-        <div class="empty-icon">📋</div>
-        <p>У мастера пока нет доступных услуг</p>
+  <div class="noise"></div>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+  <div class="orb c"></div>
+
+  <main class="shell">
+    <article class="phone">
+      <div class="statusbar">
+        <span id="statusTime">08:19</span>
+        <span>Telegram Mini App</span>
       </div>
 
-      <!-- Selection summary bar — появляется когда выбрана хотя бы 1 услуга -->
-      <div id="selectionBar" class="selection-bar" style="display:none;">
-        <div class="selection-bar-info">
-          <span id="selectionBarCount" class="selection-bar-count"></span>
-          <span id="selectionBarMeta" class="selection-bar-meta"></span>
+      <header class="app-header">
+        <button id="headerBack" class="icon-btn" aria-label="Назад">‹</button>
+        <div>
+          <p id="headerTitle" class="header-title">Запись</p>
+          <p id="headerSub" class="header-sub">RoVa Epil</p>
         </div>
-        <button class="selection-bar-btn" onclick="BookingApp.proceedToSlots()">Далее &rarr;</button>
-      </div>
-    </section>
+        <button id="headerMore" class="icon-btn" aria-label="Меню">⋯</button>
+      </header>
 
-    <!-- Шаг 2: Выбор даты и слота -->
-    <section class="step" id="stepSlots" style="display:none;">
-      <div class="step-header">
-        <button class="btn-back" onclick="BookingApp.goBack('stepServices')">&larr; Назад</button>
-        <h2 id="selectedServiceName"></h2>
-        <div id="selectedServicesChips" class="selected-chips" style="display:none;"></div>
-        <p class="step-subtitle">Выберите дату и время</p>
-      </div>
-      <div class="booking-calendar">
-        <div class="calendar-head">
-          <button type="button" class="cal-nav" id="calPrev" onclick="BookingApp.shiftCalendarMonth(-1)" aria-label="Предыдущий месяц">&lsaquo;</button>
-          <div>
-            <p class="cal-title" id="calMonth">Месяц</p>
-            <p class="cal-sub">Доступные дни до конца месяца</p>
-          </div>
-          <button type="button" class="cal-nav" id="calNext" onclick="BookingApp.shiftCalendarMonth(1)" aria-label="Следующий месяц">&rsaquo;</button>
-        </div>
-        <div class="calendar-weekdays">
-          <span>Пн</span>
-          <span>Вт</span>
-          <span>Ср</span>
-          <span>Чт</span>
-          <span>Пт</span>
-          <span>Сб</span>
-          <span>Вс</span>
-        </div>
-        <div class="calendar-grid" id="dateStrip">
-          <!-- month grid -->
-        </div>
-      </div>
-      <div id="slotsList" class="slots-grid">
-        <!-- skeleton or slots -->
-      </div>
-      <div id="slotsEmpty" class="empty-state" style="display:none;">
-        <div class="empty-icon">🕐</div>
-        <p>Нет свободных слотов на эту дату</p>
-        <button class="btn-secondary" onclick="BookingApp.nextDate()">Попробовать другой день</button>
-      </div>
-    </section>
+      <div class="app-body">
+        <section id="screen-services" class="screen active">
+          <section class="card">
+            <div class="brand-top">
+              <div>
+                <p id="studioBrand" class="brand">Ro Va</p>
+                <p id="studioSubtitle" class="sub">Epil &amp; Care</p>
+                <p id="masterName" class="master">Лера</p>
+              </div>
+              <span class="pulse"><i></i> Онлайн запись</span>
+            </div>
+          </section>
 
-    <!-- Шаг 3: Подтверждение -->
-    <section class="step" id="stepConfirm" style="display:none;">
-      <div class="step-header">
-        <button class="btn-back" onclick="BookingApp.goBack('stepSlots')">&larr; Назад</button>
-        <h2>Подтверждение записи</h2>
-      </div>
-      <div class="confirm-card">
-        <!-- Список услуг (для мультивыбора — несколько строк) -->
-        <div id="confirmServicesBlock">
-          <div class="confirm-row">
-            <span class="confirm-label">Услуга</span>
-            <span id="confirmService" class="confirm-value"></span>
-          </div>
-        </div>
-        <div class="confirm-row">
-          <span class="confirm-label">Дата</span>
-          <span id="confirmDate" class="confirm-value"></span>
-        </div>
-        <div class="confirm-row">
-          <span class="confirm-label">Время</span>
-          <span id="confirmTime" class="confirm-value"></span>
-        </div>
-        <div class="confirm-row">
-          <span class="confirm-label">Длительность</span>
-          <span id="confirmDuration" class="confirm-value"></span>
-        </div>
-        <div class="confirm-row" id="confirmPriceRow" style="display:none;">
-          <span class="confirm-label">Стоимость</span>
-          <span id="confirmPrice" class="confirm-value confirm-price"></span>
-        </div>
-        <div class="confirm-row" id="confirmDiscountRow" style="display:none;">
-          <span class="confirm-label">Скидка</span>
-          <span id="confirmDiscount" class="confirm-value"></span>
-        </div>
-        <div class="confirm-row" id="confirmFinalPriceRow" style="display:none;">
-          <span class="confirm-label">Итого</span>
-          <span id="confirmFinalPrice" class="confirm-value confirm-price"></span>
-        </div>
-        <input id="confirmPromoCode" class="confirm-promo-input" maxlength="64" placeholder="Промокод (необязательно)">
-        <p class="confirm-promo-hint">Промокод можно ввести перед подтверждением записи.</p>
-        <textarea id="confirmNote" class="confirm-note" placeholder="Комментарий к записи (необязательно)" rows="2"></textarea>
-      </div>
-      <button class="btn-primary btn-book" id="btnBook" onclick="BookingApp.confirmBooking()">
-        Записаться
-      </button>
-    </section>
+          <section class="gift">
+            <span id="giftText">Подарок от меня на первое посещение по ссылке:</span>
+            <a id="giftLink" href="https://vk.cc/cVmuLI" target="_blank" rel="noopener noreferrer">vk.cc/cVmuLI</a>
+          </section>
 
-    <!-- Шаг 4: Готово -->
-    <section class="step" id="stepDone" style="display:none;">
-      <div class="done-card">
-        <div class="done-icon">✅</div>
-        <h2>Вы записаны!</h2>
-        <p id="doneDetails" class="done-details"></p>
-        <div class="done-export-actions">
-          <a id="doneGoogleLink" class="btn-secondary done-export-btn" href="#" target="_blank" rel="noopener noreferrer">
-            Экспорт в Google Calendar
-          </a>
-          <button id="doneAppleBtn" class="btn-secondary done-export-btn" type="button">
-            Экспорт в Apple Calendar (.ics)
-          </button>
+          <div id="methodTabs" class="seg"></div>
+          <div id="categoryTabs" class="seg"></div>
+
+          <div id="servicesList" class="services-list"></div>
+        </section>
+
+        <section id="screen-calendar" class="screen">
+          <section class="card" style="margin-bottom:10px;">
+            <div class="row-line"><strong id="calendarServiceTitle">Услуги</strong><span id="calendarServiceMeta">0 мин · 0 ₽</span></div>
+          </section>
+
+          <section class="calendar">
+            <div class="calendar-head">
+              <button id="calPrev" type="button" class="cal-nav" aria-label="Предыдущий месяц">‹</button>
+              <div>
+                <p id="calMonth" class="cal-title">Март 2026</p>
+                <p class="cal-sub">Календарь на месяц вперед</p>
+              </div>
+              <button id="calNext" type="button" class="cal-nav" aria-label="Следующий месяц">›</button>
+            </div>
+            <div class="weekdays">
+              <span class="weekday">Пн</span>
+              <span class="weekday">Вт</span>
+              <span class="weekday">Ср</span>
+              <span class="weekday">Чт</span>
+              <span class="weekday">Пт</span>
+              <span class="weekday">Сб</span>
+              <span class="weekday">Вс</span>
+            </div>
+            <div id="calGrid" class="calendar-grid"></div>
+          </section>
+
+          <section class="slots">
+            <div class="slots-head">
+              <h3 id="slotsDate">Выберите дату</h3>
+              <span id="slotsBadge" class="slots-badge">0 слотов</span>
+            </div>
+            <div id="slotsWrap" class="slots-wrap"></div>
+          </section>
+        </section>
+
+        <section id="screen-confirm" class="screen">
+          <section class="card">
+            <div id="confirmServices" class="confirm-group"></div>
+            <div id="confirmPricing" class="confirm-group"></div>
+
+            <div class="confirm-group">
+              <label for="promoInput" class="meta" style="margin:0;">Промокод</label>
+              <div class="row" style="margin-top:0;">
+                <input id="promoInput" class="input" placeholder="Например, SAVE10 или GIFTLEG" maxlength="64">
+                <button id="promoApply" class="btn">Применить</button>
+              </div>
+              <p id="promoHint" class="meta" style="margin:0;">Введите промокод и нажмите «Применить»</p>
+            </div>
+
+            <div class="confirm-group" style="margin-top:8px;">
+              <label for="noteInput" class="meta" style="margin:0;">Комментарий</label>
+              <textarea id="noteInput" class="input" rows="3" placeholder="Необязательно"></textarea>
+            </div>
+
+            <div class="row" style="margin-top:12px;">
+              <button id="confirmBack" class="btn">Назад</button>
+              <button id="confirmSubmit" class="btn primary">Подтвердить</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="screen-done" class="screen">
+          <section class="card" style="text-align:center; padding:18px 14px;">
+            <div style="font-size:34px; margin-bottom:8px;">✅</div>
+            <h3 style="margin:0 0 8px;">Запись подтверждена</h3>
+            <p id="doneText" class="meta" style="margin:0 auto; max-width:260px;"></p>
+            <div class="row" style="justify-content:center; margin-top:14px;">
+              <button id="doneNew" class="btn">Новая запись</button>
+              <button id="doneBookings" class="btn primary">Мои записи</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="screen-bookings" class="screen">
+          <section class="card" style="margin-bottom:10px;">
+            <div class="row-line"><strong>Мои записи</strong><span id="bookingsCount">0</span></div>
+          </section>
+          <div id="bookingsList"></div>
+        </section>
+      </div>
+
+      <div id="dock" class="dock">
+        <div>
+          <strong id="dockTitle">0 услуг</strong>
+          <small id="dockInfo">Выберите услугу</small>
         </div>
-        <button class="btn-secondary" onclick="BookingApp.showMyBookings()">Мои записи</button>
-        <button class="btn-primary" onclick="BookingApp.reset()">Записаться ещё</button>
+        <button id="dockAction">Далее →</button>
       </div>
-    </section>
 
-    <!-- Мои записи -->
-    <section class="step" id="stepMyBookings" style="display:none;">
-      <div class="step-header">
-        <button class="btn-back" onclick="BookingApp.goBack('stepServices')">&larr; Назад к услугам</button>
-        <h2>Мои записи</h2>
+      <div class="bottom-tabs">
+        <button class="tab-btn active" data-tab="services">Запись</button>
+        <button class="tab-btn" data-tab="bookings">Мои</button>
       </div>
-      <div id="myBookingsList" class="bookings-list"></div>
-      <div id="myBookingsEmpty" class="empty-state" style="display:none;">
-        <div class="empty-icon">📅</div>
-        <p>У вас пока нет записей</p>
-        <button class="btn-primary" style="margin-top:12px;" onclick="BookingApp.reset()">Записаться</button>
-      </div>
-    </section>
 
-    <!-- Ошибка сети (toast) -->
-    <div id="networkToast" class="network-toast" style="display:none;">
-      <span id="networkToastText"></span>
-      <button class="toast-close" onclick="BookingApp.hideToast()">&times;</button>
-    </div>
-
-    <!-- Полноэкранный лоадер -->
-    <div id="fullLoader" class="full-loader" style="display:none;">
-      <div class="loader-spinner"></div>
-    </div>
-  </div>
+      <div id="toast" class="toast"></div>
+      <div id="networkToast" style="display:none;"><span id="networkToastText"></span></div>
+      <div id="fullLoader" class="full-loader" style="display:none;"><div class="loader-spinner"></div></div>
+    </article>
+  </main>
 
   <script src="/booking-export-utils.js"></script>
   <script src="/booking.js"></script>

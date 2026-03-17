@@ -44,6 +44,21 @@
   let overviewPreset = 'day';
   let overviewFrom = '';
   let overviewTo = '';
+  let masterProfileCache = null;
+
+  const DEFAULT_MASTER_PROFILE = Object.freeze({
+    brand: 'Ro Va',
+    subtitle: 'Epil & Care',
+    name: 'Лера',
+    role: 'Мастер эпиляции',
+    city: 'Новосибирск',
+    experience: '',
+    phone: '',
+    address: '',
+    bio: '',
+    gift_text: 'Подарок от меня на первое посещение по ссылке:',
+    gift_url: 'https://vk.cc/cVmuLI'
+  });
 
   function $(id) { return document.getElementById(id); }
 
@@ -155,6 +170,45 @@
     return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(num)) + ' ₽';
   }
 
+  function normalizeProfileText(value) {
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  }
+
+  function normalizeGiftUrl(value) {
+    const raw = normalizeProfileText(value);
+    if (!raw) return '';
+    const withProtocol = /^[a-z]+:\/\//i.test(raw) ? raw : 'https://' + raw;
+    try {
+      const parsed = new window.URL(withProtocol);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+      return parsed.toString();
+    } catch {
+      return '';
+    }
+  }
+
+  function resolveMasterProfile(profileResponse) {
+    const profile = profileResponse && profileResponse.profile && typeof profileResponse.profile === 'object'
+      ? profileResponse.profile
+      : {};
+    return {
+      brand: normalizeProfileText(profile.brand) || DEFAULT_MASTER_PROFILE.brand,
+      subtitle: normalizeProfileText(profile.subtitle) || DEFAULT_MASTER_PROFILE.subtitle,
+      name: normalizeProfileText(profile.name)
+        || normalizeProfileText(profileResponse && profileResponse.display_name)
+        || DEFAULT_MASTER_PROFILE.name,
+      role: normalizeProfileText(profile.role) || DEFAULT_MASTER_PROFILE.role,
+      city: normalizeProfileText(profile.city) || DEFAULT_MASTER_PROFILE.city,
+      experience: normalizeProfileText(profile.experience),
+      phone: normalizeProfileText(profile.phone),
+      address: normalizeProfileText(profile.address),
+      bio: normalizeProfileText(profile.bio),
+      gift_text: normalizeProfileText(profile.gift_text) || DEFAULT_MASTER_PROFILE.gift_text,
+      gift_url: normalizeGiftUrl(profile.gift_url) || DEFAULT_MASTER_PROFILE.gift_url
+    };
+  }
+
   // === TABS ===
 
   function switchTab(tabName) {
@@ -169,6 +223,7 @@
     if (panel) panel.style.display = '';
 
     if (tabName === 'today') loadToday();
+    if (tabName === 'profile') loadMasterProfile();
     if (tabName === 'bookings') loadBookings();
     if (tabName === 'leads') setLeadsView(leadsView);
     if (tabName === 'services') loadServices();
@@ -983,16 +1038,132 @@
     }
   }
 
+  // === PROFILE ===
+
+  function renderProfilePreview() {
+    if (!masterProfileCache) return;
+    const profile = masterProfileCache;
+    if ($('profilePreviewBrand')) $('profilePreviewBrand').textContent = profile.brand;
+    if ($('profilePreviewSub')) $('profilePreviewSub').textContent = profile.subtitle;
+    if ($('profilePreviewName')) {
+      $('profilePreviewName').textContent = profile.name + (profile.role ? ' · ' + profile.role : '');
+    }
+    if ($('profilePreviewCity')) $('profilePreviewCity').textContent = profile.city || DEFAULT_MASTER_PROFILE.city;
+    if ($('profilePreviewExp')) $('profilePreviewExp').textContent = profile.experience || '—';
+    if ($('profilePreviewPhone')) $('profilePreviewPhone').textContent = profile.phone || '—';
+    if ($('profilePreviewAddress')) $('profilePreviewAddress').textContent = profile.address || '—';
+    if ($('profilePreviewBio')) {
+      $('profilePreviewBio').textContent = profile.bio || 'Заполните блок «О себе», чтобы он отображался в карточке.';
+    }
+    if ($('profilePreviewGiftText')) $('profilePreviewGiftText').textContent = profile.gift_text;
+    if ($('profilePreviewGiftUrl')) {
+      const normalized = normalizeGiftUrl(profile.gift_url) || DEFAULT_MASTER_PROFILE.gift_url;
+      $('profilePreviewGiftUrl').href = normalized;
+      $('profilePreviewGiftUrl').textContent = normalized.replace(/^https?:\/\//, '');
+    }
+  }
+
+  function fillProfileForm() {
+    if (!masterProfileCache) return;
+    const profile = masterProfileCache;
+    if ($('profileBrand')) $('profileBrand').value = profile.brand;
+    if ($('profileSubtitle')) $('profileSubtitle').value = profile.subtitle;
+    if ($('profileName')) $('profileName').value = profile.name;
+    if ($('profileRole')) $('profileRole').value = profile.role;
+    if ($('profileExperience')) $('profileExperience').value = profile.experience;
+    if ($('profileCity')) $('profileCity').value = profile.city;
+    if ($('profilePhone')) $('profilePhone').value = profile.phone;
+    if ($('profileAddress')) $('profileAddress').value = profile.address;
+    if ($('profileBio')) $('profileBio').value = profile.bio;
+    if ($('profileGiftText')) $('profileGiftText').value = profile.gift_text;
+    if ($('profileGiftUrl')) $('profileGiftUrl').value = profile.gift_url;
+  }
+
+  async function loadMasterProfile(force) {
+    if (masterProfileCache && !force) {
+      fillProfileForm();
+      renderProfilePreview();
+      return;
+    }
+
+    try {
+      const profileResponse = await apiFetch('/profile');
+      currentMasterSlug = profileResponse.booking_slug || currentMasterSlug;
+      if ($('bookingLink') && currentMasterSlug) {
+        $('bookingLink').value = window.location.origin + '/book/' + currentMasterSlug;
+      }
+      masterProfileCache = resolveMasterProfile(profileResponse);
+      fillProfileForm();
+      renderProfilePreview();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function saveMasterProfile() {
+    try {
+      const giftUrlRaw = $('profileGiftUrl') ? $('profileGiftUrl').value : '';
+      const giftUrl = normalizeGiftUrl(giftUrlRaw);
+      if (giftUrlRaw && !giftUrl) {
+        showToast('Проверьте ссылку подарка (только http/https)');
+        return;
+      }
+
+      const payload = {
+        profile: {
+          brand: $('profileBrand') ? $('profileBrand').value : '',
+          subtitle: $('profileSubtitle') ? $('profileSubtitle').value : '',
+          name: $('profileName') ? $('profileName').value : '',
+          role: $('profileRole') ? $('profileRole').value : '',
+          experience: $('profileExperience') ? $('profileExperience').value : '',
+          city: $('profileCity') ? $('profileCity').value : '',
+          phone: $('profilePhone') ? $('profilePhone').value : '',
+          address: $('profileAddress') ? $('profileAddress').value : '',
+          bio: $('profileBio') ? $('profileBio').value : '',
+          gift_text: $('profileGiftText') ? $('profileGiftText').value : '',
+          gift_url: giftUrl || ''
+        }
+      };
+
+      const updated = await apiMethod('PUT', '/profile', payload);
+      masterProfileCache = resolveMasterProfile(updated);
+      fillProfileForm();
+      renderProfilePreview();
+      showToast('Профиль сохранен');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function openGiftLink() {
+    const value = $('profileGiftUrl') ? $('profileGiftUrl').value : '';
+    const link = normalizeGiftUrl(value);
+    if (!link) {
+      showToast('Ссылка не задана');
+      return;
+    }
+
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(link, { try_instant_view: false });
+      return;
+    }
+    window.open(link, '_blank', 'noopener,noreferrer');
+  }
+
   // === SETTINGS ===
 
   async function loadSettings() {
     let appleSettings = null;
     try {
-      let profile = await apiFetch('/profile');
-      currentMasterSlug = profile.booking_slug || '';
-      $('bookingLink').value = window.location.origin + '/book/' + profile.booking_slug;
+      await loadMasterProfile(true);
+      if ($('bookingLink')) {
+        $('bookingLink').value = currentMasterSlug
+          ? window.location.origin + '/book/' + currentMasterSlug
+          : 'Не удалось загрузить';
+      }
     } catch (err) {
-      $('bookingLink').value = 'Не удалось загрузить';
+      if ($('bookingLink')) $('bookingLink').value = 'Не удалось загрузить';
     }
 
     // Google Calendar status
@@ -1001,13 +1172,32 @@
         headers: { 'Authorization': 'Bearer ' + token }
       });
       let data = await res.json();
-      if (data.connected) {
-        $('gcalStatus').innerHTML = '<span style="color:var(--success);">Подключен</span> (режим: ' + (data.binding.sync_mode || 'push') + ')';
-      } else {
-        $('gcalStatus').innerHTML = '<a href="#" onclick="MasterApp.connectGCal();return false;" style="color:var(--primary);font-weight:600;">Подключить</a>';
+      const gcalStatusEl = $('gcalStatus');
+      if (gcalStatusEl) {
+        if (data.connected) {
+          const syncMode = String((data.binding && data.binding.sync_mode) || 'push');
+          gcalStatusEl.textContent = '';
+          const connectedEl = document.createElement('span');
+          connectedEl.style.color = 'var(--success)';
+          connectedEl.textContent = 'Подключен';
+          gcalStatusEl.appendChild(connectedEl);
+          gcalStatusEl.appendChild(document.createTextNode(' (режим: ' + syncMode + ')'));
+        } else {
+          gcalStatusEl.textContent = '';
+          const connectLink = document.createElement('a');
+          connectLink.href = '#';
+          connectLink.style.color = 'var(--primary)';
+          connectLink.style.fontWeight = '600';
+          connectLink.textContent = 'Подключить';
+          connectLink.addEventListener('click', function (event) {
+            event.preventDefault();
+            connectGCal();
+          });
+          gcalStatusEl.appendChild(connectLink);
+        }
       }
     } catch (_) {
-      $('gcalStatus').textContent = 'Не удалось проверить';
+      if ($('gcalStatus')) $('gcalStatus').textContent = 'Не удалось проверить';
     }
 
     // Reminder and pricing settings
@@ -1015,10 +1205,28 @@
       let settings = await apiFetch('/settings');
       appleSettings = settings;
       const minBookingNotice = settings.min_booking_notice_minutes ?? 60;
-      $('reminderSettings').innerHTML = 'Напоминания за: <strong>' + (settings.reminder_hours || [24, 2]).join(', ') + '</strong> ч.'
-        + '<br>Минимум до записи: <strong>' + minBookingNotice + '</strong> мин';
-      $('reminderHoursFirst').value = Number((settings.reminder_hours || [24, 2])[0] || 24);
-      $('reminderHoursSecond').value = Number((settings.reminder_hours || [24, 2])[1] || 2);
+      const reminderHours = Array.isArray(settings.reminder_hours) ? settings.reminder_hours : [24, 2];
+      const firstReminderRaw = Number(reminderHours[0]);
+      const secondReminderRaw = Number(reminderHours[1]);
+      const firstReminder = Number.isFinite(firstReminderRaw) ? firstReminderRaw : 24;
+      const secondReminder = Number.isFinite(secondReminderRaw) ? secondReminderRaw : 2;
+      const reminderSettingsEl = $('reminderSettings');
+      if (reminderSettingsEl) {
+        reminderSettingsEl.textContent = '';
+        reminderSettingsEl.appendChild(document.createTextNode('Напоминания за: '));
+        const hoursStrong = document.createElement('strong');
+        hoursStrong.textContent = [firstReminder, secondReminder].join(', ');
+        reminderSettingsEl.appendChild(hoursStrong);
+        reminderSettingsEl.appendChild(document.createTextNode(' ч.'));
+        reminderSettingsEl.appendChild(document.createElement('br'));
+        reminderSettingsEl.appendChild(document.createTextNode('Минимум до записи: '));
+        const minStrong = document.createElement('strong');
+        minStrong.textContent = String(Number(minBookingNotice));
+        reminderSettingsEl.appendChild(minStrong);
+        reminderSettingsEl.appendChild(document.createTextNode(' мин'));
+      }
+      $('reminderHoursFirst').value = firstReminder;
+      $('reminderHoursSecond').value = secondReminder;
       $('minBookingNoticeMinutes').value = Number(minBookingNotice);
     } catch (_) {
       $('reminderSettings').textContent = 'Не удалось загрузить';
@@ -1047,11 +1255,13 @@
         rulesEl.innerHTML = '<p class="settings-hint">Пока нет рабочих окон. Добавьте первое окно выше.</p>';
       } else {
         rulesEl.innerHTML = rules.map(function (rule) {
-          const dateText = String(rule.date).slice(0, 10);
+          const dateText = escapeHtml(String(rule.date || '').slice(0, 10));
+          const startText = escapeHtml(String(rule.start_time || '').slice(0, 5));
+          const endText = escapeHtml(String(rule.end_time || '').slice(0, 5));
           return '<div class="settings-list-item">'
             + '<div>'
             + '<strong>' + dateText + '</strong>'
-            + '<div class="settings-hint">' + rule.start_time.slice(0, 5) + ' - ' + rule.end_time.slice(0, 5) + '</div>'
+            + '<div class="settings-hint">' + startText + ' - ' + endText + '</div>'
             + '</div>'
             + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityRule(' + rule.id + ')">Удалить</button>'
             + '</div>';
@@ -1062,9 +1272,10 @@
         exclusionsEl.innerHTML = '<p class="settings-hint">Нет выходных дат.</p>';
       } else {
         exclusionsEl.innerHTML = exclusions.map(function (item) {
-          const reason = item.reason ? ' — ' + escapeHtml(item.reason) : '';
+          const dateText = escapeHtml(String(item.date || '').slice(0, 10));
+          const reason = item.reason ? ' — ' + escapeHtml(String(item.reason)) : '';
           return '<div class="settings-list-item">'
-            + '<div><strong>' + item.date + '</strong><div class="settings-hint">' + reason + '</div></div>'
+            + '<div><strong>' + dateText + '</strong><div class="settings-hint">' + reason + '</div></div>'
             + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityExclusion(' + item.id + ')">Удалить</button>'
             + '</div>';
         }).join('');
@@ -1484,6 +1695,9 @@
     deleteService: deleteService,
     saveService: saveService,
     bootstrapDefaultServices: bootstrapDefaultServices,
+    loadMasterProfile: loadMasterProfile,
+    saveMasterProfile: saveMasterProfile,
+    openGiftLink: openGiftLink,
     copyLink: copyLink,
     copyAppleLink: copyAppleLink,
     openAppleCalendar: openAppleCalendar,

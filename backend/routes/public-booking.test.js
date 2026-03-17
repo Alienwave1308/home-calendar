@@ -41,7 +41,18 @@ describe('Public Booking API', () => {
   it('should return master profile and active services by slug', async () => {
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Europe/Moscow', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+        rows: [{
+          id: 3,
+          display_name: 'Мастер',
+          timezone: 'Europe/Moscow',
+          booking_slug: 'master-slug',
+          cancel_policy_hours: 24,
+          brand_name: 'RoVa Epil',
+          brand_subtitle: 'Epil & Care',
+          profile_name: 'Лера',
+          gift_text: 'Подарок от меня на первое посещение по ссылке:',
+          gift_url: 'https://vk.cc/cVmuLI'
+        }]
       })
       .mockResolvedValueOnce({
         rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60 }]
@@ -55,6 +66,8 @@ describe('Public Booking API', () => {
       .expect(200);
 
     expect(res.body.master.display_name).toBe('Мастер');
+    expect(res.body.master.profile.brand).toBe('RoVa Epil');
+    expect(res.body.master.profile.gift_url).toBe('https://vk.cc/cVmuLI');
     expect(res.body.services).toHaveLength(1);
   });
 
@@ -116,10 +129,60 @@ describe('Public Booking API', () => {
     expect(res.body.master.cancel_policy_hours).toBe(24);
   });
 
+  it('should fallback to legacy services query when is_active filter is incompatible', async () => {
+    const incompatibleOperatorError = Object.assign(
+      new Error('operator does not exist: integer = boolean'),
+      { code: '42883' }
+    );
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, user_id: 10, display_name: 'Мастер', timezone: 'Europe/Moscow', booking_slug: 'master-slug' }]
+      })
+      .mockRejectedValueOnce(incompatibleOperatorError)
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      });
+
+    const res = await request(app)
+      .get('/api/public/master/master-slug')
+      .expect(200);
+
+    expect(res.body.services).toHaveLength(1);
+    expect(res.body.services[0].is_active).toBe(true);
+  });
+
   it('should return 400 when slot query params are missing', async () => {
     await request(app)
       .get('/api/public/master/master-slug/slots')
       .expect(400);
+  });
+
+  it('should return pricing preview for percent promo code', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1000, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 900, master_id: 3, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, usage_mode: 'always' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/pricing-preview')
+      .send({ service_id: 11, promo_code: 'save20' })
+      .expect(200);
+
+    expect(res.body.total_duration_minutes).toBe(60);
+    expect(res.body.pricing.base_price).toBe(1000);
+    expect(res.body.pricing.final_price).toBe(800);
+    expect(res.body.pricing.promo_code).toBe('SAVE20');
+    expect(res.body.pricing.promo_reward_type).toBe('percent');
   });
 
   it('should return 400 when booking export ics params are missing', async () => {

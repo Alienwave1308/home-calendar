@@ -53,7 +53,18 @@ async function ensureRuntimeSchemaCompatibility() {
   for (const [columnName, definition] of [
     ['display_name', `VARCHAR(100) NOT NULL DEFAULT 'Мастер'`],
     ['timezone', `VARCHAR(50) NOT NULL DEFAULT 'Asia/Novosibirsk'`],
-    ['cancel_policy_hours', 'INTEGER NOT NULL DEFAULT 24']
+    ['cancel_policy_hours', 'INTEGER NOT NULL DEFAULT 24'],
+    ['brand_name', 'VARCHAR(120)'],
+    ['brand_subtitle', 'VARCHAR(120)'],
+    ['profile_name', 'VARCHAR(120)'],
+    ['profile_role', 'VARCHAR(120)'],
+    ['profile_city', 'VARCHAR(120)'],
+    ['profile_experience', 'VARCHAR(120)'],
+    ['profile_phone', 'VARCHAR(120)'],
+    ['profile_address', 'VARCHAR(255)'],
+    ['profile_bio', 'TEXT'],
+    ['gift_text', 'VARCHAR(255)'],
+    ['gift_url', 'VARCHAR(255)']
   ]) {
     try {
       await ensureColumn('masters', columnName, definition);
@@ -114,6 +125,26 @@ async function ensureRuntimeSchemaCompatibility() {
     );
   } catch (error) {
     console.error('Schema compatibility: failed to backfill master_settings.min_booking_notice_minutes:', error);
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS availability_rules (
+        id SERIAL PRIMARY KEY,
+        master_id INTEGER NOT NULL REFERENCES masters(id) ON DELETE CASCADE,
+        day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+        start_time TIME NOT NULL,
+        end_time TIME NOT NULL,
+        slot_granularity_minutes INTEGER NOT NULL DEFAULT 30,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT valid_rule_time CHECK (start_time < end_time)
+      )
+    `);
+    await pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_availability_rules_master_day ON availability_rules(master_id, day_of_week)'
+    );
+  } catch (error) {
+    console.error('Schema compatibility: failed to ensure availability rules schema:', error);
   }
 
   try {
