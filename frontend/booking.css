@@ -342,11 +342,30 @@ body {
 
 .service-card.selected {
   border-color: rgba(22, 126, 82, 0.5);
-  box-shadow: 0 10px 20px rgba(28, 123, 82, 0.22);
+  box-shadow: 0 12px 24px rgba(28, 123, 82, 0.24);
   background:
     linear-gradient(white, white) padding-box,
     linear-gradient(120deg, rgba(47, 159, 104, 0.18), rgba(23, 184, 145, 0.2)) border-box;
   border: 1px solid transparent;
+}
+
+.service-card.selected .service-name {
+  color: #165f3d;
+}
+
+.service-selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 7px 0 0;
+  border: 1px solid rgba(31, 141, 90, 0.38);
+  border-radius: 999px;
+  background: rgba(43, 166, 109, 0.14);
+  color: #1a7648;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 8px;
 }
 
 .service-card.disabled {
@@ -738,12 +757,17 @@ textarea.input {
   padding: 8px;
   display: none;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
 .dock.visible {
   display: flex;
+}
+
+.dock-summary {
+  flex: 1;
+  min-width: 0;
 }
 
 .dock strong {
@@ -757,7 +781,28 @@ textarea.input {
   font-size: 11px;
 }
 
+.dock-selected-list {
+  display: none;
+  margin: 6px 0 0 16px;
+  padding: 0;
+  list-style: disc;
+  color: #355f4f;
+  font-size: 11px;
+  line-height: 1.35;
+  max-height: 64px;
+  overflow-y: auto;
+}
+
+.dock-selected-list.visible {
+  display: block;
+}
+
+.dock-selected-list li {
+  margin: 0 0 2px;
+}
+
 .dock button {
+  align-self: flex-end;
   border-radius: 12px;
   border: 1px solid rgba(29, 128, 83, 0.35);
   background: linear-gradient(130deg, #2f9f68 0%, #1f8c5a 100%);
