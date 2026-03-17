@@ -541,6 +541,7 @@
     Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (card) {
       let lastActivationAt = 0;
       let pointerStart = null;
+      let touchStart = null;
 
       const isPointerTap = function (event) {
         if (!pointerStart || !event) return false;
@@ -561,6 +562,23 @@
           const isTouchLike = event.pointerType === 'touch' || event.pointerType === 'pen';
           if (isTouchLike && !isPointerTap(event)) {
             pointerStart = null;
+            return;
+          }
+        }
+        if (event && event.type === 'touchend') {
+          if (!touchStart || !event.changedTouches || !event.changedTouches.length) {
+            touchStart = null;
+            return;
+          }
+          const touch = Array.prototype.slice.call(event.changedTouches).find(function (item) {
+            return touchStart.id === undefined || item.identifier === touchStart.id;
+          }) || event.changedTouches[0];
+          const currentX = Number(touch.clientX || 0);
+          const currentY = Number(touch.clientY || 0);
+          const dx = Math.abs(currentX - touchStart.x);
+          const dy = Math.abs(currentY - touchStart.y);
+          touchStart = null;
+          if (dx > 10 || dy > 10) {
             return;
           }
         }
@@ -603,8 +621,23 @@
         });
         card.addEventListener('pointerup', activateCard);
       } else {
+        card.addEventListener('touchstart', function (event) {
+          if (!event.touches || !event.touches.length) {
+            touchStart = null;
+            return;
+          }
+          const touch = event.touches[0];
+          touchStart = {
+            id: touch.identifier,
+            x: Number(touch.clientX || 0),
+            y: Number(touch.clientY || 0)
+          };
+        }, { passive: true });
         card.addEventListener('click', activateCard);
         card.addEventListener('touchend', activateCard, { passive: false });
+        card.addEventListener('touchcancel', function () {
+          touchStart = null;
+        }, { passive: true });
       }
     });
 
