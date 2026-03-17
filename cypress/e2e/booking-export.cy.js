@@ -18,7 +18,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
           timezone: 'Asia/Novosibirsk',
           booking_slug: 'test-master'
         },
-        services: [{ id: 10, name: 'Шугаринг', duration_minutes: 60, price: 2000 }]
+        services: [{ id: '10', name: 'Шугаринг', duration_minutes: 60, price: 2000 }]
       }
     }).as('getMaster');
 
