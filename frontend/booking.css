@@ -21,6 +21,7 @@
   --shadow-card: 0 14px 28px rgba(24, 94, 62, 0.14);
   --shadow-soft: 0 8px 16px rgba(24, 94, 62, 0.1);
   --shadow-lift: 0 12px 20px rgba(28, 111, 73, 0.16);
+  --footer-bottom-offset: max(10px, env(safe-area-inset-bottom));
 }
 
 * {
@@ -105,6 +106,11 @@ body {
   box-shadow: var(--shadow-phone);
   isolation: isolate;
   min-height: calc(100vh - 16px);
+  height: calc(100vh - 16px);
+  min-height: calc(100dvh - 16px);
+  height: calc(100dvh - 16px);
+  display: flex;
+  flex-direction: column;
 }
 
 .phone::before {
@@ -186,8 +192,12 @@ body {
 .app-body {
   position: relative;
   z-index: 1;
-  padding: 0 12px 134px;
-  min-height: 680px;
+  padding: 0 12px calc(176px + env(safe-area-inset-bottom));
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .screen {
@@ -719,7 +729,7 @@ textarea.input {
   position: absolute;
   left: 10px;
   right: 10px;
-  bottom: 66px;
+  bottom: calc(var(--footer-bottom-offset) + 56px);
   z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 16px;
@@ -763,7 +773,7 @@ textarea.input {
   position: absolute;
   left: 10px;
   right: 10px;
-  bottom: 10px;
+  bottom: var(--footer-bottom-offset);
   z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 16px;
@@ -798,7 +808,7 @@ textarea.input {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 134px;
+  bottom: calc(var(--footer-bottom-offset) + 124px);
   min-width: 200px;
   max-width: 88%;
   border-radius: 12px;
