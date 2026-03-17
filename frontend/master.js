@@ -53,7 +53,8 @@
     if (globalOrigin) pushCandidate(globalOrigin + '/api');
     pushCandidate('/api');
 
-    const shouldFallbackToCanonical = !isCanonicalHost(window.location.hostname)
+    const shouldFallbackToCanonical = window.location.protocol === 'https:'
+      && !isCanonicalHost(window.location.hostname)
       && window.location.hostname !== 'localhost'
       && window.location.hostname !== '127.0.0.1';
     if (!window.Cypress && shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
