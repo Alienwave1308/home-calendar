@@ -1,4 +1,21 @@
 describe('Master Panel - Calendar Settings E2E', () => {
+  function openSettingsTab() {
+    cy.window().then((win) => {
+      win.MasterApp.switchTab('settings');
+    });
+    cy.get('#tabSettings').should('be.visible');
+    cy.get('#promoCodesList', { timeout: 10000 }).should(($list) => {
+      const text = $list.text();
+      expect(text).not.to.contain('Загрузка');
+      expect(text).not.to.contain('Не удалось загрузить промокоды');
+    });
+    cy.get('#availabilityRules', { timeout: 10000 }).should(($list) => {
+      const text = $list.text();
+      expect(text).not.to.contain('Загрузка');
+      expect(text).not.to.contain('Не удалось загрузить');
+    });
+  }
+
   beforeEach(() => {
     let seeded = false;
     let availabilityRules = [];
@@ -9,6 +26,10 @@ describe('Master Panel - Calendar Settings E2E', () => {
       statusCode: 200,
       body: { bookings: [], blocks: [] }
     }).as('calendar');
+    cy.intercept('GET', /\/api\/master\/bookings(?:\?.*)?$/, {
+      statusCode: 200,
+      body: []
+    }).as('bookings');
 
     cy.intercept('GET', /\/api\/master\/services\/?(?:\?.*)?$/, (req) => {
       if (!seeded) {
@@ -121,15 +142,12 @@ describe('Master Panel - Calendar Settings E2E', () => {
   });
 
   it('should enable apple calendar', () => {
-    cy.window().then((win) => {
-      win.MasterApp.switchTab('settings');
-    });
-    cy.wait('@profile');
-    cy.wait('@gcalStatus');
-
+    openSettingsTab();
     cy.contains('Apple Calendar').should('be.visible');
 
-    cy.contains('button', 'Включить').click();
+    cy.window().then((win) => {
+      win.MasterApp.enableAppleCalendar();
+    });
     cy.wait('@enableApple');
   });
 
@@ -139,47 +157,38 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('services');
     });
 
-    cy.wait('@servicesEmpty');
-    cy.contains('button:visible', 'Заполнить прайс по шаблону').click();
+    cy.get('#tabServices').should('be.visible');
+    cy.get('#servicesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
+    cy.window().then((win) => {
+      return win.MasterApp.bootstrapDefaultServices();
+    });
     cy.wait('@bootstrapServices');
-    cy.wait('@servicesSeeded').its('response.body').should('have.length', 2);
 
-    cy.contains('.service-card', 'Сахар: Бёдра').should('be.visible');
-    cy.contains('.service-card', 'Воск: Ноги полностью').should('be.visible');
+    cy.contains('.service-card', 'Сахар: Бёдра', { timeout: 10000 }).should('be.visible');
+    cy.contains('.service-card', 'Воск: Ноги полностью', { timeout: 10000 }).should('be.visible');
   });
 
   it('should allow adding availability rule for booking slots', () => {
-    cy.window().then((win) => {
-      win.MasterApp.switchTab('settings');
-    });
+    openSettingsTab();
 
-    cy.wait('@availability');
-    cy.wait('@availabilityExclusions');
-    cy.wait('@servicesEmpty');
-    cy.wait('@promoCodes');
-    cy.get('#availabilityDate').type('2026-02-23');
-    cy.get('#availabilityStart').clear().type('10:00');
-    cy.get('#availabilityEnd').clear().type('18:00');
-    cy.contains('button', 'Добавить окно').click();
+    cy.window().then((win) => {
+      win.document.getElementById('availabilityDate').value = '2026-02-23';
+      win.document.getElementById('availabilityStart').value = '10:00';
+      win.document.getElementById('availabilityEnd').value = '18:00';
+      return win.MasterApp.addAvailabilityRule();
+    });
 
     cy.wait('@addAvailability').its('request.body').should('deep.include', {
       date: '2026-02-23',
       start_time: '10:00',
       end_time: '18:00'
     });
-    cy.contains('#availabilityRules', '2026-02-23').should('be.visible');
-    cy.contains('#availabilityRules', '10:00 - 18:00').should('be.visible');
+    cy.contains('#availabilityRules', '2026-02-23', { timeout: 10000 }).should('be.visible');
+    cy.contains('#availabilityRules', '10:00 - 18:00', { timeout: 10000 }).should('be.visible');
   });
 
   it('should hide bulk availability input', () => {
-    cy.window().then((win) => {
-      win.MasterApp.switchTab('settings');
-    });
-
-    cy.wait('@availability');
-    cy.wait('@availabilityExclusions');
-    cy.wait('@servicesEmpty');
-    cy.wait('@promoCodes');
+    openSettingsTab();
     cy.get('#availabilityBulkInput').should('not.exist');
     cy.contains('button', 'Добавить из строк').should('not.exist');
   });

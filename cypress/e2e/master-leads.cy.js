@@ -131,6 +131,10 @@ describe('Master Panel - Leads Tab E2E', () => {
       statusCode: 200,
       body: { bookings: [], blocks: [] }
     }).as('calendar');
+    cy.intercept('GET', /\/api\/master\/bookings(?:\?.*)?$/, {
+      statusCode: 200,
+      body: []
+    }).as('bookings');
 
     cy.intercept('GET', '/api/master/leads/metrics?period=day', {
       statusCode: 200,
