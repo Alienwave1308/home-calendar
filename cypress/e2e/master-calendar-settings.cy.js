@@ -26,6 +26,10 @@ describe('Master Panel - Calendar Settings E2E', () => {
       statusCode: 200,
       body: { bookings: [], blocks: [] }
     }).as('calendar');
+    cy.intercept('GET', /\/api\/master\/bookings(?:\?.*)?$/, {
+      statusCode: 200,
+      body: []
+    }).as('bookings');
 
     cy.intercept('GET', /\/api\/master\/services\/?(?:\?.*)?$/, (req) => {
       if (!seeded) {

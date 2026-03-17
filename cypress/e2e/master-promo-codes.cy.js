@@ -17,6 +17,10 @@ describe('Master Panel - Promo Codes E2E', () => {
       statusCode: 200,
       body: { bookings: [], blocks: [] }
     }).as('getCalendar');
+    cy.intercept('GET', /\/api\/master\/bookings(?:\?.*)?$/, {
+      statusCode: 200,
+      body: []
+    }).as('getBookings');
 
     cy.intercept('GET', /\/api\/master\/profile\/?(?:\?.*)?$/, {
       statusCode: 200,
