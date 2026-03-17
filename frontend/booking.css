@@ -718,6 +718,7 @@ textarea.input {
   left: 10px;
   right: 10px;
   bottom: 66px;
+  z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 16px;
   background: rgba(250, 255, 252, 0.94);
@@ -761,6 +762,7 @@ textarea.input {
   left: 10px;
   right: 10px;
   bottom: 10px;
+  z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 16px;
   background: rgba(250, 255, 252, 0.94);
