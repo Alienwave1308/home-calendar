@@ -1,6 +1,12 @@
 /* === MASTER PANEL STYLES === */
 /* Extends booking.css */
 
+#app {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 2px 4px calc(10px + env(safe-area-inset-bottom));
+}
+
 .master-header {
   display: flex;
   justify-content: space-between;
@@ -16,13 +22,13 @@
 
 /* Tabs */
 .master-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0;
+  display: flex;
+  gap: 6px;
   margin-bottom: 20px;
   border-bottom: 2px solid var(--border);
-  padding-bottom: 0;
-  overflow: hidden;
+  padding: 0 0 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .master-tabs::-webkit-scrollbar {
@@ -30,20 +36,19 @@
 }
 
 .master-tab {
-  padding: 10px 4px;
+  flex: 0 0 auto;
+  min-width: 94px;
+  padding: 10px 8px;
   border: none;
   background: none;
   color: var(--text-secondary);
   font-weight: 600;
-  font-size: 0.84em;
+  font-size: 0.88em;
   cursor: pointer;
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
-  min-width: 0;
   white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
 }
 
 .master-tab.active {
@@ -129,6 +134,101 @@
 
 .overview-kpi-note {
   margin-top: 10px;
+}
+
+/* Profile */
+.profile-preview-card {
+  background: linear-gradient(165deg, color-mix(in srgb, var(--card) 90%, #ffffff 10%) 0%, color-mix(in srgb, var(--primary-light) 78%, white 22%) 100%);
+  box-shadow: 0 14px 28px rgba(22, 94, 60, 0.12);
+}
+
+.profile-preview-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.profile-preview-brand {
+  margin: 0;
+  font-size: 1.28rem;
+}
+
+.profile-preview-sub {
+  margin: 2px 0 0;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+}
+
+.profile-preview-name {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, white 70%);
+  background: color-mix(in srgb, var(--primary-light) 70%, white 30%);
+  font-size: 0.82rem;
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.profile-preview-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.profile-preview-stat {
+  border: 1px solid color-mix(in srgb, var(--border) 76%, white 24%);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 10px 12px;
+}
+
+.profile-preview-stat p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.profile-preview-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.94rem;
+}
+
+.profile-preview-bio {
+  margin: 10px 0 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.profile-preview-link {
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+.profile-form-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.profile-form-grid textarea,
+.profile-form-grid input[type="url"],
+.profile-form-grid #profileAddress,
+.profile-form-grid #profileBio,
+.profile-form-grid #profileGiftText,
+.profile-form-grid #profileGiftUrl,
+.profile-form-grid button {
+  grid-column: 1 / -1;
 }
 
 /* Bookings list */
@@ -306,7 +406,8 @@
 }
 
 .availability-form input,
-.availability-form select {
+.availability-form select,
+.availability-form textarea {
   width: 100%;
   padding: 10px 12px;
   border: 2px solid var(--border);
@@ -315,7 +416,8 @@
   background: var(--card);
 }
 
-.availability-form .btn-secondary {
+.availability-form .btn-secondary,
+.availability-form .btn-primary {
   grid-column: 1 / -1;
 }
 
@@ -756,7 +858,8 @@
 
   .master-tab {
     font-size: 0.78em;
-    padding: 9px 2px;
+    min-width: 84px;
+    padding: 9px 6px;
   }
 
   .master-header h1 {

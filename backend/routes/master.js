@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { nanoid } = require('nanoid');
 const crypto = require('crypto');
+const { URL: NodeURL } = require('url');
 const { generateSlots } = require('../lib/slots');
 const { DEFAULT_SERVICES, toDescription } = require('../lib/default-services');
 const { createReminders, deleteReminders } = require('../lib/reminders');
@@ -133,6 +134,64 @@ async function loadLeadBounds(timezone, periodSql) {
   return boundsRes.rows[0];
 }
 
+const DEFAULT_MASTER_PUBLIC_PROFILE = Object.freeze({
+  brand: 'Ro Va',
+  subtitle: 'Epil & Care',
+  name: 'Лера',
+  role: 'Мастер эпиляции',
+  city: 'Новосибирск',
+  experience: '',
+  phone: '',
+  address: '',
+  bio: '',
+  gift_text: 'Подарок от меня на первое посещение по ссылке:',
+  gift_url: 'https://vk.cc/cVmuLI'
+});
+
+function normalizeOptionalText(value, maxLength) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  if (maxLength && trimmed.length > maxLength) {
+    return trimmed.slice(0, maxLength);
+  }
+  return trimmed;
+}
+
+function normalizeGiftUrl(value) {
+  const normalized = normalizeOptionalText(value, 255);
+  if (normalized === undefined) return undefined;
+  if (normalized === null) return null;
+
+  const withProtocol = /^[a-z]+:\/\//i.test(normalized) ? normalized : `https://${normalized}`;
+  try {
+    const parsed = new NodeURL(withProtocol);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildMasterPublicProfile(masterRow) {
+  const fallbackName = String(masterRow && masterRow.display_name ? masterRow.display_name : '').trim();
+  const giftUrl = normalizeGiftUrl(masterRow && masterRow.gift_url);
+  return {
+    brand: normalizeOptionalText(masterRow && masterRow.brand_name, 120) || DEFAULT_MASTER_PUBLIC_PROFILE.brand,
+    subtitle: normalizeOptionalText(masterRow && masterRow.brand_subtitle, 120) || DEFAULT_MASTER_PUBLIC_PROFILE.subtitle,
+    name: normalizeOptionalText(masterRow && masterRow.profile_name, 120) || fallbackName || DEFAULT_MASTER_PUBLIC_PROFILE.name,
+    role: normalizeOptionalText(masterRow && masterRow.profile_role, 120) || DEFAULT_MASTER_PUBLIC_PROFILE.role,
+    city: normalizeOptionalText(masterRow && masterRow.profile_city, 120) || DEFAULT_MASTER_PUBLIC_PROFILE.city,
+    experience: normalizeOptionalText(masterRow && masterRow.profile_experience, 120) || DEFAULT_MASTER_PUBLIC_PROFILE.experience,
+    phone: normalizeOptionalText(masterRow && masterRow.profile_phone, 120) || DEFAULT_MASTER_PUBLIC_PROFILE.phone,
+    address: normalizeOptionalText(masterRow && masterRow.profile_address, 255) || DEFAULT_MASTER_PUBLIC_PROFILE.address,
+    bio: normalizeOptionalText(masterRow && masterRow.profile_bio, 1200) || DEFAULT_MASTER_PUBLIC_PROFILE.bio,
+    gift_text: normalizeOptionalText(masterRow && masterRow.gift_text, 255) || DEFAULT_MASTER_PUBLIC_PROFILE.gift_text,
+    gift_url: giftUrl || DEFAULT_MASTER_PUBLIC_PROFILE.gift_url
+  };
+}
+
 // POST /api/master/setup — create master profile
 router.post('/setup', async (req, res) => {
   try {
@@ -168,27 +227,57 @@ router.post('/setup', async (req, res) => {
 // GET /api/master/profile
 router.get('/profile', loadMaster, async (req, res) => {
   const { id, user_id, display_name, timezone, booking_slug, cancel_policy_hours, created_at } = req.master;
-  res.json({ id, user_id, display_name, timezone, booking_slug, cancel_policy_hours, created_at });
+  res.json({
+    id,
+    user_id,
+    display_name,
+    timezone,
+    booking_slug,
+    cancel_policy_hours,
+    created_at,
+    profile: buildMasterPublicProfile(req.master)
+  });
 });
 
 // PUT /api/master/profile
 router.put('/profile', loadMaster, async (req, res) => {
   try {
     const { display_name, timezone, cancel_policy_hours } = req.body;
+    const payloadProfile = req.body && typeof req.body.profile === 'object' && req.body.profile
+      ? req.body.profile
+      : {};
+    const profileFields = {
+      brand_name: req.body.brand !== undefined ? req.body.brand : payloadProfile.brand,
+      brand_subtitle: req.body.subtitle !== undefined ? req.body.subtitle : payloadProfile.subtitle,
+      profile_name: req.body.name !== undefined ? req.body.name : payloadProfile.name,
+      profile_role: req.body.role !== undefined ? req.body.role : payloadProfile.role,
+      profile_city: req.body.city !== undefined ? req.body.city : payloadProfile.city,
+      profile_experience: req.body.experience !== undefined ? req.body.experience : payloadProfile.experience,
+      profile_phone: req.body.phone !== undefined ? req.body.phone : payloadProfile.phone,
+      profile_address: req.body.address !== undefined ? req.body.address : payloadProfile.address,
+      profile_bio: req.body.bio !== undefined ? req.body.bio : payloadProfile.bio,
+      gift_text: req.body.gift_text !== undefined ? req.body.gift_text : payloadProfile.gift_text,
+      gift_url: req.body.gift_url !== undefined ? req.body.gift_url : payloadProfile.gift_url
+    };
     const updates = [];
     const values = [];
     let idx = 1;
 
     if (display_name !== undefined) {
-      if (display_name.length < 2) {
+      const normalized = String(display_name || '').trim();
+      if (normalized.length < 2) {
         return res.status(400).json({ error: 'display_name must be at least 2 chars' });
       }
       updates.push(`display_name = $${idx++}`);
-      values.push(display_name);
+      values.push(normalized);
     }
     if (timezone !== undefined) {
+      const normalizedTimezone = String(timezone || '').trim();
+      if (!normalizedTimezone) {
+        return res.status(400).json({ error: 'timezone must be a non-empty string' });
+      }
       updates.push(`timezone = $${idx++}`);
-      values.push(timezone);
+      values.push(normalizedTimezone);
     }
     if (cancel_policy_hours !== undefined) {
       const hours = Number(cancel_policy_hours);
@@ -199,6 +288,34 @@ router.put('/profile', loadMaster, async (req, res) => {
       values.push(hours);
     }
 
+    for (const key of [
+      'brand_name',
+      'brand_subtitle',
+      'profile_name',
+      'profile_role',
+      'profile_city',
+      'profile_experience',
+      'profile_phone',
+      'profile_address',
+      'profile_bio',
+      'gift_text'
+    ]) {
+      if (profileFields[key] === undefined) continue;
+      const maxLength = key === 'profile_bio' ? 1200 : key === 'profile_address' ? 255 : 120;
+      updates.push(`${key} = $${idx++}`);
+      values.push(normalizeOptionalText(profileFields[key], maxLength));
+    }
+
+    if (profileFields.gift_url !== undefined) {
+      const rawGiftUrl = String(profileFields.gift_url || '').trim();
+      const giftUrl = normalizeGiftUrl(profileFields.gift_url);
+      if (rawGiftUrl && !giftUrl) {
+        return res.status(400).json({ error: 'gift_url must be a valid http/https URL' });
+      }
+      updates.push(`gift_url = $${idx++}`);
+      values.push(giftUrl);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
@@ -206,11 +323,20 @@ router.put('/profile', loadMaster, async (req, res) => {
     values.push(req.master.id);
     const result = await pool.query(
       `UPDATE masters SET ${updates.join(', ')} WHERE id = $${idx}
-       RETURNING id, user_id, display_name, timezone, booking_slug, cancel_policy_hours, created_at`,
+       RETURNING *`,
       values
     );
-
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    res.json({
+      id: row.id,
+      user_id: row.user_id,
+      display_name: row.display_name,
+      timezone: row.timezone,
+      booking_slug: row.booking_slug,
+      cancel_policy_hours: row.cancel_policy_hours,
+      created_at: row.created_at,
+      profile: buildMasterPublicProfile(row)
+    });
   } catch (error) {
     console.error('Error updating master profile:', error);
     res.status(500).json({ error: 'Server error' });
@@ -228,7 +354,7 @@ router.get('/services', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
-    if (error.code === '42703') {
+    if (error.code === '42703' || error.code === '42883') {
       try {
         // Legacy schema compatibility: created_at and optional service columns can be absent.
         const fallback = await pool.query(
@@ -243,6 +369,9 @@ router.get('/services', loadMaster, async (req, res) => {
           is_active: true
         })));
       } catch (fallbackError) {
+        if (fallbackError.code === '42P01') {
+          return res.json([]);
+        }
         console.error('Error listing services (legacy fallback):', fallbackError);
         return res.status(500).json({ error: 'Server error' });
       }
@@ -268,14 +397,31 @@ router.post('/services', loadMaster, async (req, res) => {
       return res.status(400).json({ error: 'duration_minutes is required (min 5)' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO services (master_id, name, duration_minutes, price, description,
-                             buffer_before_minutes, buffer_after_minutes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [req.master.id, name, duration, price || null, description || null,
-       buffer_before_minutes || 0, buffer_after_minutes || 0]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO services (master_id, name, duration_minutes, price, description,
+                               buffer_before_minutes, buffer_after_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [req.master.id, name, duration, price || null, description || null,
+         buffer_before_minutes || 0, buffer_after_minutes || 0]
+      );
+    } catch (insertError) {
+      if (insertError.code !== '42703') throw insertError;
+      result = await pool.query(
+        `INSERT INTO services (master_id, name, duration_minutes, price)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [req.master.id, name, duration, price || null]
+      );
+      if (result.rows[0]) {
+        result.rows[0].description = null;
+        result.rows[0].buffer_before_minutes = 0;
+        result.rows[0].buffer_after_minutes = 0;
+        result.rows[0].is_active = true;
+      }
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -336,10 +482,49 @@ router.put('/services/:id', loadMaster, async (req, res) => {
     }
 
     values.push(req.params.id);
-    const result = await pool.query(
-      `UPDATE services SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
-      values
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `UPDATE services SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+        values
+      );
+    } catch (updateError) {
+      if (updateError.code !== '42703') throw updateError;
+
+      const legacyUpdates = [];
+      const legacyValues = [];
+      let legacyIdx = 1;
+      if (name !== undefined) {
+        legacyUpdates.push(`name = $${legacyIdx++}`);
+        legacyValues.push(name);
+      }
+      if (duration_minutes !== undefined) {
+        legacyUpdates.push(`duration_minutes = $${legacyIdx++}`);
+        legacyValues.push(Number(duration_minutes));
+      }
+      if (price !== undefined) {
+        legacyUpdates.push(`price = $${legacyIdx++}`);
+        legacyValues.push(price);
+      }
+
+      if (!legacyUpdates.length) {
+        return res.status(400).json({
+          error: 'Legacy schema supports only name, duration_minutes and price updates'
+        });
+      }
+
+      legacyValues.push(req.params.id);
+      result = await pool.query(
+        `UPDATE services SET ${legacyUpdates.join(', ')} WHERE id = $${legacyIdx} RETURNING *`,
+        legacyValues
+      );
+      if (result.rows[0]) {
+        result.rows[0].description = result.rows[0].description || null;
+        result.rows[0].buffer_before_minutes = Number(result.rows[0].buffer_before_minutes || 0);
+        result.rows[0].buffer_after_minutes = Number(result.rows[0].buffer_after_minutes || 0);
+        if (result.rows[0].is_active === undefined) result.rows[0].is_active = true;
+      }
+    }
 
     res.json(result.rows[0]);
   } catch (error) {
@@ -351,10 +536,22 @@ router.put('/services/:id', loadMaster, async (req, res) => {
 // DELETE /api/master/services/:id
 router.delete('/services/:id', loadMaster, async (req, res) => {
   try {
-    const result = await pool.query(
-      'UPDATE services SET is_active = false WHERE id = $1 AND master_id = $2 RETURNING *',
-      [req.params.id, req.master.id]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        'UPDATE services SET is_active = false WHERE id = $1 AND master_id = $2 RETURNING *',
+        [req.params.id, req.master.id]
+      );
+    } catch (deleteError) {
+      if (deleteError.code !== '42703') throw deleteError;
+      result = await pool.query(
+        'DELETE FROM services WHERE id = $1 AND master_id = $2 RETURNING *',
+        [req.params.id, req.master.id]
+      );
+      if (result.rows[0]) {
+        result.rows[0].is_active = false;
+      }
+    }
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Service not found' });
     }
@@ -370,10 +567,19 @@ router.post('/services/bootstrap-default', loadMaster, async (req, res) => {
   const overwrite = Boolean(req.body && req.body.overwrite);
 
   try {
-    const existing = await pool.query(
-      'SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1 AND is_active = true',
-      [req.master.id]
-    );
+    let existing;
+    try {
+      existing = await pool.query(
+        'SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1 AND is_active = true',
+        [req.master.id]
+      );
+    } catch (countError) {
+      if (countError.code !== '42703') throw countError;
+      existing = await pool.query(
+        'SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1',
+        [req.master.id]
+      );
+    }
     const activeCount = Number(existing.rows[0]?.total || 0);
 
     if (activeCount > 0 && !overwrite) {
@@ -386,21 +592,38 @@ router.post('/services/bootstrap-default', loadMaster, async (req, res) => {
     await pool.query('BEGIN');
 
     if (overwrite) {
-      await pool.query(
-        'UPDATE services SET is_active = false WHERE master_id = $1 AND is_active = true',
-        [req.master.id]
-      );
+      try {
+        await pool.query(
+          'UPDATE services SET is_active = false WHERE master_id = $1 AND is_active = true',
+          [req.master.id]
+        );
+      } catch (overwriteError) {
+        if (overwriteError.code !== '42703') throw overwriteError;
+        // Legacy schema without soft-delete column: hard-delete before re-seeding.
+        await pool.query('DELETE FROM services WHERE master_id = $1', [req.master.id]);
+      }
     }
 
     const inserted = [];
     for (const item of DEFAULT_SERVICES) {
-      const result = await pool.query(
-        `INSERT INTO services (master_id, name, duration_minutes, price, description,
-                               buffer_before_minutes, buffer_after_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [req.master.id, item.name, item.duration_minutes, item.price, toDescription(item), 0, 0]
-      );
+      let result;
+      try {
+        result = await pool.query(
+          `INSERT INTO services (master_id, name, duration_minutes, price, description,
+                                 buffer_before_minutes, buffer_after_minutes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [req.master.id, item.name, item.duration_minutes, item.price, toDescription(item), 0, 0]
+        );
+      } catch (insertError) {
+        if (insertError.code !== '42703') throw insertError;
+        result = await pool.query(
+          `INSERT INTO services (master_id, name, duration_minutes, price)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [req.master.id, item.name, item.duration_minutes, item.price]
+        );
+      }
       inserted.push(result.rows[0]);
     }
 
@@ -489,28 +712,66 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
         return res.status(400).json({ error: 'gift_service_id must be a positive integer' });
       }
 
-      const giftServiceRes = await pool.query(
-        `SELECT id, master_id, name, description, is_active
-         FROM services
-         WHERE id = $1 AND master_id = $2
-         LIMIT 1`,
-        [giftServiceId, req.master.id]
-      );
-      if (!giftServiceRes.rows.length || !giftServiceRes.rows[0].is_active) {
+      let giftServiceRow = null;
+      try {
+        const giftServiceRes = await pool.query(
+          `SELECT id, master_id, name, description, is_active
+           FROM services
+           WHERE id = $1 AND master_id = $2
+           LIMIT 1`,
+          [giftServiceId, req.master.id]
+        );
+        giftServiceRow = giftServiceRes.rows[0] || null;
+      } catch (giftServiceError) {
+        if (giftServiceError.code !== '42703') throw giftServiceError;
+        const fallbackRes = await pool.query(
+          `SELECT id, master_id, name
+           FROM services
+           WHERE id = $1 AND master_id = $2
+           LIMIT 1`,
+          [giftServiceId, req.master.id]
+        );
+        giftServiceRow = fallbackRes.rows[0]
+          ? {
+            ...fallbackRes.rows[0],
+            description: null,
+            is_active: true
+          }
+          : null;
+      }
+
+      if (!giftServiceRow || giftServiceRow.is_active === false) {
         return res.status(400).json({ error: 'gift service is not available' });
       }
-      if (isComplexServiceRow(giftServiceRes.rows[0])) {
+      if (isComplexServiceRow(giftServiceRow)) {
         return res.status(400).json({ error: 'gift service must be an epilation zone, not a complex' });
       }
     }
 
-    const result = await pool.query(
-      `INSERT INTO master_promo_codes
-         (master_id, code, reward_type, discount_percent, gift_service_id, usage_mode, uses_count, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, 0, true)
-       RETURNING *`,
-      [req.master.id, rawCode, rewardType, discountPercent, giftServiceId, usageMode]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO master_promo_codes
+           (master_id, code, reward_type, discount_percent, gift_service_id, usage_mode, uses_count, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, 0, true)
+         RETURNING *`,
+        [req.master.id, rawCode, rewardType, discountPercent, giftServiceId, usageMode]
+      );
+    } catch (insertError) {
+      if (insertError.code !== '42703') throw insertError;
+      // Legacy schema fallback for promo table without usage_mode/uses_count columns.
+      result = await pool.query(
+        `INSERT INTO master_promo_codes
+           (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)
+         RETURNING *`,
+        [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
+      );
+      if (result.rows[0]) {
+        result.rows[0].usage_mode = 'always';
+        result.rows[0].uses_count = 0;
+      }
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -588,6 +849,9 @@ router.get('/availability', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
+    if (error.code === '42P01') {
+      return res.json([]);
+    }
     console.error('Error listing availability:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -835,8 +1099,14 @@ router.get('/availability/preview', loadMaster, async (req, res) => {
     }
 
     // Load rules, exclusions and bookings.
-    const [rules, exclusions, bookings] = await Promise.all([
-      pool.query('SELECT * FROM availability_rules WHERE master_id = $1', [req.master.id]),
+    let rulesRows = [];
+    try {
+      const rules = await pool.query('SELECT * FROM availability_rules WHERE master_id = $1', [req.master.id]);
+      rulesRows = rules.rows;
+    } catch (rulesError) {
+      if (rulesError.code !== '42P01') throw rulesError;
+    }
+    const [exclusions, bookings] = await Promise.all([
       pool.query('SELECT date FROM availability_exclusions WHERE master_id = $1', [req.master.id]),
       pool.query(
         `SELECT start_at, end_at FROM bookings
@@ -860,7 +1130,7 @@ router.get('/availability/preview', loadMaster, async (req, res) => {
 
     const slots = generateSlots({
       service: svc.rows[0],
-      rules: rules.rows,
+      rules: rulesRows,
       exclusions: exclusions.rows.map(e => e.date),
       bookings: bookings.rows,
       blocks: blocksRows,
@@ -924,17 +1194,37 @@ router.get('/calendar', loadMaster, async (req, res) => {
       return res.status(400).json({ error: 'date_from and date_to are required' });
     }
 
-    const bookingsRes = await pool.query(
-      `SELECT b.*, s.name AS service_name, s.duration_minutes,
-              u.username AS client_name
-       FROM bookings b
-       JOIN services s ON b.service_id = s.id
-       JOIN users u ON b.client_id = u.id
-       WHERE b.master_id = $1 AND b.status != 'canceled'
-         AND b.start_at < $3 AND b.end_at > $2
-       ORDER BY b.start_at`,
-      [req.master.id, date_from, date_to]
-    );
+    let bookingsRes;
+    try {
+      bookingsRes = await pool.query(
+        `SELECT b.*, s.name AS service_name, s.duration_minutes,
+                u.username AS client_name
+         FROM bookings b
+         JOIN services s ON b.service_id = s.id
+         JOIN users u ON b.client_id = u.id
+         WHERE b.master_id = $1 AND b.status != 'canceled'
+           AND b.start_at < $3 AND b.end_at > $2
+         ORDER BY b.start_at`,
+        [req.master.id, date_from, date_to]
+      );
+    } catch (bookingError) {
+      if (bookingError.code !== '42703') throw bookingError;
+      bookingsRes = await pool.query(
+        `SELECT b.*,
+                (b.start_at + ((COALESCE(s.duration_minutes, 0))::text || ' minutes')::interval) AS end_at,
+                s.name AS service_name, s.duration_minutes,
+                u.username AS client_name
+         FROM bookings b
+         JOIN services s ON b.service_id = s.id
+         JOIN users u ON b.client_id = u.id
+         WHERE b.master_id = $1
+           AND b.status != 'canceled'
+           AND b.start_at::date >= $2::date
+           AND b.start_at::date <= $3::date
+         ORDER BY b.start_at`,
+        [req.master.id, date_from, date_to]
+      );
+    }
 
     let blocks = [];
     try {

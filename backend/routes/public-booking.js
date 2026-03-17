@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { URL: NodeURL } = require('url');
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { generateSlotsFromWindows, localDateTimeToUtcMs } = require('../lib/slots');
@@ -55,20 +56,69 @@ function timeInTimezone(date, timezone) {
   return `${hour}:${minute}`;
 }
 
+const DEFAULT_PUBLIC_PROFILE = Object.freeze({
+  brand: 'Ro Va',
+  subtitle: 'Epil & Care',
+  name: 'Лера',
+  role: 'Мастер эпиляции',
+  city: 'Новосибирск',
+  experience: '',
+  phone: '',
+  address: '',
+  bio: '',
+  gift_text: 'Подарок от меня на первое посещение по ссылке:',
+  gift_url: 'https://vk.cc/cVmuLI'
+});
+
+function normalizeOptionalText(value, maxLength) {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  if (maxLength && trimmed.length > maxLength) return trimmed.slice(0, maxLength);
+  return trimmed;
+}
+
+function normalizeGiftUrl(value) {
+  const normalized = normalizeOptionalText(value, 255);
+  if (!normalized) return null;
+  const withProtocol = /^[a-z]+:\/\//i.test(normalized) ? normalized : `https://${normalized}`;
+  try {
+    const parsed = new NodeURL(withProtocol);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildPublicProfile(row) {
+  const fallbackName = normalizeOptionalText(row && row.display_name, 120);
+  return {
+    brand: normalizeOptionalText(row && row.brand_name, 120) || DEFAULT_PUBLIC_PROFILE.brand,
+    subtitle: normalizeOptionalText(row && row.brand_subtitle, 120) || DEFAULT_PUBLIC_PROFILE.subtitle,
+    name: normalizeOptionalText(row && row.profile_name, 120) || fallbackName || DEFAULT_PUBLIC_PROFILE.name,
+    role: normalizeOptionalText(row && row.profile_role, 120) || DEFAULT_PUBLIC_PROFILE.role,
+    city: normalizeOptionalText(row && row.profile_city, 120) || DEFAULT_PUBLIC_PROFILE.city,
+    experience: normalizeOptionalText(row && row.profile_experience, 120) || DEFAULT_PUBLIC_PROFILE.experience,
+    phone: normalizeOptionalText(row && row.profile_phone, 120) || DEFAULT_PUBLIC_PROFILE.phone,
+    address: normalizeOptionalText(row && row.profile_address, 255) || DEFAULT_PUBLIC_PROFILE.address,
+    bio: normalizeOptionalText(row && row.profile_bio, 1200) || DEFAULT_PUBLIC_PROFILE.bio,
+    gift_text: normalizeOptionalText(row && row.gift_text, 255) || DEFAULT_PUBLIC_PROFILE.gift_text,
+    gift_url: normalizeGiftUrl(row && row.gift_url) || DEFAULT_PUBLIC_PROFILE.gift_url
+  };
+}
+
 async function loadMasterBySlug(slug) {
   const attempts = [
+    `SELECT * FROM masters WHERE booking_slug = $1`,
     `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
-     FROM masters
-     WHERE booking_slug = $1`,
+     FROM masters WHERE booking_slug = $1`,
     `SELECT id, user_id, display_name, timezone, booking_slug
-     FROM masters
-     WHERE booking_slug = $1`,
+     FROM masters WHERE booking_slug = $1`,
     `SELECT id, user_id, booking_slug
-     FROM masters
-     WHERE booking_slug = $1`,
+     FROM masters WHERE booking_slug = $1`,
     `SELECT id, booking_slug
-     FROM masters
-     WHERE booking_slug = $1`
+     FROM masters WHERE booking_slug = $1`
   ];
 
   for (const sql of attempts) {
@@ -82,7 +132,8 @@ async function loadMasterBySlug(slug) {
         display_name: String(row.display_name || process.env.MASTER_DISPLAY_NAME || 'Мастер'),
         timezone: String(row.timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk'),
         booking_slug: String(row.booking_slug || slug),
-        cancel_policy_hours: Number(row.cancel_policy_hours ?? 24)
+        cancel_policy_hours: Number(row.cancel_policy_hours ?? 24),
+        profile: buildPublicProfile(row)
       };
     } catch (error) {
       if (error.code === '42P01') return null;
@@ -105,8 +156,8 @@ async function loadService(masterId, serviceId) {
     );
     return rows[0] || null;
   } catch (error) {
-    // Legacy schema compatibility: missing is_active / buffer_* columns.
-    if (error.code !== '42703') throw error;
+    // Legacy schema compatibility: missing/typed-differently is_active and buffer columns.
+    if (!isLegacySchemaCompatibilityError(error)) throw error;
     const fallback = await pool.query(
       `SELECT id, master_id, name, duration_minutes, price
        FROM services
@@ -145,17 +196,22 @@ async function loadPublicServices(masterId) {
     return services.rows.map(normalizeServiceRow);
   } catch (error) {
     if (error.code === '42P01') return [];
-    if (error.code !== '42703') throw error;
+    if (!isLegacySchemaCompatibilityError(error)) throw error;
 
     // Legacy schema fallback for services table without newer columns.
-    const fallback = await pool.query(
-      `SELECT id, master_id, name, duration_minutes, price
-       FROM services
-       WHERE master_id = $1
-       ORDER BY id ASC`,
-      [masterId]
-    );
-    return fallback.rows.map(normalizeServiceRow);
+    try {
+      const fallback = await pool.query(
+        `SELECT id, master_id, name, duration_minutes, price
+         FROM services
+         WHERE master_id = $1
+         ORDER BY id ASC`,
+        [masterId]
+      );
+      return fallback.rows.map(normalizeServiceRow);
+    } catch (fallbackError) {
+      if (isLegacySchemaCompatibilityError(fallbackError)) return [];
+      throw fallbackError;
+    }
   }
 }
 
@@ -179,7 +235,7 @@ async function loadMasterSettings(masterId) {
     };
   } catch (error) {
     // Compatibility for partially migrated DB: fallback to minimal settings.
-    if (!['42703', '42P01'].includes(error.code)) throw error;
+    if (!isLegacySchemaCompatibilityError(error)) throw error;
     try {
       const { rows } = await pool.query(
         `SELECT reminder_hours
@@ -200,6 +256,10 @@ async function loadMasterSettings(masterId) {
 
 function normalizePromoCode(rawPromoCode) {
   return String(rawPromoCode || '').trim().toUpperCase();
+}
+
+function isLegacySchemaCompatibilityError(error) {
+  return Boolean(error && ['42P01', '42703', '42883'].includes(error.code));
 }
 
 async function loadActivePromoCode(masterId, normalizedCode) {
@@ -307,7 +367,8 @@ router.get('/master/:slug', async (req, res) => {
         display_name: master.display_name,
         timezone: timezone,
         booking_slug: master.booking_slug,
-        cancel_policy_hours: master.cancel_policy_hours
+        cancel_policy_hours: master.cancel_policy_hours,
+        profile: master.profile || DEFAULT_PUBLIC_PROFILE
       },
       services: services,
       settings: await loadMasterSettings(master.id)
@@ -361,12 +422,28 @@ router.get('/master/:slug/slots', async (req, res) => {
       if (windowError.code !== '42P01') throw windowError;
     }
 
-    const bookings = await pool.query(
-      `SELECT start_at, end_at FROM bookings
-       WHERE master_id = $1 AND status NOT IN ('canceled')
-         AND start_at < $3 AND end_at > $2`,
-      [master.id, queryStartUtc, queryEndUtc]
-    );
+    let bookings;
+    try {
+      bookings = await pool.query(
+        `SELECT start_at, end_at FROM bookings
+         WHERE master_id = $1 AND status NOT IN ('canceled')
+           AND start_at < $3 AND end_at > $2`,
+        [master.id, queryStartUtc, queryEndUtc]
+      );
+    } catch (bookingError) {
+      if (bookingError.code !== '42703') throw bookingError;
+      bookings = await pool.query(
+        `SELECT b.start_at,
+                (b.start_at + ((COALESCE(s.duration_minutes, 0))::text || ' minutes')::interval) AS end_at
+         FROM bookings b
+         JOIN services s ON s.id = b.service_id
+         WHERE b.master_id = $1
+           AND b.status NOT IN ('canceled')
+           AND b.start_at >= $2
+           AND b.start_at <= $3`,
+        [master.id, queryStartUtc, queryEndUtc]
+      );
+    }
 
     let blocks = { rows: [] };
     try {
@@ -564,6 +641,117 @@ router.get('/master/:slug/client-calendar.ics', async (req, res) => {
 // POST /api/public/master/:slug/book
 // Accepts either { service_id, start_at } (legacy single) or { service_ids: [...], start_at } (multi-service).
 // Complexes must be booked alone (service_ids.length === 1 if any complex is selected).
+router.post('/master/:slug/pricing-preview', async (req, res) => {
+  try {
+    let rawIds = req.body && req.body.service_ids;
+    if (!rawIds) {
+      rawIds = req.body && req.body.service_id ? [req.body.service_id] : [];
+    }
+    const serviceIds = (Array.isArray(rawIds) ? rawIds : [rawIds])
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const normalizedServiceIds = [...new Set(serviceIds)];
+
+    if (!normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'service_ids (or service_id) is required' });
+    }
+
+    const master = await loadMasterBySlug(req.params.slug);
+    if (!master) {
+      return res.status(404).json({ error: 'Master not found' });
+    }
+
+    const loadedServices = await Promise.all(
+      normalizedServiceIds.map((id) => loadService(master.id, id))
+    );
+    const missingIdx = loadedServices.findIndex((service) => !service);
+    if (missingIdx !== -1) {
+      return res.status(404).json({ error: `Service ${normalizedServiceIds[missingIdx]} not found or inactive` });
+    }
+
+    const servicesById = new Map(loadedServices.map((service) => [Number(service.id), service]));
+    const promoCodeInput = normalizePromoCode(req.body && req.body.promo_code);
+    let appliedPromo = null;
+    let promoGiftService = null;
+    let promoDiscountPercent = null;
+    let giftServiceAdded = false;
+
+    if (promoCodeInput) {
+      appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
+      if (!appliedPromo) {
+        return res.status(400).json({ error: 'Промокод не найден или неактивен' });
+      }
+
+      if (appliedPromo.reward_type === 'percent') {
+        promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
+      } else if (appliedPromo.reward_type === 'gift_service') {
+        const giftId = Number(appliedPromo.gift_id || appliedPromo.gift_service_id || 0);
+        const giftServiceIsValid = giftId > 0
+          && Number(appliedPromo.gift_master_id) === Number(master.id)
+          && Boolean(appliedPromo.gift_is_active);
+        if (!giftServiceIsValid) {
+          return res.status(400).json({ error: 'Подарочная зона промокода недоступна' });
+        }
+
+        promoGiftService = {
+          id: giftId,
+          master_id: Number(appliedPromo.gift_master_id),
+          name: appliedPromo.gift_name,
+          duration_minutes: Number(appliedPromo.gift_duration_minutes || 0),
+          price: Number(appliedPromo.gift_price || 0),
+          description: appliedPromo.gift_description || null,
+          buffer_before_minutes: Number(appliedPromo.gift_buffer_before_minutes || 0),
+          buffer_after_minutes: Number(appliedPromo.gift_buffer_after_minutes || 0),
+          is_active: true
+        };
+
+        if (!normalizedServiceIds.includes(giftId)) {
+          normalizedServiceIds.push(giftId);
+          giftServiceAdded = true;
+        }
+        servicesById.set(giftId, promoGiftService);
+      } else {
+        return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
+      }
+    }
+
+    const effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
+    if (effectiveServices.length !== normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'Не удалось собрать услуги для расчёта' });
+    }
+
+    const totalDurationMinutes = effectiveServices.reduce((sum, service) => sum + Number(service.duration_minutes || 0), 0);
+    const totalBasePrice = effectiveServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+    let discountAmount = 0;
+    if (promoDiscountPercent !== null) {
+      discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
+    } else if (promoGiftService) {
+      discountAmount = Number(promoGiftService.price || 0);
+    }
+    discountAmount = Math.min(totalBasePrice, Math.max(0, discountAmount));
+    const finalPrice = Math.max(0, Math.round((totalBasePrice - discountAmount) * 100) / 100);
+
+    return res.json({
+      service_ids: normalizedServiceIds,
+      total_duration_minutes: totalDurationMinutes,
+      pricing: {
+        base_price: totalBasePrice,
+        final_price: finalPrice,
+        discount_amount: discountAmount,
+        promo_code: appliedPromo ? String(appliedPromo.code) : null,
+        promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
+        promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
+        promo_discount_percent: promoDiscountPercent,
+        promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
+        promo_gift_service_added: giftServiceAdded
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating public pricing preview:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/master/:slug/book', authenticateToken, async (req, res) => {
   try {
     const { start_at } = req.body;

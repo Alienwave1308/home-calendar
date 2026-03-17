@@ -18,6 +18,7 @@
     <!-- Tabs -->
     <nav class="master-tabs" id="masterTabs">
       <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Обзор</button>
+      <button class="master-tab" data-tab="profile" onclick="MasterApp.switchTab('profile')">Профиль</button>
       <button class="master-tab" data-tab="bookings" onclick="MasterApp.switchTab('bookings')">Записи</button>
       <button class="master-tab" data-tab="leads" onclick="MasterApp.switchTab('leads')">Лиды</button>
       <button class="master-tab" data-tab="services" onclick="MasterApp.switchTab('services')">Услуги</button>
@@ -68,6 +69,56 @@
         <p>На сегодня записей нет</p>
         <p class="empty-hint">Поделитесь ссылкой для записи с клиентами</p>
       </div>
+    </section>
+
+    <!-- Tab: Profile -->
+    <section class="tab-panel" id="tabProfile" style="display:none;">
+      <article class="settings-card profile-preview-card">
+        <div class="profile-preview-top">
+          <div>
+            <h3 id="profilePreviewBrand" class="profile-preview-brand">Ro Va</h3>
+            <p id="profilePreviewSub" class="profile-preview-sub">Epil &amp; Care</p>
+            <p id="profilePreviewName" class="profile-preview-name">Лера · Мастер эпиляции</p>
+          </div>
+          <span id="profilePreviewCity" class="profile-chip">Новосибирск</span>
+        </div>
+        <div class="profile-preview-grid">
+          <article class="profile-preview-stat">
+            <p>Опыт</p>
+            <strong id="profilePreviewExp">—</strong>
+          </article>
+          <article class="profile-preview-stat">
+            <p>Телефон</p>
+            <strong id="profilePreviewPhone">—</strong>
+          </article>
+          <article class="profile-preview-stat" style="grid-column: 1 / -1;">
+            <p>Адрес</p>
+            <strong id="profilePreviewAddress">—</strong>
+          </article>
+        </div>
+        <p id="profilePreviewBio" class="profile-preview-bio">Заполните блок «О себе», чтобы он отображался в карточке.</p>
+        <p id="profilePreviewGiftText" class="settings-hint">Подарок от меня на первое посещение по ссылке:</p>
+        <a id="profilePreviewGiftUrl" class="profile-preview-link" href="https://vk.cc/cVmuLI" target="_blank" rel="noopener noreferrer">vk.cc/cVmuLI</a>
+      </article>
+
+      <article class="settings-card">
+        <h3>Данные профиля</h3>
+        <div class="availability-form profile-form-grid">
+          <input id="profileBrand" type="text" maxlength="120" placeholder="Бренд">
+          <input id="profileSubtitle" type="text" maxlength="120" placeholder="Подзаголовок">
+          <input id="profileName" type="text" maxlength="120" placeholder="Имя мастера">
+          <input id="profileRole" type="text" maxlength="120" placeholder="Роль">
+          <input id="profileExperience" type="text" maxlength="120" placeholder="Опыт">
+          <input id="profileCity" type="text" maxlength="120" placeholder="Город">
+          <input id="profilePhone" type="text" maxlength="120" placeholder="Телефон">
+          <input id="profileAddress" type="text" maxlength="255" placeholder="Адрес">
+          <textarea id="profileBio" rows="4" maxlength="1200" placeholder="О себе"></textarea>
+          <input id="profileGiftText" type="text" maxlength="255" placeholder="Текст подарка">
+          <input id="profileGiftUrl" type="url" maxlength="255" placeholder="Ссылка на подарок">
+          <button class="btn-secondary" onclick="MasterApp.openGiftLink()">Открыть ссылку</button>
+          <button class="btn-primary" onclick="MasterApp.saveMasterProfile()">Сохранить профиль</button>
+        </div>
+      </article>
     </section>
 
     <!-- Tab: Bookings -->
