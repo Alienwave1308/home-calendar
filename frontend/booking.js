@@ -540,9 +540,30 @@
 
     Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (card) {
       let lastActivationAt = 0;
+      let pointerStart = null;
+
+      const isPointerTap = function (event) {
+        if (!pointerStart || !event) return false;
+        if (pointerStart.id !== undefined && event.pointerId !== undefined && pointerStart.id !== event.pointerId) {
+          return false;
+        }
+        const currentX = Number(event.clientX || 0);
+        const currentY = Number(event.clientY || 0);
+        const dx = Math.abs(currentX - pointerStart.x);
+        const dy = Math.abs(currentY - pointerStart.y);
+        return dx <= 10 && dy <= 10;
+      };
 
       const activateCard = function (event) {
         if (card.classList.contains('disabled')) return;
+
+        if (event && event.type === 'pointerup') {
+          const isTouchLike = event.pointerType === 'touch' || event.pointerType === 'pen';
+          if (isTouchLike && !isPointerTap(event)) {
+            pointerStart = null;
+            return;
+          }
+        }
 
         const now = Date.now();
         const isTouchEvent = event && (
@@ -561,6 +582,7 @@
           return;
         }
 
+        pointerStart = null;
         lastActivationAt = now;
 
         const serviceId = card.getAttribute('data-service-id');
@@ -568,10 +590,20 @@
         toggleServiceSelection(serviceId);
       };
 
-      card.addEventListener('click', activateCard);
       if (window.PointerEvent) {
+        card.addEventListener('pointerdown', function (event) {
+          pointerStart = {
+            id: event.pointerId,
+            x: Number(event.clientX || 0),
+            y: Number(event.clientY || 0)
+          };
+        });
+        card.addEventListener('pointercancel', function () {
+          pointerStart = null;
+        });
         card.addEventListener('pointerup', activateCard);
       } else {
+        card.addEventListener('click', activateCard);
         card.addEventListener('touchend', activateCard, { passive: false });
       }
     });
