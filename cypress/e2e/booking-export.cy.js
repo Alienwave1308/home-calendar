@@ -84,6 +84,22 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('#doneText').should('contain.text', 'Стоимость');
   });
 
+  it('keeps service selected when touch/pointer and synthetic click both fire', () => {
+    cy.contains('.service-card', 'Шугаринг').then(($card) => {
+      const card = $card[0];
+      const win = card.ownerDocument.defaultView;
+      const touchLikeEvent = typeof win.PointerEvent === 'function'
+        ? new win.PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' })
+        : new win.Event('touchend', { bubbles: true, cancelable: true });
+
+      card.dispatchEvent(touchLikeEvent);
+      card.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    cy.contains('.service-card.selected', 'Шугаринг').should('be.visible');
+    cy.get('#dockTitle').should('contain.text', '1 услуга');
+  });
+
   it('renders month calendar view for date picking', () => {
     cy.contains('.service-card', 'Шугаринг').click();
     cy.get('#dockAction').click();

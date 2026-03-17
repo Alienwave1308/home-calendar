@@ -57,6 +57,11 @@ app.use(express.json());
 const frontendDir = process.env.FRONTEND_DIR
   ? path.resolve(__dirname, '..', process.env.FRONTEND_DIR)
   : path.join(__dirname, '../frontend');
+function applyNoStoreHeaders(res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+}
 const noStoreStaticFiles = new Set([
   'booking.html',
   'booking.js',
@@ -148,11 +153,13 @@ app.use('/api/calendar-sync', calendarSyncRouter);
 // Allow embedding in Telegram and VK iframes (Mini Apps)
 app.get('/book/:slug', (req, res) => {
   res.removeHeader('X-Frame-Options');
+  applyNoStoreHeaders(res);
   res.sendFile(path.join(frontendDir, 'booking.html'));
 });
 
 // Master panel
 app.get('/master', (req, res) => {
+  applyNoStoreHeaders(res);
   res.sendFile(path.join(frontendDir, 'master.html'));
 });
 
