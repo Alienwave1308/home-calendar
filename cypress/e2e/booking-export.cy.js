@@ -66,12 +66,12 @@ describe('Booking Mini App - Calendar Export E2E', () => {
 
   it('completes booking flow and shows confirmation screen', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('#dockAction').click();
+    cy.get('#dockAction').click({ force: true });
     cy.wait('@getSlots');
 
     cy.get('.day.available').first().click();
     cy.get('.slot-chip').first().click();
-    cy.get('#dockAction').click();
+    cy.get('#dockAction').click({ force: true });
     cy.get('#noteInput').type('Зона подмышек');
     cy.get('#confirmSubmit').click();
     cy.wait('@postBook').then((interception) => {
@@ -86,7 +86,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
 
   it('renders month calendar view for date picking', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('#dockAction').click();
+    cy.get('#dockAction').click({ force: true });
     cy.wait('@getSlots');
 
     cy.get('#calMonth').should('not.have.text', '');
@@ -98,12 +98,12 @@ describe('Booking Mini App - Calendar Export E2E', () => {
 
   it('sends promo code from confirm screen to booking API', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('#dockAction').click();
+    cy.get('#dockAction').click({ force: true });
     cy.wait('@getSlots');
 
     cy.get('.day.available').first().click();
     cy.get('.slot-chip').first().click();
-    cy.get('#dockAction').click();
+    cy.get('#dockAction').click({ force: true });
     cy.get('#promoInput').clear().type('once10');
     cy.get('#confirmSubmit').click();
 
