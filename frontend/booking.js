@@ -63,7 +63,7 @@
     const shouldFallbackToCanonical = !isCanonicalHost(window.location.hostname)
       && window.location.hostname !== 'localhost'
       && window.location.hostname !== '127.0.0.1';
-    if (shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
+    if (!window.Cypress && shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
 
     return candidates;
   }
