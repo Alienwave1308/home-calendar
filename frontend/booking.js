@@ -490,6 +490,20 @@
         + '</article>';
     }).join('');
 
+    Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (card) {
+      const activateCard = function (event) {
+        if (card.classList.contains('disabled')) return;
+        if (event && event.type === 'touchend') event.preventDefault();
+        const serviceId = card.getAttribute('data-service-id');
+        if (!serviceId) return;
+        toggleServiceSelection(serviceId);
+      };
+
+      card.addEventListener('click', activateCard);
+      card.addEventListener('pointerup', activateCard);
+      card.addEventListener('touchend', activateCard, { passive: false });
+    });
+
     renderDock();
   }
 
@@ -1119,27 +1133,6 @@
     el.headerMore.addEventListener('click', function () {
       showToast('Меню пока не подключено');
     });
-
-    let lastServiceTouchAt = 0;
-    const handleServiceTap = function (event) {
-      const card = event.target && event.target.closest ? event.target.closest('[data-service-id]') : null;
-      if (!card || !el.servicesList.contains(card)) return;
-      if (card.classList.contains('disabled')) return;
-
-      if (event.type === 'touchend') {
-        lastServiceTouchAt = Date.now();
-        event.preventDefault();
-      } else if (event.type === 'click' && Date.now() - lastServiceTouchAt < 550) {
-        return;
-      }
-
-      const serviceId = card.getAttribute('data-service-id');
-      if (!serviceId) return;
-      toggleServiceSelection(serviceId);
-    };
-
-    el.servicesList.addEventListener('touchend', handleServiceTap, { passive: false });
-    el.servicesList.addEventListener('click', handleServiceTap);
 
     el.calPrev.addEventListener('click', function () {
       if (el.calPrev.disabled) return;
