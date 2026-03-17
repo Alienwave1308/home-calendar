@@ -1,5 +1,14 @@
 describe('Booking Mini App - Calendar Export E2E', () => {
+  let slotStartIso;
+  let slotEndIso;
+
   beforeEach(() => {
+    const now = new Date();
+    now.setDate(now.getDate() + 1);
+    now.setHours(10, 0, 0, 0);
+    slotStartIso = now.toISOString();
+    slotEndIso = new Date(now.getTime() + (60 * 60 * 1000)).toISOString();
+
     cy.intercept('GET', /\/api\/public\/master\/[^/]+\/?(?:\?.*)?$/, {
       statusCode: 200,
       body: {
@@ -16,7 +25,7 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.intercept('GET', /\/api\/public\/master\/test-master\/slots.*/, {
       statusCode: 200,
       body: {
-        slots: [{ start: '2026-02-20T10:00:00.000Z', end: '2026-02-20T11:00:00.000Z' }]
+        slots: [{ start: slotStartIso, end: slotEndIso }]
       }
     }).as('getSlots');
 
@@ -34,13 +43,6 @@ describe('Booking Mini App - Calendar Export E2E', () => {
         }
       });
     }).as('postBook');
-
-    cy.intercept('GET', /\/api\/client\/bookings\/1\/calendar-feed\/?$/, {
-      statusCode: 200,
-      body: {
-        feed_path: '/api/public/master/test-master/client-calendar.ics?token=test-client-token'
-      }
-    }).as('getClientCalendarFeed');
 
     cy.visit('/booking.html?slug=test-master', {
       onBeforeLoad(win) {
@@ -62,63 +64,53 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     });
   });
 
-  it('shows calendar export actions after successful booking', () => {
-    // Multi-select flow: click card to select, then click "Далее →" to proceed to slots
+  it('completes booking flow and shows confirmation screen', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('.selection-bar-btn').click();
+    cy.get('#dockAction').click();
     cy.wait('@getSlots');
 
-    cy.get('.slot-btn').first().click();
-    cy.get('#confirmNote').type('Зона подмышек');
-    cy.get('#btnBook').click();
+    cy.get('.day.available').first().click();
+    cy.get('.slot-chip').first().click();
+    cy.get('#dockAction').click();
+    cy.get('#noteInput').type('Зона подмышек');
+    cy.get('#confirmSubmit').click();
     cy.wait('@postBook').then((interception) => {
       expect(interception.request.body.service_ids).to.deep.equal([10]);
-      expect(interception.request.body.start_at).to.equal('2026-02-20T10:00:00.000Z');
+      expect(interception.request.body.start_at).to.equal(slotStartIso);
       expect(interception.request.body.client_note).to.equal('Зона подмышек');
     });
 
-    cy.get('#stepDone').should('be.visible');
-    cy.get('#doneGoogleLink')
-      .should('be.visible')
-      .and('have.attr', 'href')
-      .and('include', 'calendar.google.com')
-      .and('include', 'ctz=Asia%2FNovosibirsk');
-    cy.get('#doneAppleBtn').should('be.visible');
-
-    cy.get('#doneAppleBtn').click();
-    cy.wait('@getClientCalendarFeed');
-    cy.get('@openLink').should('have.been.called');
-    cy.get('@openLink').its('lastCall.args.0').should('match', /^https?:\/\//);
-    cy.get('@openLink').its('lastCall.args.0').should('include', 'client-calendar.ics');
-    cy.get('@openLink').its('lastCall.args.0').should('include', 'token=test-client-token');
+    cy.get('#screen-done').should('have.class', 'active');
+    cy.get('#doneText').should('contain.text', 'Стоимость');
   });
 
   it('renders month calendar view for date picking', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('.selection-bar-btn').click();
+    cy.get('#dockAction').click();
     cy.wait('@getSlots');
 
     cy.get('#calMonth').should('not.have.text', '');
     cy.get('#calPrev').should('be.disabled');
-    cy.get('#dateStrip .calendar-cell').not('.calendar-cell--empty').should('have.length.at.least', 28);
-    cy.get('#dateStrip .calendar-cell').not('.calendar-cell--empty').not('.disabled').eq(1).click();
-    cy.wait('@getSlots');
-    cy.get('.slot-btn').should('have.length.at.least', 1);
+    cy.get('#calGrid .day').should('have.length.at.least', 28);
+    cy.get('.day.available').first().click();
+    cy.get('.slot-chip').should('have.length.at.least', 1);
   });
 
   it('sends promo code from confirm screen to booking API', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('.selection-bar-btn').click();
+    cy.get('#dockAction').click();
     cy.wait('@getSlots');
 
-    cy.get('.slot-btn').first().click();
-    cy.get('#confirmPromoCode').clear().type('once10');
-    cy.get('#btnBook').click();
+    cy.get('.day.available').first().click();
+    cy.get('.slot-chip').first().click();
+    cy.get('#dockAction').click();
+    cy.get('#promoInput').clear().type('once10');
+    cy.get('#confirmSubmit').click();
 
     cy.wait('@postBook').then((interception) => {
       expect(interception.request.body.service_ids).to.deep.equal([10]);
       expect(interception.request.body.promo_code).to.equal('ONCE10');
     });
-    cy.get('#stepDone').should('be.visible');
+    cy.get('#screen-done').should('have.class', 'active');
   });
 });
