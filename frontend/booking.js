@@ -349,7 +349,20 @@
   }
 
   function selectedServices() {
-    return state.services.filter(function (s) { return state.selectedServiceIds.includes(Number(s.id)); });
+    return state.services.filter(function (service) {
+      return state.selectedServiceIds.some(function (selectedId) {
+        return String(selectedId) === String(service.id);
+      });
+    });
+  }
+
+  function normalizeServiceIdsForApi(ids) {
+    return ids.map(function (id) {
+      const raw = String(id).trim();
+      const num = Number(raw);
+      if (raw !== '' && Number.isFinite(num)) return num;
+      return id;
+    });
   }
 
   function selectedTotals() {
@@ -424,7 +437,9 @@
     const hasZone = selectionHasZone();
 
     el.servicesList.innerHTML = list.map(function (service) {
-      const selected = state.selectedServiceIds.includes(Number(service.id));
+      const selected = state.selectedServiceIds.some(function (selectedId) {
+        return String(selectedId) === String(service.id);
+      });
       const tax = parseServiceTaxonomy(service);
       const isComplex = tax.category === 'complex';
       const isDisabled = !selected && ((isComplex && hasZone) || (!isComplex && hasComplex));
@@ -433,7 +448,7 @@
       const badges = [methodLabel, categoryLabel];
 
       return ''
-        + '<article class="service-card ' + (selected ? 'selected ' : '') + (isDisabled ? 'disabled' : '') + '" data-service-id="' + service.id + '">' 
+        + '<article class="service-card ' + (selected ? 'selected ' : '') + (isDisabled ? 'disabled' : '') + '" data-service-id="' + escapeHtml(service.id) + '">' 
         + '<div class="service-head">'
         + '<h3 class="service-name">' + escapeHtml(service.name) + '</h3>'
         + '<span class="price">' + money(service.price || 0) + ' ₽</span>'
@@ -446,20 +461,23 @@
     Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (node) {
       node.addEventListener('click', function () {
         if (node.classList.contains('disabled')) return;
-        const id = Number(node.getAttribute('data-service-id'));
-        const alreadySelected = state.selectedServiceIds.includes(id);
-        const service = state.services.find(function (s) { return Number(s.id) === id; });
+        const id = node.getAttribute('data-service-id');
+        const alreadySelected = state.selectedServiceIds.some(function (selectedId) {
+          return String(selectedId) === String(id);
+        });
+        const service = state.services.find(function (s) { return String(s.id) === String(id); });
         if (!service) return;
+        const serviceId = service.id;
 
         if (alreadySelected) {
-          state.selectedServiceIds = state.selectedServiceIds.filter(function (x) { return x !== id; });
+          state.selectedServiceIds = state.selectedServiceIds.filter(function (x) { return String(x) !== String(serviceId); });
         } else {
           const isComplex = parseServiceTaxonomy(service).category === 'complex';
           if (isComplex) {
-            state.selectedServiceIds = [id];
+            state.selectedServiceIds = [serviceId];
           } else {
             if (selectionHasComplex()) return;
-            state.selectedServiceIds.push(id);
+            state.selectedServiceIds.push(serviceId);
           }
         }
 
@@ -618,12 +636,14 @@
     if (!chosen.length || !state.master) return;
 
     const timezone = state.master.timezone || 'Asia/Novosibirsk';
-    const primaryId = Number(chosen[0].id);
+    const primaryRawId = chosen[0].id;
+    const primaryId = Number(primaryRawId);
+    const serviceIdParam = Number.isFinite(primaryId) ? String(primaryId) : encodeURIComponent(String(primaryRawId));
     const totals = selectedTotals();
     const from = dateKey(state.rangeStart);
     const to = dateKey(state.rangeEnd);
 
-    let url = '/public/master/' + slug + '/slots?service_id=' + primaryId + '&date_from=' + from + '&date_to=' + to;
+    let url = '/public/master/' + slug + '/slots?service_id=' + serviceIdParam + '&date_from=' + from + '&date_to=' + to;
     if (chosen.length > 1 && totals.duration > 0) {
       url += '&duration_minutes=' + totals.duration;
     }
@@ -830,7 +850,7 @@
 
     try {
       const preview = await apiPost('/public/master/' + slug + '/pricing-preview', {
-        service_ids: state.selectedServiceIds.slice(),
+        service_ids: normalizeServiceIdsForApi(state.selectedServiceIds.slice()),
         promo_code: code
       });
 
@@ -885,7 +905,7 @@
     try {
       showLoader();
       const body = {
-        service_ids: state.selectedServiceIds.slice(),
+        service_ids: normalizeServiceIdsForApi(state.selectedServiceIds.slice()),
         start_at: state.selectedSlot.start,
         client_note: note || undefined
       };
