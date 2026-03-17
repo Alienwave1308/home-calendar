@@ -35,7 +35,41 @@
     }
   }
 
-  const API_BASE = '/api';
+  function normalizeOrigin(value) {
+    if (!value) return '';
+    return String(value).trim().replace(/\/+$/, '');
+  }
+
+  function isCanonicalHost(hostname) {
+    return /(^|\.)rova-epil\.ru$/i.test(String(hostname || ''));
+  }
+
+  function buildApiBaseCandidates() {
+    const candidates = [];
+    const pushCandidate = function (base) {
+      if (!base || candidates.includes(base)) return;
+      candidates.push(base);
+    };
+
+    const queryOrigin = normalizeOrigin(urlParams.get('api_origin'));
+    const globalOrigin = normalizeOrigin(window.__HC_API_ORIGIN__);
+    const globalBase = normalizeOrigin(window.__HC_API_BASE__);
+
+    if (globalBase) pushCandidate(globalBase);
+    if (queryOrigin) pushCandidate(queryOrigin + '/api');
+    if (globalOrigin) pushCandidate(globalOrigin + '/api');
+    pushCandidate('/api');
+
+    const shouldFallbackToCanonical = !isCanonicalHost(window.location.hostname)
+      && window.location.hostname !== 'localhost'
+      && window.location.hostname !== '127.0.0.1';
+    if (shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
+
+    return candidates;
+  }
+
+  const API_BASE_CANDIDATES = buildApiBaseCandidates();
+  let apiBase = API_BASE_CANDIDATES[0] || '/api';
   const rawSlug = new URLSearchParams(window.location.search).get('slug')
     || window.location.pathname.split('/book/')[1]
     || '';
@@ -243,41 +277,67 @@
     }).format(new Date());
   }
 
+  function shouldRetryWithNextBase(status) {
+    return status >= 500 || status === 404;
+  }
+
+  async function requestJson(path, options) {
+    const orderedBases = [apiBase].concat(API_BASE_CANDIDATES.filter(function (base) { return base !== apiBase; }));
+    let lastError = null;
+
+    for (let i = 0; i < orderedBases.length; i++) {
+      const base = orderedBases[i];
+      try {
+        const res = await fetch(base + path, options || {});
+        if (!res.ok) {
+          const data = await res.json().catch(function () { return {}; });
+          const message = data.error || 'Ошибка сервера (' + res.status + ')';
+          if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
+            lastError = new Error(message);
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        apiBase = base;
+        return res.json();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error || 'Ошибка сети'));
+        if (i < orderedBases.length - 1) continue;
+        throw lastError;
+      }
+    }
+
+    throw (lastError || new Error('Ошибка сети'));
+  }
+
   async function initAuth() {
     if (localStorage.getItem('token')) return true;
 
     if (hasTelegramSession) {
-      const res = await fetch(API_BASE + '/auth/telegram', {
+      const data = await requestJson('/auth/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initData: tg.initData })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-          return true;
-        }
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        return true;
       }
-      const errData = await res.json().catch(function () { return {}; });
-      throw new Error(errData.error || 'Ошибка авторизации Telegram (' + res.status + ')');
+      throw new Error('Ошибка авторизации Telegram');
     }
 
     if (hasVkSession) {
-      const res = await fetch(API_BASE + '/auth/vk', {
+      const data = await requestJson('/auth/vk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ launchParams: window.location.search.slice(1) })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-          return true;
-        }
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        return true;
       }
-      const errData = await res.json().catch(function () { return {}; });
-      throw new Error(errData.error || 'Ошибка авторизации ВКонтакте (' + res.status + ')');
+      throw new Error('Ошибка авторизации ВКонтакте');
     }
 
     return false;
@@ -288,12 +348,7 @@
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = 'Bearer ' + token;
 
-    const res = await fetch(API_BASE + path, { headers: headers });
-    if (!res.ok) {
-      const data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка сервера (' + res.status + ')');
-    }
-    return res.json();
+    return requestJson(path, { headers: headers });
   }
 
   async function apiPost(path, body) {
@@ -301,16 +356,11 @@
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = 'Bearer ' + token;
 
-    const res = await fetch(API_BASE + path, {
+    return requestJson(path, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(body || {})
     });
-    if (!res.ok) {
-      const data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка сервера (' + res.status + ')');
-    }
-    return res.json();
   }
 
   async function apiPatch(path, body) {
@@ -318,16 +368,11 @@
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = 'Bearer ' + token;
 
-    const res = await fetch(API_BASE + path, {
+    return requestJson(path, {
       method: 'PATCH',
       headers: headers,
       body: body ? JSON.stringify(body) : null
     });
-    if (!res.ok) {
-      const data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка сервера (' + res.status + ')');
-    }
-    return res.json();
   }
 
   function parseServiceTaxonomy(service) {

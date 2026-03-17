@@ -27,7 +27,49 @@
     return;
   }
 
-  let API_BASE = '/api/master';
+  function normalizeOrigin(value) {
+    if (!value) return '';
+    return String(value).trim().replace(/\/+$/, '');
+  }
+
+  function isCanonicalHost(hostname) {
+    return /(^|\.)rova-epil\.ru$/i.test(String(hostname || ''));
+  }
+
+  function buildRootApiCandidates() {
+    const candidates = [];
+    const pushCandidate = function (base) {
+      if (!base || candidates.includes(base)) return;
+      candidates.push(base);
+    };
+
+    const params = new window.URLSearchParams(window.location.search);
+    const queryOrigin = normalizeOrigin(params.get('api_origin'));
+    const globalOrigin = normalizeOrigin(window.__HC_API_ORIGIN__);
+    const globalBase = normalizeOrigin(window.__HC_ROOT_API_BASE__);
+
+    if (globalBase) pushCandidate(globalBase);
+    if (queryOrigin) pushCandidate(queryOrigin + '/api');
+    if (globalOrigin) pushCandidate(globalOrigin + '/api');
+    pushCandidate('/api');
+
+    const shouldFallbackToCanonical = !isCanonicalHost(window.location.hostname)
+      && window.location.hostname !== 'localhost'
+      && window.location.hostname !== '127.0.0.1';
+    if (shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
+
+    return candidates;
+  }
+
+  const ROOT_API_CANDIDATES = buildRootApiCandidates();
+  const MASTER_API_CANDIDATES = ROOT_API_CANDIDATES.map(function (base) { return base + '/master'; });
+  let ROOT_API_BASE = ROOT_API_CANDIDATES[0] || '/api';
+  let API_BASE = MASTER_API_CANDIDATES[0] || '/api/master';
+  const PUBLIC_APP_ORIGIN = isCanonicalHost(window.location.hostname)
+    || window.location.hostname === 'localhost'
+    || window.location.hostname === '127.0.0.1'
+    ? window.location.origin
+    : 'https://rova-epil.ru';
   let token = localStorage.getItem('token') || '';
   let bookingsCache = [];
   let currentMasterSlug = '';
@@ -62,24 +104,89 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function clearAuthAndRedirect() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('currentRole');
+    window.location.href = '/';
+  }
+
+  function shouldRetryWithNextBase(status) {
+    return status >= 500 || status === 404;
+  }
+
+  async function requestJson(path, options) {
+    const orderedBases = [API_BASE].concat(MASTER_API_CANDIDATES.filter(function (base) { return base !== API_BASE; }));
+    let lastError = null;
+
+    for (let i = 0; i < orderedBases.length; i++) {
+      const base = orderedBases[i];
+      try {
+        const res = await fetch(base + path, options || {});
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            if (i < orderedBases.length - 1) continue;
+            clearAuthAndRedirect();
+            return null;
+          }
+          const data = await res.json().catch(function () { return {}; });
+          const message = data.error || 'Ошибка (' + res.status + ')';
+          if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
+            lastError = new Error(message);
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        API_BASE = base;
+        const rootBase = String(base).replace(/\/master$/, '');
+        if (ROOT_API_CANDIDATES.includes(rootBase)) ROOT_API_BASE = rootBase;
+        return res.json();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error || 'Ошибка сети'));
+        if (i < orderedBases.length - 1) continue;
+        throw lastError;
+      }
+    }
+
+    throw (lastError || new Error('Ошибка сети'));
+  }
+
+  async function requestRootJson(path, options) {
+    const orderedBases = [ROOT_API_BASE].concat(ROOT_API_CANDIDATES.filter(function (base) { return base !== ROOT_API_BASE; }));
+    let lastError = null;
+
+    for (let i = 0; i < orderedBases.length; i++) {
+      const base = orderedBases[i];
+      try {
+        const res = await fetch(base + path, options || {});
+        if (!res.ok) {
+          const data = await res.json().catch(function () { return {}; });
+          const message = data.error || 'Ошибка (' + res.status + ')';
+          if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
+            lastError = new Error(message);
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        ROOT_API_BASE = base;
+        return res.json();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error || 'Ошибка сети'));
+        if (i < orderedBases.length - 1) continue;
+        throw lastError;
+      }
+    }
+
+    throw (lastError || new Error('Ошибка сети'));
+  }
+
   async function apiFetch(path) {
     let headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
-
-    let res = await fetch(API_BASE + path, { headers: headers });
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('currentRole');
-        window.location.href = '/';
-        return;
-      }
-      let data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка (' + res.status + ')');
-    }
-    return res.json();
+    return requestJson(path, { headers: headers });
   }
 
   async function apiMethod(method, path, body) {
@@ -89,12 +196,7 @@
     let opts = { method: method, headers: headers };
     if (body) opts.body = JSON.stringify(body);
 
-    let res = await fetch(API_BASE + path, opts);
-    if (!res.ok) {
-      let data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка (' + res.status + ')');
-    }
-    return res.json();
+    return requestJson(path, opts);
   }
 
   function showToast(msg) {
@@ -314,12 +416,12 @@
   }
 
   async function fetchOverviewBookings() {
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = 'Bearer ' + token;
-    const res = await fetch(API_BASE + '/bookings', { headers: headers });
-    if (!res.ok) return [];
-    const data = await res.json().catch(function () { return []; });
-    return Array.isArray(data) ? data : [];
+    try {
+      const data = await apiFetch('/bookings');
+      return Array.isArray(data) ? data : [];
+    } catch (_) {
+      return [];
+    }
   }
 
   async function refreshOverview() {
@@ -1159,7 +1261,7 @@
       await loadMasterProfile(true);
       if ($('bookingLink')) {
         $('bookingLink').value = currentMasterSlug
-          ? window.location.origin + '/book/' + currentMasterSlug
+          ? PUBLIC_APP_ORIGIN + '/book/' + currentMasterSlug
           : 'Не удалось загрузить';
       }
     } catch (err) {
@@ -1168,10 +1270,9 @@
 
     // Google Calendar status
     try {
-      let res = await fetch('/api/calendar-sync/status', {
+      let data = await requestRootJson('/calendar-sync/status', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      let data = await res.json();
       const gcalStatusEl = $('gcalStatus');
       if (gcalStatusEl) {
         if (data.connected) {
@@ -1578,10 +1679,9 @@
 
   async function connectGCal() {
     try {
-      let res = await fetch('/api/calendar-sync/connect', {
+      let data = await requestRootJson('/calendar-sync/connect', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      let data = await res.json();
       if (data.url) window.location.href = data.url;
     } catch (err) {
       showToast('Ошибка подключения: ' + err.message);
