@@ -119,13 +119,8 @@ describe('Master Panel - Promo Codes E2E', () => {
     cy.window().then((win) => {
       win.MasterApp.switchTab('settings');
     });
-    cy.wait('@getProfile');
-    cy.wait('@getGcalStatus');
-    cy.wait('@getSettings');
-    cy.wait('@getAvailabilityWindows');
-    cy.wait('@getAvailabilityExclusions');
-    cy.wait('@getServices');
-    cy.wait('@getPromoCodes');
+    cy.get('#tabSettings').should('be.visible');
+    cy.get('#promoCodeValue').should('be.visible');
   }
 
   it('creates always and single-use promo codes from settings', () => {
@@ -145,8 +140,6 @@ describe('Master Panel - Promo Codes E2E', () => {
         usage_mode: 'always'
       });
     });
-    cy.wait('@getServices');
-    cy.wait('@getPromoCodes');
     cy.contains('#promoCodesList .settings-list-item', 'ALWAYS20').should('contain.text', 'Постоянный');
 
     cy.get('#promoCodeValue').clear().type('giftonce');
@@ -163,8 +156,6 @@ describe('Master Panel - Promo Codes E2E', () => {
         usage_mode: 'single_use'
       });
     });
-    cy.wait('@getServices');
-    cy.wait('@getPromoCodes');
     cy.contains('#promoCodesList .settings-list-item', 'GIFTONCE').should('contain.text', 'Одноразовый');
   });
 

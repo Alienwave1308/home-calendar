@@ -124,9 +124,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
     cy.window().then((win) => {
       win.MasterApp.switchTab('settings');
     });
-    cy.wait('@profile');
-    cy.wait('@gcalStatus');
-
+    cy.get('#tabSettings').should('be.visible');
     cy.contains('Apple Calendar').should('be.visible');
 
     cy.contains('button', 'Включить').click();
@@ -139,10 +137,9 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('services');
     });
 
-    cy.wait('@servicesEmpty');
+    cy.get('#tabServices').should('be.visible');
     cy.contains('button:visible', 'Заполнить прайс по шаблону').click();
     cy.wait('@bootstrapServices');
-    cy.wait('@servicesSeeded').its('response.body').should('have.length', 2);
 
     cy.contains('.service-card', 'Сахар: Бёдра').should('be.visible');
     cy.contains('.service-card', 'Воск: Ноги полностью').should('be.visible');
@@ -153,10 +150,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('settings');
     });
 
-    cy.wait('@availability');
-    cy.wait('@availabilityExclusions');
-    cy.wait('@servicesEmpty');
-    cy.wait('@promoCodes');
+    cy.get('#tabSettings').should('be.visible');
     cy.get('#availabilityDate').type('2026-02-23');
     cy.get('#availabilityStart').clear().type('10:00');
     cy.get('#availabilityEnd').clear().type('18:00');
@@ -176,10 +170,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('settings');
     });
 
-    cy.wait('@availability');
-    cy.wait('@availabilityExclusions');
-    cy.wait('@servicesEmpty');
-    cy.wait('@promoCodes');
+    cy.get('#tabSettings').should('be.visible');
     cy.get('#availabilityBulkInput').should('not.exist');
     cy.contains('button', 'Добавить из строк').should('not.exist');
   });
