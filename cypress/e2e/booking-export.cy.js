@@ -168,6 +168,53 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     cy.get('#dockTitle').should('contain.text', '1 услуга');
   });
 
+  it('does not toggle service on touch scroll in fallback mode without PointerEvent', () => {
+    cy.visit('/booking.html?slug=test-master', {
+      onBeforeLoad(win) {
+        Object.defineProperty(win, 'PointerEvent', {
+          configurable: true,
+          writable: true,
+          value: undefined
+        });
+        win.Telegram = {
+          WebApp: {
+            initData: 'test-init-data',
+            initDataUnsafe: { user: { id: 1, username: 'client' } },
+            ready() {},
+            expand() {},
+            openLink() {}
+          }
+        };
+      }
+    });
+    cy.wait('@getMaster', { timeout: 10000 });
+
+    const dispatchTouch = (node, type, x, y) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const touchPoint = { identifier: 7, clientX: x, clientY: y };
+      if (type === 'touchstart') {
+        Object.defineProperty(event, 'touches', { configurable: true, value: [touchPoint] });
+      } else {
+        Object.defineProperty(event, 'changedTouches', { configurable: true, value: [touchPoint] });
+      }
+      node.dispatchEvent(event);
+    };
+
+    cy.contains('.service-card', 'Шугаринг').then(($card) => {
+      const card = $card[0];
+
+      dispatchTouch(card, 'touchstart', 20, 20);
+      dispatchTouch(card, 'touchend', 20, 20);
+      cy.wrap(card).should('have.class', 'selected');
+
+      dispatchTouch(card, 'touchstart', 24, 24);
+      dispatchTouch(card, 'touchend', 24, 120);
+    });
+
+    cy.contains('.service-card.selected', 'Шугаринг').should('be.visible');
+    cy.get('#dockTitle').should('contain.text', '1 услуга');
+  });
+
   it('renders month calendar view for date picking', () => {
     cy.contains('.service-card', 'Шугаринг').click();
     cy.get('#dockAction').click();
