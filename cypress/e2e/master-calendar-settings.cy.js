@@ -4,13 +4,16 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('settings');
     });
     cy.get('#tabSettings').should('be.visible');
-    cy.wait('@settingsEnabled');
-    cy.wait('@availability');
-    cy.wait('@availabilityExclusions');
-    cy.wait('@servicesEmpty');
-    cy.wait('@promoCodes');
-    cy.get('#promoCodesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
-    cy.get('#availabilityRules', { timeout: 10000 }).should('not.contain', 'Загрузка');
+    cy.get('#promoCodesList', { timeout: 10000 }).should(($list) => {
+      const text = $list.text();
+      expect(text).not.to.contain('Загрузка');
+      expect(text).not.to.contain('Не удалось загрузить промокоды');
+    });
+    cy.get('#availabilityRules', { timeout: 10000 }).should(($list) => {
+      const text = $list.text();
+      expect(text).not.to.contain('Загрузка');
+      expect(text).not.to.contain('Не удалось загрузить');
+    });
   }
 
   beforeEach(() => {
@@ -151,12 +154,11 @@ describe('Master Panel - Calendar Settings E2E', () => {
     });
 
     cy.get('#tabServices').should('be.visible');
-    cy.wait('@servicesEmpty');
+    cy.get('#servicesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
     cy.window().then((win) => {
       return win.MasterApp.bootstrapDefaultServices();
     });
     cy.wait('@bootstrapServices');
-    cy.wait('@servicesSeeded');
 
     cy.contains('.service-card', 'Сахар: Бёдра', { timeout: 10000 }).should('be.visible');
     cy.contains('.service-card', 'Воск: Ноги полностью', { timeout: 10000 }).should('be.visible');
@@ -177,7 +179,6 @@ describe('Master Panel - Calendar Settings E2E', () => {
       start_time: '10:00',
       end_time: '18:00'
     });
-    cy.wait('@availability');
     cy.contains('#availabilityRules', '2026-02-23', { timeout: 10000 }).should('be.visible');
     cy.contains('#availabilityRules', '10:00 - 18:00', { timeout: 10000 }).should('be.visible');
   });

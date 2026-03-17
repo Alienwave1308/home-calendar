@@ -120,12 +120,12 @@ describe('Master Panel - Promo Codes E2E', () => {
       win.MasterApp.switchTab('settings');
     });
     cy.get('#tabSettings').should('be.visible');
-    cy.wait('@getSettings');
-    cy.wait('@getAvailabilityWindows');
-    cy.wait('@getAvailabilityExclusions');
-    cy.wait('@getServices');
-    cy.wait('@getPromoCodes');
     cy.get('#promoCodeValue').should('be.visible');
+    cy.get('#promoCodesList', { timeout: 10000 }).should(($list) => {
+      const text = $list.text();
+      expect(text).not.to.contain('Загрузка');
+      expect(text).not.to.contain('Не удалось загрузить промокоды');
+    });
     cy.contains('#promoCodesList .settings-list-item', 'USEDONCE', { timeout: 10000 }).should('be.visible');
   }
 
@@ -148,7 +148,6 @@ describe('Master Panel - Promo Codes E2E', () => {
         usage_mode: 'always'
       });
     });
-    cy.wait('@getPromoCodes');
     cy.contains('#promoCodesList .settings-list-item', 'ALWAYS20', { timeout: 10000 }).should('contain.text', 'Постоянный');
 
     cy.window().then((win) => {
@@ -168,7 +167,6 @@ describe('Master Panel - Promo Codes E2E', () => {
         usage_mode: 'single_use'
       });
     });
-    cy.wait('@getPromoCodes');
     cy.contains('#promoCodesList .settings-list-item', 'GIFTONCE', { timeout: 10000 }).should('contain.text', 'Одноразовый');
   });
 
