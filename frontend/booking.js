@@ -491,17 +491,41 @@
     }).join('');
 
     Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (card) {
+      let lastActivationAt = 0;
+
       const activateCard = function (event) {
         if (card.classList.contains('disabled')) return;
-        if (event && event.type === 'touchend') event.preventDefault();
+
+        const now = Date.now();
+        const isTouchEvent = event && (
+          event.type === 'touchend'
+          || (event.type === 'pointerup' && event.pointerType === 'touch')
+        );
+        const isSyntheticClick = event && event.type === 'click' && (now - lastActivationAt) < 700;
+
+        if (isTouchEvent && event.cancelable) {
+          event.preventDefault();
+        }
+        if (isSyntheticClick) {
+          return;
+        }
+        if ((now - lastActivationAt) < 220) {
+          return;
+        }
+
+        lastActivationAt = now;
+
         const serviceId = card.getAttribute('data-service-id');
         if (!serviceId) return;
         toggleServiceSelection(serviceId);
       };
 
       card.addEventListener('click', activateCard);
-      card.addEventListener('pointerup', activateCard);
-      card.addEventListener('touchend', activateCard, { passive: false });
+      if (window.PointerEvent) {
+        card.addEventListener('pointerup', activateCard);
+      } else {
+        card.addEventListener('touchend', activateCard, { passive: false });
+      }
     });
 
     renderDock();
