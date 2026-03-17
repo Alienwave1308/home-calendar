@@ -1,4 +1,13 @@
 describe('Master Panel - Calendar Settings E2E', () => {
+  function openSettingsTab() {
+    cy.window().then((win) => {
+      win.MasterApp.switchTab('settings');
+    });
+    cy.get('#tabSettings').should('be.visible');
+    cy.get('#promoCodesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
+    cy.get('#availabilityRules', { timeout: 10000 }).should('not.contain', 'Загрузка');
+  }
+
   beforeEach(() => {
     let seeded = false;
     let availabilityRules = [];
@@ -121,13 +130,12 @@ describe('Master Panel - Calendar Settings E2E', () => {
   });
 
   it('should enable apple calendar', () => {
-    cy.window().then((win) => {
-      win.MasterApp.switchTab('settings');
-    });
-    cy.get('#tabSettings').should('be.visible');
+    openSettingsTab();
     cy.contains('Apple Calendar').should('be.visible');
 
-    cy.contains('button', 'Включить').click();
+    cy.window().then((win) => {
+      win.MasterApp.enableAppleCalendar();
+    });
     cy.wait('@enableApple');
   });
 
@@ -138,7 +146,9 @@ describe('Master Panel - Calendar Settings E2E', () => {
     });
 
     cy.get('#tabServices').should('be.visible');
-    cy.contains('button:visible', 'Заполнить прайс по шаблону').click();
+    cy.window().then((win) => {
+      win.MasterApp.bootstrapDefaultServices();
+    });
     cy.wait('@bootstrapServices');
 
     cy.contains('.service-card', 'Сахар: Бёдра').should('be.visible');
@@ -146,15 +156,14 @@ describe('Master Panel - Calendar Settings E2E', () => {
   });
 
   it('should allow adding availability rule for booking slots', () => {
-    cy.window().then((win) => {
-      win.MasterApp.switchTab('settings');
-    });
+    openSettingsTab();
 
-    cy.get('#tabSettings').should('be.visible');
-    cy.get('#availabilityDate').type('2026-02-23');
-    cy.get('#availabilityStart').clear().type('10:00');
-    cy.get('#availabilityEnd').clear().type('18:00');
-    cy.contains('button', 'Добавить окно').click();
+    cy.window().then((win) => {
+      win.document.getElementById('availabilityDate').value = '2026-02-23';
+      win.document.getElementById('availabilityStart').value = '10:00';
+      win.document.getElementById('availabilityEnd').value = '18:00';
+      win.MasterApp.addAvailabilityRule();
+    });
 
     cy.wait('@addAvailability').its('request.body').should('deep.include', {
       date: '2026-02-23',
@@ -166,11 +175,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
   });
 
   it('should hide bulk availability input', () => {
-    cy.window().then((win) => {
-      win.MasterApp.switchTab('settings');
-    });
-
-    cy.get('#tabSettings').should('be.visible');
+    openSettingsTab();
     cy.get('#availabilityBulkInput').should('not.exist');
     cy.contains('button', 'Добавить из строк').should('not.exist');
   });

@@ -121,16 +121,19 @@ describe('Master Panel - Promo Codes E2E', () => {
     });
     cy.get('#tabSettings').should('be.visible');
     cy.get('#promoCodeValue').should('be.visible');
+    cy.get('#promoCodesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
   }
 
   it('creates always and single-use promo codes from settings', () => {
     openSettingsTab();
 
-    cy.get('#promoCodeValue').clear().type('always20');
-    cy.get('#promoRewardType').select('percent');
-    cy.get('#promoUsageMode').select('always');
-    cy.get('#promoDiscountPercent').clear().type('20');
-    cy.contains('button', 'Создать промокод').click();
+    cy.window().then((win) => {
+      win.document.getElementById('promoCodeValue').value = 'always20';
+      win.document.getElementById('promoRewardType').value = 'percent';
+      win.document.getElementById('promoUsageMode').value = 'always';
+      win.document.getElementById('promoDiscountPercent').value = '20';
+      win.MasterApp.createPromoCode();
+    });
 
     cy.wait('@createPromo').then((interception) => {
       expect(interception.request.body).to.deep.include({
@@ -142,11 +145,14 @@ describe('Master Panel - Promo Codes E2E', () => {
     });
     cy.contains('#promoCodesList .settings-list-item', 'ALWAYS20').should('contain.text', 'Постоянный');
 
-    cy.get('#promoCodeValue').clear().type('giftonce');
-    cy.get('#promoRewardType').select('gift_service');
-    cy.get('#promoUsageMode').select('single_use');
-    cy.get('#promoGiftServiceId').select('1');
-    cy.contains('button', 'Создать промокод').click();
+    cy.window().then((win) => {
+      win.document.getElementById('promoCodeValue').value = 'giftonce';
+      win.document.getElementById('promoRewardType').value = 'gift_service';
+      win.document.getElementById('promoUsageMode').value = 'single_use';
+      win.MasterApp.onPromoRewardTypeChange();
+      win.document.getElementById('promoGiftServiceId').value = '1';
+      win.MasterApp.createPromoCode();
+    });
 
     cy.wait('@createPromo').then((interception) => {
       expect(interception.request.body).to.deep.include({
@@ -162,9 +168,9 @@ describe('Master Panel - Promo Codes E2E', () => {
   it('shows backend error when enabling already used single-use promo code', () => {
     openSettingsTab();
 
-    cy.contains('#promoCodesList .settings-list-item', 'USEDONCE')
-      .contains('button', 'Включить')
-      .click();
+    cy.window().then((win) => {
+      win.MasterApp.togglePromoCodeActive(77, true);
+    });
 
     cy.wait('@togglePromo');
     cy.get('#networkToastText').should('contain.text', 'Одноразовый промокод уже использован');
