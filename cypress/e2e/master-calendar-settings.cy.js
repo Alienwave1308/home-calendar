@@ -4,6 +4,11 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.MasterApp.switchTab('settings');
     });
     cy.get('#tabSettings').should('be.visible');
+    cy.wait('@settingsEnabled');
+    cy.wait('@availability');
+    cy.wait('@availabilityExclusions');
+    cy.wait('@servicesEmpty');
+    cy.wait('@promoCodes');
     cy.get('#promoCodesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
     cy.get('#availabilityRules', { timeout: 10000 }).should('not.contain', 'Загрузка');
   }
@@ -146,13 +151,15 @@ describe('Master Panel - Calendar Settings E2E', () => {
     });
 
     cy.get('#tabServices').should('be.visible');
+    cy.wait('@servicesEmpty');
     cy.window().then((win) => {
-      win.MasterApp.bootstrapDefaultServices();
+      return win.MasterApp.bootstrapDefaultServices();
     });
     cy.wait('@bootstrapServices');
+    cy.wait('@servicesSeeded');
 
-    cy.contains('.service-card', 'Сахар: Бёдра').should('be.visible');
-    cy.contains('.service-card', 'Воск: Ноги полностью').should('be.visible');
+    cy.contains('.service-card', 'Сахар: Бёдра', { timeout: 10000 }).should('be.visible');
+    cy.contains('.service-card', 'Воск: Ноги полностью', { timeout: 10000 }).should('be.visible');
   });
 
   it('should allow adding availability rule for booking slots', () => {
@@ -162,7 +169,7 @@ describe('Master Panel - Calendar Settings E2E', () => {
       win.document.getElementById('availabilityDate').value = '2026-02-23';
       win.document.getElementById('availabilityStart').value = '10:00';
       win.document.getElementById('availabilityEnd').value = '18:00';
-      win.MasterApp.addAvailabilityRule();
+      return win.MasterApp.addAvailabilityRule();
     });
 
     cy.wait('@addAvailability').its('request.body').should('deep.include', {
@@ -170,8 +177,9 @@ describe('Master Panel - Calendar Settings E2E', () => {
       start_time: '10:00',
       end_time: '18:00'
     });
-    cy.contains('#availabilityRules', '2026-02-23').should('be.visible');
-    cy.contains('#availabilityRules', '10:00 - 18:00').should('be.visible');
+    cy.wait('@availability');
+    cy.contains('#availabilityRules', '2026-02-23', { timeout: 10000 }).should('be.visible');
+    cy.contains('#availabilityRules', '10:00 - 18:00', { timeout: 10000 }).should('be.visible');
   });
 
   it('should hide bulk availability input', () => {

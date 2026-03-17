@@ -120,8 +120,13 @@ describe('Master Panel - Promo Codes E2E', () => {
       win.MasterApp.switchTab('settings');
     });
     cy.get('#tabSettings').should('be.visible');
+    cy.wait('@getSettings');
+    cy.wait('@getAvailabilityWindows');
+    cy.wait('@getAvailabilityExclusions');
+    cy.wait('@getServices');
+    cy.wait('@getPromoCodes');
     cy.get('#promoCodeValue').should('be.visible');
-    cy.get('#promoCodesList', { timeout: 10000 }).should('not.contain', 'Загрузка');
+    cy.contains('#promoCodesList .settings-list-item', 'USEDONCE', { timeout: 10000 }).should('be.visible');
   }
 
   it('creates always and single-use promo codes from settings', () => {
@@ -132,7 +137,7 @@ describe('Master Panel - Promo Codes E2E', () => {
       win.document.getElementById('promoRewardType').value = 'percent';
       win.document.getElementById('promoUsageMode').value = 'always';
       win.document.getElementById('promoDiscountPercent').value = '20';
-      win.MasterApp.createPromoCode();
+      return win.MasterApp.createPromoCode();
     });
 
     cy.wait('@createPromo').then((interception) => {
@@ -143,7 +148,8 @@ describe('Master Panel - Promo Codes E2E', () => {
         usage_mode: 'always'
       });
     });
-    cy.contains('#promoCodesList .settings-list-item', 'ALWAYS20').should('contain.text', 'Постоянный');
+    cy.wait('@getPromoCodes');
+    cy.contains('#promoCodesList .settings-list-item', 'ALWAYS20', { timeout: 10000 }).should('contain.text', 'Постоянный');
 
     cy.window().then((win) => {
       win.document.getElementById('promoCodeValue').value = 'giftonce';
@@ -151,7 +157,7 @@ describe('Master Panel - Promo Codes E2E', () => {
       win.document.getElementById('promoUsageMode').value = 'single_use';
       win.MasterApp.onPromoRewardTypeChange();
       win.document.getElementById('promoGiftServiceId').value = '1';
-      win.MasterApp.createPromoCode();
+      return win.MasterApp.createPromoCode();
     });
 
     cy.wait('@createPromo').then((interception) => {
@@ -162,17 +168,19 @@ describe('Master Panel - Promo Codes E2E', () => {
         usage_mode: 'single_use'
       });
     });
-    cy.contains('#promoCodesList .settings-list-item', 'GIFTONCE').should('contain.text', 'Одноразовый');
+    cy.wait('@getPromoCodes');
+    cy.contains('#promoCodesList .settings-list-item', 'GIFTONCE', { timeout: 10000 }).should('contain.text', 'Одноразовый');
   });
 
   it('shows backend error when enabling already used single-use promo code', () => {
     openSettingsTab();
+    cy.get('#networkToastText').should('exist');
 
     cy.window().then((win) => {
-      win.MasterApp.togglePromoCodeActive(77, true);
+      return win.MasterApp.togglePromoCodeActive(77, true);
     });
 
     cy.wait('@togglePromo');
-    cy.get('#networkToastText').should('contain.text', 'Одноразовый промокод уже использован');
+    cy.get('#networkToastText', { timeout: 10000 }).should('contain.text', 'Одноразовый промокод уже использован');
   });
 });
