@@ -57,7 +57,24 @@ app.use(express.json());
 const frontendDir = process.env.FRONTEND_DIR
   ? path.resolve(__dirname, '..', process.env.FRONTEND_DIR)
   : path.join(__dirname, '../frontend');
-app.use(express.static(frontendDir));
+const noStoreStaticFiles = new Set([
+  'booking.html',
+  'booking.js',
+  'booking.css',
+  'master.html',
+  'master.js',
+  'master.css'
+]);
+app.use(express.static(frontendDir, {
+  maxAge: 0,
+  setHeaders(res, filePath) {
+    const fileName = path.basename(filePath);
+    if (!noStoreStaticFiles.has(fileName)) return;
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+}));
 
 // Подключаем роуты авторизации (с усиленным rate limiter)
 const authRouter = require('./routes/auth');

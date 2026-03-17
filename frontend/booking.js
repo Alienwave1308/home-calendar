@@ -425,6 +425,38 @@
     });
   }
 
+  function toggleServiceSelection(rawServiceId) {
+    const service = state.services.find(function (item) {
+      return String(item.id) === String(rawServiceId);
+    });
+    if (!service) return false;
+
+    const serviceId = service.id;
+    const alreadySelected = state.selectedServiceIds.some(function (selectedId) {
+      return String(selectedId) === String(serviceId);
+    });
+
+    if (alreadySelected) {
+      state.selectedServiceIds = state.selectedServiceIds.filter(function (selectedId) {
+        return String(selectedId) !== String(serviceId);
+      });
+    } else {
+      const isComplex = parseServiceTaxonomy(service).category === 'complex';
+      if (isComplex) {
+        state.selectedServiceIds = [serviceId];
+      } else {
+        if (selectionHasComplex()) return false;
+        state.selectedServiceIds.push(serviceId);
+      }
+    }
+
+    state.promoPreview = null;
+    state.promoCode = '';
+    state.promoHint = 'Введите промокод и нажмите «Применить»';
+    renderServices();
+    return true;
+  }
+
   function renderServices() {
     const list = filteredServices();
     if (!list.length) {
@@ -448,7 +480,7 @@
       const badges = [methodLabel, categoryLabel];
 
       return ''
-        + '<article class="service-card ' + (selected ? 'selected ' : '') + (isDisabled ? 'disabled' : '') + '" data-service-id="' + escapeHtml(service.id) + '">' 
+        + '<article class="service-card ' + (selected ? 'selected ' : '') + (isDisabled ? 'disabled' : '') + '" data-service-id="' + escapeHtml(String(service.id)) + '">' 
         + '<div class="service-head">'
         + '<h3 class="service-name">' + escapeHtml(service.name) + '</h3>'
         + '<span class="price">' + money(service.price || 0) + ' ₽</span>'
@@ -457,36 +489,6 @@
         + '<div class="badge-row">' + badges.map(function (b) { return '<span class="badge">' + b + '</span>'; }).join('') + '</div>'
         + '</article>';
     }).join('');
-
-    Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (node) {
-      node.addEventListener('click', function () {
-        if (node.classList.contains('disabled')) return;
-        const id = node.getAttribute('data-service-id');
-        const alreadySelected = state.selectedServiceIds.some(function (selectedId) {
-          return String(selectedId) === String(id);
-        });
-        const service = state.services.find(function (s) { return String(s.id) === String(id); });
-        if (!service) return;
-        const serviceId = service.id;
-
-        if (alreadySelected) {
-          state.selectedServiceIds = state.selectedServiceIds.filter(function (x) { return String(x) !== String(serviceId); });
-        } else {
-          const isComplex = parseServiceTaxonomy(service).category === 'complex';
-          if (isComplex) {
-            state.selectedServiceIds = [serviceId];
-          } else {
-            if (selectionHasComplex()) return;
-            state.selectedServiceIds.push(serviceId);
-          }
-        }
-
-        state.promoPreview = null;
-        state.promoCode = '';
-        state.promoHint = 'Введите промокод и нажмите «Применить»';
-        renderServices();
-      });
-    });
 
     renderDock();
   }
@@ -1118,6 +1120,27 @@
       showToast('Меню пока не подключено');
     });
 
+    let lastServiceTouchAt = 0;
+    const handleServiceTap = function (event) {
+      const card = event.target && event.target.closest ? event.target.closest('[data-service-id]') : null;
+      if (!card || !el.servicesList.contains(card)) return;
+      if (card.classList.contains('disabled')) return;
+
+      if (event.type === 'touchend') {
+        lastServiceTouchAt = Date.now();
+        event.preventDefault();
+      } else if (event.type === 'click' && Date.now() - lastServiceTouchAt < 550) {
+        return;
+      }
+
+      const serviceId = card.getAttribute('data-service-id');
+      if (!serviceId) return;
+      toggleServiceSelection(serviceId);
+    };
+
+    el.servicesList.addEventListener('touchend', handleServiceTap, { passive: false });
+    el.servicesList.addEventListener('click', handleServiceTap);
+
     el.calPrev.addEventListener('click', function () {
       if (el.calPrev.disabled) return;
       state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() - 1, 1);
@@ -1180,7 +1203,17 @@
       const data = await apiFetch('/public/master/' + slug);
       state.master = data.master || {};
       state.settings = data.settings || state.settings;
-      state.services = Array.isArray(data.services) ? data.services : [];
+      state.services = (Array.isArray(data.services) ? data.services : []).map(function (service, index) {
+        const safe = service && typeof service === 'object' ? service : {};
+        const candidateId = safe.id ?? safe.service_id ?? safe.serviceId;
+        const normalizedId = candidateId !== undefined && candidateId !== null && String(candidateId).trim() !== ''
+          ? candidateId
+          : ('legacy-' + index);
+        return {
+          ...safe,
+          id: normalizedId
+        };
+      });
 
       const profile = data.master && data.master.profile ? data.master.profile : {};
       const brandName = profile.brand || 'Ro Va';
