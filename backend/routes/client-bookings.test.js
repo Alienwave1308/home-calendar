@@ -47,6 +47,10 @@ describe('Client Bookings API', () => {
 
       expect(res.body).toHaveLength(1);
       expect(res.body[0].id).toBe(bookingRow.id);
+      expect(pool.query).toHaveBeenCalledTimes(1);
+      const sql = String(pool.query.mock.calls[0][0] || '');
+      expect(sql).toContain("b.status IN ('pending', 'confirmed')");
+      expect(sql).toContain('b.start_at DESC');
     });
   });
 

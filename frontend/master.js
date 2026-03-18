@@ -534,6 +534,7 @@
       }
 
       container.innerHTML = bookings.map(renderBookingCard).join('');
+      bindBookingContactButtons(container);
     } catch (err) {
       container.innerHTML = '';
       showToast(err.message);
@@ -560,13 +561,123 @@
       }
 
       container.innerHTML = bookings.map(renderBookingCard).join('');
+      bindBookingContactButtons(container);
     } catch (err) {
       container.innerHTML = '';
       showToast(err.message);
     }
   }
 
+  function parseBookingClientViewData(booking) {
+    const rawClientName = String(booking && booking.client_name ? booking.client_name : '').trim();
+    const rawDisplayName = String(booking && booking.client_display_name ? booking.client_display_name : '').trim();
+    const rawAvatarUrl = String(booking && booking.client_avatar_url ? booking.client_avatar_url : '').trim();
+    const rawTelegramUsername = String(booking && booking.client_telegram_username ? booking.client_telegram_username : '')
+      .trim()
+      .replace(/^@/, '');
+    const telegramUsername = /^tg_[0-9]+$/i.test(rawTelegramUsername) ? '' : rawTelegramUsername;
+
+    let telegramId = Number(booking && booking.client_telegram_id ? booking.client_telegram_id : 0);
+    const telegramMatch = rawClientName.match(/^tg_(\d+)$/i);
+    if (!telegramId && telegramMatch) {
+      telegramId = Number(telegramMatch[1]);
+    }
+
+    let vkUserId = Number(booking && booking.client_vk_user_id ? booking.client_vk_user_id : 0);
+    const vkMatch = rawClientName.match(/^vk_(\d+)$/i);
+    if (!vkUserId && vkMatch) {
+      vkUserId = Number(vkMatch[1]);
+    }
+
+    const rawNameLooksTechnical = /^tg_[0-9]+$/i.test(rawClientName) || /^vk_[0-9]+$/i.test(rawClientName);
+    const displayNameRaw = rawDisplayName
+      || (telegramUsername ? ('@' + telegramUsername) : '')
+      || (!rawNameLooksTechnical ? rawClientName : '')
+      || (telegramId > 0 ? ('Telegram #' + telegramId) : '')
+      || (vkUserId > 0 ? ('VK #' + vkUserId) : '')
+      || 'Клиент';
+
+    const loginRaw = telegramUsername
+      ? ('@' + telegramUsername)
+      : (telegramId > 0 ? ('Telegram ID: ' + telegramId) : (vkUserId > 0 ? ('VK ID: ' + vkUserId) : ''));
+
+    const fallbackToken = vkUserId > 0
+      ? 'VK'
+      : (telegramId > 0 || telegramUsername ? 'TG' : String(displayNameRaw).trim().slice(0, 1).toUpperCase() || 'К');
+
+    const avatarHtml = rawAvatarUrl
+      ? '<img class="booking-client-avatar-img" src="' + escapeHtml(rawAvatarUrl) + '" alt="avatar">'
+      : '<div class="booking-client-avatar-fallback">' + escapeHtml(fallbackToken) + '</div>';
+
+    return {
+      displayName: displayNameRaw,
+      login: loginRaw,
+      avatarHtml: avatarHtml,
+      telegramId: telegramId,
+      telegramUsername: telegramUsername,
+      vkUserId: vkUserId,
+      canContact: telegramId > 0 || Boolean(telegramUsername) || vkUserId > 0
+    };
+  }
+
+  function openVkProfile(vkUserId) {
+    const normalizedVkUserId = Number(vkUserId || 0);
+    if (!normalizedVkUserId) {
+      showToast('Нет данных VK для открытия диалога');
+      return;
+    }
+    const targetLink = 'https://vk.com/id' + normalizedVkUserId;
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+    if (window.Cypress) {
+      if (!Array.isArray(window.__openedVkLinks)) window.__openedVkLinks = [];
+      window.__openedVkLinks.push(targetLink);
+      return;
+    }
+
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(targetLink, { try_instant_view: false });
+      return;
+    }
+    window.location.href = targetLink;
+  }
+
+  function openBookingClientContact(telegramUserId, telegramUsername, vkUserId) {
+    const tgId = Number(telegramUserId || 0);
+    const tgUsername = String(telegramUsername || '').trim();
+    if (tgId > 0 || tgUsername) {
+      openLeadChat(tgId, tgUsername);
+      return;
+    }
+    if (Number(vkUserId || 0) > 0) {
+      openVkProfile(vkUserId);
+      return;
+    }
+    showToast('Нет данных для связи с клиентом');
+  }
+
+  function bindBookingContactButtons(root) {
+    if (!root) return;
+    root.querySelectorAll('.booking-contact-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const telegramId = Number(btn.getAttribute('data-tg-id') || 0);
+        const telegramUsername = String(btn.getAttribute('data-tg-username') || '');
+        const vkUserId = Number(btn.getAttribute('data-vk-id') || 0);
+        openBookingClientContact(telegramId, telegramUsername, vkUserId);
+      });
+    });
+  }
+
   function renderBookingCard(b) {
+    const clientView = parseBookingClientViewData(b);
+    const contactControl = clientView.canContact
+      ? '<button class="btn-small btn-chat booking-contact-btn"'
+        + ' data-tg-id="' + Number(clientView.telegramId || 0) + '"'
+        + ' data-tg-username="' + escapeHtml(clientView.telegramUsername || '') + '"'
+        + ' data-vk-id="' + Number(clientView.vkUserId || 0) + '"'
+        + '>Связаться</button>'
+      : '<span class="booking-client-contact-hint">Без контакта</span>';
+
     let actions = '<button class="btn-small btn-edit" onclick="MasterApp.openBookingForm(' + b.id + ')">Редактировать</button>';
     if (b.status === 'pending') {
       actions += '<button class="btn-small btn-confirm" onclick="MasterApp.updateBooking(' + b.id + ',\'confirmed\')">Запланировать</button>'
@@ -581,8 +692,15 @@
       + '<h4>' + escapeHtml(b.service_name || 'Услуга') + '</h4>'
       + '<span class="booking-status ' + b.status + '">' + (STATUS_LABELS[b.status] || b.status) + '</span>'
       + '</div>'
+      + '<div class="booking-client-row">'
+      + '<div class="booking-client-avatar">' + clientView.avatarHtml + '</div>'
+      + '<div class="booking-client-main">'
+      + '<span class="booking-client-name">' + escapeHtml(clientView.displayName) + '</span>'
+      + (clientView.login ? '<span class="booking-client-login">' + escapeHtml(clientView.login) + '</span>' : '')
+      + '</div>'
+      + contactControl
+      + '</div>'
       + '<div class="booking-card-meta">'
-      + '<span>' + escapeHtml(b.client_name || 'Клиент') + '</span>'
       + '<span>' + formatDateTime(b.start_at) + '</span>'
       + (b.master_note ? '<span>Комментарий: ' + escapeHtml(b.master_note) + '</span>' : '')
       + '</div>'

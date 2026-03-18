@@ -1127,8 +1127,23 @@
         return;
       }
 
+      const statusSortRank = function (status) {
+        const normalized = String(status || '');
+        if (normalized === 'confirmed' || normalized === 'pending') return 0;
+        if (normalized === 'completed') return 1;
+        if (normalized === 'canceled') return 2;
+        return 1;
+      };
+
+      const startTime = function (booking) {
+        const ts = new Date(booking && booking.start_at ? booking.start_at : '').getTime();
+        return Number.isFinite(ts) ? ts : 0;
+      };
+
       const ordered = state.bookings.slice().sort(function (a, b) {
-        return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+        const rankDiff = statusSortRank(a.status) - statusSortRank(b.status);
+        if (rankDiff !== 0) return rankDiff;
+        return startTime(b) - startTime(a);
       });
 
       el.bookingsCount.textContent = ordered.length + ' шт';

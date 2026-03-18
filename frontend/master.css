@@ -390,6 +390,66 @@ button {
   margin: 0;
 }
 
+.booking-client-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.booking-client-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #dcefe2;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.booking-client-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.booking-client-avatar-fallback {
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #1e7c4f;
+  letter-spacing: 0.02em;
+}
+
+.booking-client-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-client-name {
+  font-size: 0.9em;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.booking-client-login {
+  font-size: 0.78em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.booking-client-contact-hint {
+  font-size: 0.76em;
+  color: var(--text-secondary);
+}
+
 .booking-status {
   padding: 3px 8px;
   border-radius: 6px;
@@ -458,6 +518,11 @@ button {
 .btn-edit {
   background: #dcefe2;
   color: #1e7c4f;
+}
+
+.btn-chat {
+  background: #e4edff;
+  color: #1643a5;
 }
 
 /* Filters */

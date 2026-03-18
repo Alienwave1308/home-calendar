@@ -63,7 +63,15 @@ router.get('/', async (req, res) => {
        JOIN masters m ON b.master_id = m.id
        LEFT JOIN services gs ON gs.id = b.promo_gift_service_id
        WHERE b.client_id = $1
-       ORDER BY b.start_at DESC`,
+       ORDER BY
+         CASE
+           WHEN b.status IN ('pending', 'confirmed') THEN 0
+           WHEN b.status = 'completed' THEN 1
+           WHEN b.status = 'canceled' THEN 2
+           ELSE 1
+         END,
+         b.start_at DESC,
+         b.id DESC`,
       [req.user.id]
     );
     return res.json(rows);

@@ -1129,32 +1129,68 @@ router.get('/availability/preview', loadMaster, async (req, res) => {
 router.get('/bookings', loadMaster, async (req, res) => {
   try {
     const { status, date_from, date_to } = req.query;
-    let query = `
-      SELECT b.*, s.name AS service_name, s.duration_minutes,
-             u.username AS client_name
-      FROM bookings b
-      JOIN services s ON b.service_id = s.id
-      JOIN users u ON b.client_id = u.id
-      WHERE b.master_id = $1`;
-    const values = [req.master.id];
-    let idx = 2;
 
-    if (status) {
-      query += ` AND b.status = $${idx++}`;
-      values.push(status);
-    }
-    if (date_from) {
-      query += ` AND b.start_at >= $${idx++}`;
-      values.push(date_from);
-    }
-    if (date_to) {
-      query += ` AND b.start_at <= $${idx++}`;
-      values.push(date_to);
+    const runBookingsQuery = async (includeRichClientFields) => {
+      const clientFields = includeRichClientFields
+        ? `u.username AS client_name,
+             u.display_name AS client_display_name,
+             CASE
+               WHEN u.telegram_username ~ '^tg_[0-9]+$' THEN NULL
+               ELSE u.telegram_username
+             END AS client_telegram_username,
+             u.avatar_url AS client_avatar_url,
+             u.vk_user_id AS client_vk_user_id,
+             CASE
+               WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
+               ELSE NULL
+             END AS client_telegram_id`
+        : `u.username AS client_name,
+             NULL::text AS client_display_name,
+             NULL::text AS client_telegram_username,
+             NULL::text AS client_avatar_url,
+             NULL::bigint AS client_vk_user_id,
+             CASE
+               WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
+               ELSE NULL
+             END AS client_telegram_id`;
+
+      let query = `
+        SELECT b.*, s.name AS service_name, s.duration_minutes,
+               ${clientFields}
+        FROM bookings b
+        JOIN services s ON b.service_id = s.id
+        JOIN users u ON b.client_id = u.id
+        WHERE b.master_id = $1`;
+      const values = [req.master.id];
+      let idx = 2;
+
+      if (status) {
+        query += ` AND b.status = $${idx++}`;
+        values.push(status);
+      }
+      if (date_from) {
+        query += ` AND b.start_at >= $${idx++}`;
+        values.push(date_from);
+      }
+      if (date_to) {
+        query += ` AND b.start_at <= $${idx}`;
+        values.push(date_to);
+      }
+
+      query += ' ORDER BY b.start_at';
+      return pool.query(query, values);
+    };
+
+    let rows = [];
+    try {
+      const result = await runBookingsQuery(true);
+      rows = result.rows;
+    } catch (richFieldsError) {
+      if (richFieldsError.code !== '42703') throw richFieldsError;
+      const fallback = await runBookingsQuery(false);
+      rows = fallback.rows;
     }
 
-    query += ' ORDER BY b.start_at';
-
-    const { rows } = await pool.query(query, values);
     res.json(rows);
   } catch (error) {
     console.error('Error listing master bookings:', error);
