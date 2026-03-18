@@ -278,14 +278,70 @@ async function loadActivePromoCode(masterId, normalizedCode) {
        WHERE p.master_id = $1
          AND p.code = $2
          AND p.is_active = true
-         AND (p.usage_mode <> 'single_use' OR p.uses_count < 1)
+         AND (COALESCE(p.usage_mode, 'always') <> 'single_use' OR COALESCE(p.uses_count, 0) < 1)
        LIMIT 1`,
       [masterId, normalizedCode]
     );
     return rows[0] || null;
   } catch (error) {
     // Compatibility mode: promo schema can be absent on partially migrated DB.
-    if (error.code === '42P01' || error.code === '42703') return null;
+    if (error.code === '42P01') return null;
+    if (error.code === '42703') {
+      try {
+        const fallback = await pool.query(
+          `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active
+           FROM master_promo_codes p
+           WHERE p.master_id = $1
+             AND p.code = $2
+             AND p.is_active = true
+           LIMIT 1`,
+          [masterId, normalizedCode]
+        );
+        const row = fallback.rows[0];
+        if (!row) return null;
+
+        const normalized = {
+          ...row,
+          usage_mode: 'always',
+          uses_count: 0,
+          gift_id: null,
+          gift_master_id: null,
+          gift_name: null,
+          gift_duration_minutes: 0,
+          gift_price: 0,
+          gift_description: null,
+          gift_buffer_before_minutes: 0,
+          gift_buffer_after_minutes: 0,
+          gift_is_active: false
+        };
+
+        const giftId = Number(row.gift_service_id || 0);
+        if (giftId > 0) {
+          normalized.gift_id = giftId;
+          try {
+            const giftService = await loadService(masterId, giftId);
+            if (giftService) {
+              normalized.gift_master_id = Number(giftService.master_id || masterId);
+              normalized.gift_name = giftService.name || null;
+              normalized.gift_duration_minutes = Number(giftService.duration_minutes || 0);
+              normalized.gift_price = Number(giftService.price || 0);
+              normalized.gift_description = giftService.description || null;
+              normalized.gift_buffer_before_minutes = Number(giftService.buffer_before_minutes || 0);
+              normalized.gift_buffer_after_minutes = Number(giftService.buffer_after_minutes || 0);
+              normalized.gift_is_active = Boolean(giftService.is_active);
+            }
+          } catch (giftLoadError) {
+            // Keep promo code usable even if gift service cannot be fetched on legacy schema.
+            void giftLoadError;
+          }
+        }
+
+        return normalized;
+      } catch (fallbackError) {
+        if (fallbackError.code === '42P01') return null;
+        throw fallbackError;
+      }
+    }
     throw error;
   }
 }
@@ -938,14 +994,14 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
 
         const consumeRes = await pool.query(
           `UPDATE master_promo_codes
-           SET uses_count = uses_count + 1,
+           SET uses_count = COALESCE(uses_count, 0) + 1,
                is_active = false,
                updated_at = NOW()
            WHERE id = $1
              AND master_id = $2
              AND is_active = true
              AND usage_mode = 'single_use'
-             AND uses_count < 1
+             AND COALESCE(uses_count, 0) < 1
            RETURNING id`,
           [Number(appliedPromo.id), master.id]
         );
