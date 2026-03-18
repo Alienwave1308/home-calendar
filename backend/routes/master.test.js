@@ -513,18 +513,17 @@ describe('Master API', () => {
     it('should create gift-service promo code', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
-        .mockResolvedValueOnce({ rows: [{ id: 12, master_id: 1, name: 'Сахар: Голень', description: 'Услуги', is_active: true }] })
-        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: 12, usage_mode: 'always', uses_count: 0, is_active: true }] });
+        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: null, usage_mode: 'always', uses_count: 0, is_active: true }] });
 
       const res = await request(app)
         .post('/api/master/promo-codes')
         .set('Authorization', authHeader)
-        .send({ code: 'giftleg', reward_type: 'gift_service', gift_service_id: 12 })
+        .send({ code: 'giftleg', reward_type: 'gift_service' })
         .expect(201);
 
       expect(res.body.code).toBe('GIFTLEG');
       expect(res.body.reward_type).toBe('gift_service');
-      expect(res.body.gift_service_id).toBe(12);
+      expect(res.body.gift_service_id).toBeNull();
     });
 
     it('should create gift-service promo code on legacy schema without is_active/usage_mode columns', async () => {
@@ -532,18 +531,16 @@ describe('Master API', () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
         .mockRejectedValueOnce(missingColumnError)
-        .mockResolvedValueOnce({ rows: [{ id: 12, master_id: 1, name: 'Сахар: Голень' }] })
-        .mockRejectedValueOnce(missingColumnError)
-        .mockResolvedValueOnce({ rows: [{ id: 21, code: 'LEGACYGIFT', reward_type: 'gift_service', gift_service_id: 12, is_active: true }] });
+        .mockResolvedValueOnce({ rows: [{ id: 21, code: 'LEGACYGIFT', reward_type: 'gift_service', gift_service_id: null, is_active: true }] });
 
       const res = await request(app)
         .post('/api/master/promo-codes')
         .set('Authorization', authHeader)
-        .send({ code: 'legacygift', reward_type: 'gift_service', gift_service_id: 12 })
+        .send({ code: 'legacygift', reward_type: 'gift_service' })
         .expect(201);
 
       expect(res.body.code).toBe('LEGACYGIFT');
-      expect(res.body.gift_service_id).toBe(12);
+      expect(res.body.gift_service_id).toBeNull();
       expect(res.body.usage_mode).toBe('always');
       expect(res.body.uses_count).toBe(0);
     });

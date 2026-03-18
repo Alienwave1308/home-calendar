@@ -346,6 +346,61 @@ async function loadActivePromoCode(masterId, normalizedCode) {
   }
 }
 
+function isComplexServiceRow(service) {
+  const name = String(service && service.name ? service.name : '');
+  const description = String(service && service.description ? service.description : '');
+  return /комплекс/i.test(name) || /комплекс/i.test(description);
+}
+
+function selectCheapestService(services) {
+  if (!Array.isArray(services) || !services.length) return null;
+  return services.reduce((best, service) => {
+    if (!best) return service;
+    const price = Number(service && service.price ? service.price : 0);
+    const bestPrice = Number(best && best.price ? best.price : 0);
+    if (price !== bestPrice) return price < bestPrice ? service : best;
+    return Number(service && service.id ? service.id : 0) < Number(best && best.id ? best.id : 0)
+      ? service
+      : best;
+  }, null);
+}
+
+function resolvePromoGiftService(appliedPromo, selectedServices) {
+  const services = Array.isArray(selectedServices) ? selectedServices.filter(Boolean) : [];
+  const configuredGiftServiceId = Number(
+    (appliedPromo && (appliedPromo.gift_id || appliedPromo.gift_service_id)) || 0
+  );
+
+  if (configuredGiftServiceId > 0) {
+    const configuredService = services.find((service) => Number(service.id) === configuredGiftServiceId);
+    if (!configuredService) {
+      return {
+        giftService: null,
+        error: 'Для этого промокода выберите подарочную зону, указанную мастером'
+      };
+    }
+    if (isComplexServiceRow(configuredService)) {
+      return {
+        giftService: null,
+        error: 'Подарочная зона промокода должна быть зоной эпиляции'
+      };
+    }
+    return { giftService: configuredService, error: null };
+  }
+
+  const zoneServices = services.filter((service) => !isComplexServiceRow(service));
+  if (!zoneServices.length) {
+    return {
+      giftService: null,
+      error: 'Промокод «Зона в подарок» действует только на зоны эпиляции'
+    };
+  }
+  return {
+    giftService: selectCheapestService(zoneServices),
+    error: null
+  };
+}
+
 function resolveMasterTimezone(master) {
   if (master && master.timezone) return master.timezone;
   return process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk';
@@ -730,7 +785,6 @@ router.post('/master/:slug/pricing-preview', async (req, res) => {
     let appliedPromo = null;
     let promoGiftService = null;
     let promoDiscountPercent = null;
-    let giftServiceAdded = false;
 
     if (promoCodeInput) {
       appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
@@ -741,31 +795,11 @@ router.post('/master/:slug/pricing-preview', async (req, res) => {
       if (appliedPromo.reward_type === 'percent') {
         promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
       } else if (appliedPromo.reward_type === 'gift_service') {
-        const giftId = Number(appliedPromo.gift_id || appliedPromo.gift_service_id || 0);
-        const giftServiceIsValid = giftId > 0
-          && Number(appliedPromo.gift_master_id) === Number(master.id)
-          && Boolean(appliedPromo.gift_is_active);
-        if (!giftServiceIsValid) {
-          return res.status(400).json({ error: 'Подарочная зона промокода недоступна' });
+        const giftResolution = resolvePromoGiftService(appliedPromo, loadedServices);
+        if (giftResolution.error) {
+          return res.status(400).json({ error: giftResolution.error });
         }
-
-        promoGiftService = {
-          id: giftId,
-          master_id: Number(appliedPromo.gift_master_id),
-          name: appliedPromo.gift_name,
-          duration_minutes: Number(appliedPromo.gift_duration_minutes || 0),
-          price: Number(appliedPromo.gift_price || 0),
-          description: appliedPromo.gift_description || null,
-          buffer_before_minutes: Number(appliedPromo.gift_buffer_before_minutes || 0),
-          buffer_after_minutes: Number(appliedPromo.gift_buffer_after_minutes || 0),
-          is_active: true
-        };
-
-        if (!normalizedServiceIds.includes(giftId)) {
-          normalizedServiceIds.push(giftId);
-          giftServiceAdded = true;
-        }
-        servicesById.set(giftId, promoGiftService);
+        promoGiftService = giftResolution.giftService;
       } else {
         return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
       }
@@ -799,7 +833,7 @@ router.post('/master/:slug/pricing-preview', async (req, res) => {
         promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
         promo_discount_percent: promoDiscountPercent,
         promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
-        promo_gift_service_added: giftServiceAdded
+        promo_gift_service_added: false
       }
     });
   } catch (error) {
@@ -846,7 +880,6 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     let appliedPromo = null;
     let promoGiftService = null;
     let promoDiscountPercent = null;
-    let giftServiceAdded = false;
 
     if (promoCodeInput) {
       appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
@@ -857,30 +890,11 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       if (appliedPromo.reward_type === 'percent') {
         promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
       } else if (appliedPromo.reward_type === 'gift_service') {
-        const giftId = Number(appliedPromo.gift_id || appliedPromo.gift_service_id || 0);
-        const giftServiceIsValid = giftId > 0
-          && Number(appliedPromo.gift_master_id) === Number(master.id)
-          && Boolean(appliedPromo.gift_is_active);
-        if (!giftServiceIsValid) {
-          return res.status(400).json({ error: 'Подарочная зона промокода недоступна' });
+        const giftResolution = resolvePromoGiftService(appliedPromo, loadedServices);
+        if (giftResolution.error) {
+          return res.status(400).json({ error: giftResolution.error });
         }
-
-        promoGiftService = {
-          id: giftId,
-          master_id: Number(appliedPromo.gift_master_id),
-          name: appliedPromo.gift_name,
-          duration_minutes: Number(appliedPromo.gift_duration_minutes || 0),
-          price: Number(appliedPromo.gift_price || 0),
-          description: appliedPromo.gift_description || null,
-          buffer_before_minutes: Number(appliedPromo.gift_buffer_before_minutes || 0),
-          buffer_after_minutes: Number(appliedPromo.gift_buffer_after_minutes || 0),
-          is_active: true
-        };
-        if (!normalizedServiceIds.includes(giftId)) {
-          normalizedServiceIds.push(giftId);
-          giftServiceAdded = true;
-        }
-        servicesById.set(giftId, promoGiftService);
+        promoGiftService = giftResolution.giftService;
       } else {
         return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
       }
@@ -1044,7 +1058,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
         promo_discount_percent: promoDiscountPercent,
         promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
-        promo_gift_service_added: giftServiceAdded
+        promo_gift_service_added: false
       }
     });
   } catch (error) {

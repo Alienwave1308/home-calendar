@@ -1498,12 +1498,10 @@
   function onPromoRewardTypeChange() {
     const typeEl = $('promoRewardType');
     const discountEl = $('promoDiscountPercent');
-    const giftEl = $('promoGiftServiceId');
-    if (!typeEl || !discountEl || !giftEl) return;
+    if (!typeEl || !discountEl) return;
 
     const isPercent = typeEl.value === 'percent';
     discountEl.style.display = isPercent ? '' : 'none';
-    giftEl.style.display = isPercent ? 'none' : '';
   }
 
   function renderPromoCodes() {
@@ -1518,7 +1516,7 @@
     listEl.innerHTML = promoCodesCache.map(function (promo) {
       const reward = promo.reward_type === 'percent'
         ? 'Скидка ' + Number(promo.discount_percent || 0) + '%'
-        : 'Подарок: ' + escapeHtml(promo.gift_service_name || ('Зона #' + promo.gift_service_id));
+        : 'Подарок: ' + escapeHtml(promo.gift_service_name || 'Зона в подарок');
       const usageMode = String(promo.usage_mode || 'always');
       const usageLabel = usageMode === 'single_use' ? 'Одноразовый' : 'Постоянный';
       const usageState = usageMode === 'single_use'
@@ -1543,33 +1541,12 @@
 
   async function loadPromoCodes() {
     const listEl = $('promoCodesList');
-    const giftSelect = $('promoGiftServiceId');
-    if (!listEl || !giftSelect) return;
+    if (!listEl) return;
 
     listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
 
     try {
-      const prevGiftId = String(giftSelect.value || '');
-      const [services, promoCodes] = await Promise.all([
-        apiFetch('/services'),
-        apiFetch('/promo-codes')
-      ]);
-
-      const zoneServices = (services || []).filter(function (service) {
-        if (!service || service.is_active === false) return false;
-        return parseServiceTaxonomy(service).category === 'Услуги';
-      });
-      if (!zoneServices.length) {
-        giftSelect.innerHTML = '<option value="">Нет доступных зон</option>';
-      } else {
-        giftSelect.innerHTML = zoneServices.map(function (service) {
-          return '<option value="' + service.id + '">' + escapeHtml(service.name) + '</option>';
-        }).join('');
-        if (prevGiftId && zoneServices.some(function (service) { return String(service.id) === prevGiftId; })) {
-          giftSelect.value = prevGiftId;
-        }
-      }
-
+      const promoCodes = await apiFetch('/promo-codes');
       promoCodesCache = Array.isArray(promoCodes) ? promoCodes : [];
       renderPromoCodes();
       onPromoRewardTypeChange();
@@ -1586,8 +1563,7 @@
       const typeEl = $('promoRewardType');
       const usageModeEl = $('promoUsageMode');
       const discountEl = $('promoDiscountPercent');
-      const giftEl = $('promoGiftServiceId');
-      if (!codeEl || !typeEl || !usageModeEl || !discountEl || !giftEl) return;
+      if (!codeEl || !typeEl || !usageModeEl || !discountEl) return;
 
       const code = String(codeEl.value || '').trim().toUpperCase();
       const rewardType = String(typeEl.value || '');
@@ -1605,13 +1581,6 @@
           return;
         }
         payload.discount_percent = discount;
-      } else {
-        const giftServiceId = Number(giftEl.value);
-        if (!Number.isInteger(giftServiceId) || giftServiceId <= 0) {
-          showToast('Выберите подарочную зону');
-          return;
-        }
-        payload.gift_service_id = giftServiceId;
       }
 
       await apiMethod('POST', '/promo-codes', payload);

@@ -73,8 +73,10 @@ describe('Master Panel - Promo Codes E2E', () => {
         code: String(req.body.code || '').toUpperCase(),
         reward_type: req.body.reward_type,
         discount_percent: req.body.reward_type === 'percent' ? Number(req.body.discount_percent || 0) : null,
-        gift_service_id: req.body.reward_type === 'gift_service' ? Number(req.body.gift_service_id) : null,
-        gift_service_name: req.body.reward_type === 'gift_service' ? 'Сахар: Голень' : null,
+        gift_service_id: req.body.reward_type === 'gift_service'
+          ? (req.body.gift_service_id ? Number(req.body.gift_service_id) : null)
+          : null,
+        gift_service_name: null,
         usage_mode: req.body.usage_mode || 'always',
         uses_count: 0,
         is_active: true
@@ -159,7 +161,6 @@ describe('Master Panel - Promo Codes E2E', () => {
       win.document.getElementById('promoRewardType').value = 'gift_service';
       win.document.getElementById('promoUsageMode').value = 'single_use';
       win.MasterApp.onPromoRewardTypeChange();
-      win.document.getElementById('promoGiftServiceId').value = '1';
       return win.MasterApp.createPromoCode();
     });
 
@@ -167,7 +168,6 @@ describe('Master Panel - Promo Codes E2E', () => {
       expect(interception.request.body).to.deep.include({
         code: 'GIFTONCE',
         reward_type: 'gift_service',
-        gift_service_id: 1,
         usage_mode: 'single_use'
       });
     });

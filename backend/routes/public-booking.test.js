@@ -612,7 +612,7 @@ describe('Public Booking API', () => {
     expect(res.body.error).toContain('уже использован');
   });
 
-  it('should apply gift-service promo code and extend duration window check', async () => {
+  it('should apply gift-service promo code to selected zone without auto-adding services', async () => {
     const startAt = futureDate();
     pool.query
       .mockResolvedValueOnce({
@@ -627,17 +627,7 @@ describe('Public Booking API', () => {
           master_id: 3,
           code: 'GIFTLEG',
           reward_type: 'gift_service',
-          discount_percent: null,
-          gift_service_id: 12,
-          gift_id: 12,
-          gift_master_id: 3,
-          gift_name: 'Сахар: Голень',
-          gift_duration_minutes: 35,
-          gift_price: 800,
-          gift_description: null,
-          gift_buffer_before_minutes: 0,
-          gift_buffer_after_minutes: 0,
-          gift_is_active: true
+          discount_percent: null
         }]
       })
       .mockResolvedValueOnce({
@@ -646,7 +636,7 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({ rows: [{ id: 7 }] })
       .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
       .mockResolvedValueOnce({
-        rows: [{ id: 112, master_id: 3, client_id: 42, service_id: 11, extra_service_ids: '[12]', start_at: startAt, status: 'confirmed' }]
+        rows: [{ id: 112, master_id: 3, client_id: 42, service_id: 11, extra_service_ids: '[]', start_at: startAt, status: 'confirmed' }]
       });
 
     const res = await request(app)
@@ -655,12 +645,12 @@ describe('Public Booking API', () => {
       .send({ service_id: 11, start_at: startAt, promo_code: 'giftleg' })
       .expect(201);
 
-    expect(res.body.pricing.base_price).toBe(1700);
-    expect(res.body.pricing.final_price).toBe(900);
-    expect(res.body.pricing.discount_amount).toBe(800);
+    expect(res.body.pricing.base_price).toBe(900);
+    expect(res.body.pricing.final_price).toBe(0);
+    expect(res.body.pricing.discount_amount).toBe(900);
     expect(res.body.pricing.promo_reward_type).toBe('gift_service');
-    expect(res.body.pricing.promo_gift_service_name).toBe('Сахар: Голень');
-    expect(res.body.pricing.promo_gift_service_added).toBe(true);
+    expect(res.body.pricing.promo_gift_service_name).toBe('Сахар: Бёдра');
+    expect(res.body.pricing.promo_gift_service_added).toBe(false);
   });
 
   it('should return 400 for invalid promo code', async () => {

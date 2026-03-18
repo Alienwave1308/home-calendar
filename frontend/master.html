@@ -316,7 +316,7 @@
       </div>
       <div class="settings-card">
         <h3>Промокоды</h3>
-        <p class="settings-hint">Промокод может давать процент скидки или подарочную зону эпиляции.</p>
+        <p class="settings-hint">Промокод может давать процент скидки или «зону в подарок». Зону и материал выбирает клиент при записи.</p>
         <div class="availability-form">
           <input id="promoCodeValue" type="text" maxlength="64" placeholder="Код, например SPRING30">
           <select id="promoRewardType" onchange="MasterApp.onPromoRewardTypeChange()">
@@ -328,7 +328,6 @@
             <option value="single_use">Одноразовый</option>
           </select>
           <input id="promoDiscountPercent" type="number" min="1" max="90" value="10" placeholder="Скидка, %">
-          <select id="promoGiftServiceId" style="display:none;"></select>
           <button class="btn-secondary" onclick="MasterApp.createPromoCode()">Создать промокод</button>
         </div>
         <div id="promoCodesList" class="settings-list"></div>

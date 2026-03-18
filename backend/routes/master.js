@@ -644,12 +644,6 @@ function normalizePromoCode(code) {
   return String(code || '').trim().toUpperCase();
 }
 
-function isComplexServiceRow(service) {
-  const name = String(service && service.name ? service.name : '');
-  const description = String(service && service.description ? service.description : '');
-  return /комплекс/i.test(name) || /комплекс/i.test(description);
-}
-
 // === PROMO CODES ===
 
 // GET /api/master/promo-codes
@@ -728,48 +722,6 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
       discountPercent = Number(req.body.discount_percent);
       if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 90) {
         return res.status(400).json({ error: 'discount_percent must be integer between 1 and 90' });
-      }
-    }
-
-    if (rewardType === 'gift_service') {
-      giftServiceId = Number(req.body.gift_service_id);
-      if (!Number.isInteger(giftServiceId) || giftServiceId <= 0) {
-        return res.status(400).json({ error: 'gift_service_id must be a positive integer' });
-      }
-
-      let giftServiceRow = null;
-      try {
-        const giftServiceRes = await pool.query(
-          `SELECT id, master_id, name, description, is_active
-           FROM services
-           WHERE id = $1 AND master_id = $2
-           LIMIT 1`,
-          [giftServiceId, req.master.id]
-        );
-        giftServiceRow = giftServiceRes.rows[0] || null;
-      } catch (giftServiceError) {
-        if (giftServiceError.code !== '42703') throw giftServiceError;
-        const fallbackRes = await pool.query(
-          `SELECT id, master_id, name
-           FROM services
-           WHERE id = $1 AND master_id = $2
-           LIMIT 1`,
-          [giftServiceId, req.master.id]
-        );
-        giftServiceRow = fallbackRes.rows[0]
-          ? {
-            ...fallbackRes.rows[0],
-            description: null,
-            is_active: true
-          }
-          : null;
-      }
-
-      if (!giftServiceRow || giftServiceRow.is_active === false) {
-        return res.status(400).json({ error: 'gift service is not available' });
-      }
-      if (isComplexServiceRow(giftServiceRow)) {
-        return res.status(400).json({ error: 'gift service must be an epilation zone, not a complex' });
       }
     }
 
