@@ -185,6 +185,32 @@ describe('Public Booking API', () => {
     expect(res.body.pricing.promo_reward_type).toBe('percent');
   });
 
+  it('should return pricing preview for legacy promo schema without usage columns', async () => {
+    const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1000, is_active: true }]
+      })
+      .mockRejectedValueOnce(missingColumnError)
+      .mockResolvedValueOnce({
+        rows: [{ id: 901, master_id: 3, code: 'LEGACY15', reward_type: 'percent', discount_percent: 15, gift_service_id: null, is_active: true }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/pricing-preview')
+      .send({ service_id: 11, promo_code: 'legacy15' })
+      .expect(200);
+
+    expect(res.body.pricing.base_price).toBe(1000);
+    expect(res.body.pricing.final_price).toBe(850);
+    expect(res.body.pricing.discount_amount).toBe(150);
+    expect(res.body.pricing.promo_code).toBe('LEGACY15');
+    expect(res.body.pricing.promo_usage_mode).toBe('always');
+  });
+
   it('should return 400 when booking export ics params are missing', async () => {
     const res = await request(app)
       .get('/api/public/export/booking.ics')

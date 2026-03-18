@@ -668,11 +668,36 @@ router.get('/promo-codes', loadMaster, async (req, res) => {
     );
     res.json(rows);
   } catch (error) {
-    if (error.code === '42P01' || error.code === '42703') {
+    if (error.code === '42P01') {
       return res.json([]);
     }
+    if (error.code === '42703') {
+      try {
+        const fallback = await pool.query(
+          `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
+                  p.is_active, p.created_at, p.updated_at,
+                  s.name AS gift_service_name
+           FROM master_promo_codes p
+           LEFT JOIN services s ON s.id = p.gift_service_id
+           WHERE p.master_id = $1
+           ORDER BY p.created_at DESC, p.id DESC`,
+          [req.master.id]
+        );
+        return res.json(fallback.rows.map((row) => ({
+          ...row,
+          usage_mode: 'always',
+          uses_count: 0
+        })));
+      } catch (fallbackError) {
+        if (fallbackError.code === '42P01') {
+          return res.json([]);
+        }
+        console.error('Error loading promo codes (legacy fallback):', fallbackError);
+        return res.status(500).json({ error: 'Server error' });
+      }
+    }
     console.error('Error loading promo codes:', error);
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

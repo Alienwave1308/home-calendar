@@ -315,9 +315,15 @@
   // === TABS ===
 
   function switchTab(tabName) {
+    let activeTab = null;
     document.querySelectorAll('.master-tab').forEach(function (t) {
-      t.classList.toggle('active', t.dataset.tab === tabName);
+      const isActive = t.dataset.tab === tabName;
+      t.classList.toggle('active', isActive);
+      if (isActive) activeTab = t;
     });
+    if (activeTab && typeof activeTab.scrollIntoView === 'function') {
+      activeTab.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
     document.querySelectorAll('.tab-panel').forEach(function (p) {
       p.style.display = 'none';
     });
@@ -1492,7 +1498,7 @@
         + '<strong>' + escapeHtml(promo.code) + '</strong>'
         + '<div class="settings-hint">' + reward + ' · ' + usageLabel + ' · ' + usageState + ' · ' + status + '</div>'
         + '</div>'
-        + '<div style="display:flex; gap:8px; flex-wrap:wrap;">'
+        + '<div class="settings-list-actions">'
         + '<button class="btn-small btn-edit" onclick="MasterApp.togglePromoCodeActive(' + promo.id + ',' + nextActive + ')">' + toggleLabel + '</button>'
         + '<button class="btn-small btn-cancel" onclick="MasterApp.deletePromoCode(' + promo.id + ')">Удалить</button>'
         + '</div>'

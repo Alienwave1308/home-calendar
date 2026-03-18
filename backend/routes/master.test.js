@@ -474,6 +474,26 @@ describe('Master API', () => {
       expect(res.body[0].code).toBe('SAVE20');
     });
 
+    it('should list promo codes on legacy schema without usage columns', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({
+          rows: [{ id: 2, code: 'LEGACY10', reward_type: 'percent', discount_percent: 10, is_active: true }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].code).toBe('LEGACY10');
+      expect(res.body[0].usage_mode).toBe('always');
+      expect(res.body[0].uses_count).toBe(0);
+    });
+
     it('should create percent promo code', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
