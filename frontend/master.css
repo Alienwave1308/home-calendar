@@ -1,10 +1,128 @@
 /* === MASTER PANEL STYLES === */
 /* Extends booking.css */
 
+:root {
+  --card: rgba(255, 255, 255, 0.84);
+  --border: rgba(33, 124, 82, 0.24);
+  --radius: 18px;
+  --text-secondary: #567568;
+  --success: #2f9f68;
+  --error: #c44f62;
+  --primary-light: #e7f6ed;
+}
+
 #app {
   max-width: 460px;
   margin: 0 auto;
   padding: 2px 4px calc(10px + env(safe-area-inset-bottom));
+}
+
+button {
+  font-family: inherit;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+  border-color: color-mix(in srgb, var(--primary-strong) 75%, black 25%);
+  color: #f7fffb;
+  box-shadow: 0 10px 18px rgba(22, 110, 71, 0.2);
+}
+
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-back:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary:active,
+.btn-secondary:active,
+.btn-back:active {
+  transform: translateY(0);
+}
+
+.btn-secondary,
+.btn-back {
+  background: color-mix(in srgb, var(--card) 92%, white 8%);
+  color: var(--text);
+}
+
+.btn-secondary.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.btn-back {
+  width: auto;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.btn-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.service-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.service-subtabs {
+  margin-top: -2px;
+}
+
+.service-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 92%, white 8%);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.service-tab.active {
+  background: color-mix(in srgb, var(--primary-light) 78%, white 22%);
+  border-color: color-mix(in srgb, var(--primary) 42%, white 58%);
+  color: var(--primary-strong);
+  box-shadow: 0 8px 15px rgba(26, 110, 74, 0.14);
 }
 
 .master-header {
@@ -29,6 +147,8 @@
   padding: 0 0 2px;
   overflow-x: auto;
   scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 12px;
 }
 
 .master-tabs::-webkit-scrollbar {
@@ -49,6 +169,7 @@
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
   white-space: nowrap;
+  scroll-snap-align: center;
 }
 
 .master-tab.active {
@@ -409,11 +530,14 @@
 .availability-form select,
 .availability-form textarea {
   width: 100%;
+  min-height: 42px;
   padding: 10px 12px;
   border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 0.92em;
   background: var(--card);
+  color: var(--text);
+  line-height: 1.2;
 }
 
 .availability-form .btn-secondary,
@@ -472,8 +596,68 @@
   flex: 1;
 }
 
+.settings-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .settings-list-item .btn-small {
   flex-shrink: 0;
+}
+
+.empty-state {
+  border: 1px dashed color-mix(in srgb, var(--border) 75%, white 25%);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  background: color-mix(in srgb, var(--card) 95%, white 5%);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state p + p {
+  margin-top: 8px;
+}
+
+.empty-icon {
+  font-size: 1.35rem;
+  margin-bottom: 10px;
+}
+
+.network-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 900;
+  max-width: min(92vw, 460px);
+  width: max-content;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 36%, black 64%);
+  background: #193a2c;
+  color: #f3fff8;
+  box-shadow: 0 12px 24px rgba(9, 43, 29, 0.35);
+}
+
+.toast-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.05rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
 }
 
 .availability-exclusions {
@@ -937,5 +1121,11 @@
 
   .settings-list-item {
     gap: 8px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .settings-list-actions {
+    width: 100%;
   }
 }
