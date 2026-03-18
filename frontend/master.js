@@ -543,6 +543,39 @@
 
   // === BOOKINGS ===
 
+  function bookingStartTimeMs(startAt) {
+    const ts = new Date(startAt || '').getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  function bookingSortRank(booking, nowMs) {
+    const status = String(booking && booking.status ? booking.status : '');
+    const isActiveStatus = status === 'pending' || status === 'confirmed';
+    const startAtMs = bookingStartTimeMs(booking && booking.start_at);
+    if (isActiveStatus && startAtMs >= nowMs) return 0;
+    if (isActiveStatus) return 1;
+    if (status === 'completed') return 2;
+    if (status === 'canceled') return 3;
+    return 4;
+  }
+
+  function sortMasterBookings(bookings) {
+    const nowMs = Date.now();
+    return (Array.isArray(bookings) ? bookings.slice() : []).sort(function (a, b) {
+      const rankA = bookingSortRank(a, nowMs);
+      const rankB = bookingSortRank(b, nowMs);
+      const rankDiff = rankA - rankB;
+      if (rankDiff !== 0) return rankDiff;
+      const aStart = bookingStartTimeMs(a && a.start_at);
+      const bStart = bookingStartTimeMs(b && b.start_at);
+      if (rankA === 0 && rankB === 0) {
+        // For upcoming active bookings show nearest slot first.
+        return aStart - bStart;
+      }
+      return bStart - aStart;
+    });
+  }
+
   async function loadBookings() {
     let container = $('bookingsList');
     container.innerHTML = skeletonBookings(4);
@@ -551,7 +584,8 @@
     try {
       let status = $('bookingsStatus').value;
       let q = status ? '?status=' + status : '';
-      let bookings = await apiFetch('/bookings' + q);
+      const rawBookings = await apiFetch('/bookings' + q);
+      const bookings = sortMasterBookings(rawBookings);
       bookingsCache = bookings;
 
       if (bookings.length === 0) {
