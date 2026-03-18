@@ -81,6 +81,49 @@ describe('Master Panel - Leads Tab E2E', () => {
       }
     };
 
+    const monthPayload = {
+      ...dayPayload,
+      period: 'month',
+      current: {
+        ...dayPayload.current,
+        range_start_local: '2026-02-01T00:00:00.000Z',
+        range_end_local: '2026-03-01T00:00:00.000Z',
+        metrics: {
+          visitors: 140,
+          auth_started: 140,
+          auth_success: 140,
+          booking_started: 52,
+          booking_created: 31
+        },
+        conversion: {
+          visit_to_auth_start: 100,
+          auth_start_to_auth_success: 100,
+          auth_success_to_booking_created: 22.1,
+          visit_to_booking_created: 22.1,
+          booking_started_to_booking_created: 59.6
+        }
+      },
+      previous: {
+        ...dayPayload.previous,
+        range_start_local: '2026-01-01T00:00:00.000Z',
+        range_end_local: '2026-02-01T00:00:00.000Z',
+        metrics: {
+          visitors: 110,
+          auth_started: 110,
+          auth_success: 110,
+          booking_started: 44,
+          booking_created: 24
+        },
+        conversion: {
+          visit_to_auth_start: 100,
+          auth_start_to_auth_success: 100,
+          auth_success_to_booking_created: 21.8,
+          visit_to_booking_created: 21.8,
+          booking_started_to_booking_created: 54.5
+        }
+      }
+    };
+
     const usersDayPayload = {
       period: 'day',
       timezone: 'Asia/Novosibirsk',
@@ -145,6 +188,11 @@ describe('Master Panel - Leads Tab E2E', () => {
       statusCode: 200,
       body: weekPayload
     }).as('leadsWeek');
+
+    cy.intercept('GET', '/api/master/leads/metrics?period=month', {
+      statusCode: 200,
+      body: monthPayload
+    }).as('leadsMonth');
 
     cy.intercept('GET', '/api/master/leads/registrations?period=day', {
       statusCode: 200,
@@ -234,5 +282,67 @@ describe('Master Panel - Leads Tab E2E', () => {
     cy.get('#leadsUsersList .leads-user-card').should('have.length', 1);
     cy.get('#leadsUsersList .leads-user-card').eq(0).contains('button', 'Написать').click();
     cy.window().its('__openedTelegramLinks.1').should('eq', 'https://t.me/real_client');
+  });
+
+  it('keeps selected month period when day response resolves later', () => {
+    cy.intercept('GET', '/api/master/leads/metrics?period=day', (req) => {
+      req.reply({
+        delay: 700,
+        statusCode: 200,
+        body: {
+          period: 'day',
+          timezone: 'Asia/Novosibirsk',
+          current: {
+            range_start_local: '2026-03-18T00:00:00.000Z',
+            range_end_local: '2026-03-19T00:00:00.000Z',
+            metrics: {
+              visitors: 1,
+              auth_started: 1,
+              auth_success: 1,
+              booking_started: 1,
+              booking_created: 1
+            },
+            conversion: {
+              visit_to_auth_start: 100,
+              auth_start_to_auth_success: 100,
+              auth_success_to_booking_created: 100,
+              visit_to_booking_created: 100,
+              booking_started_to_booking_created: 100
+            }
+          },
+          previous: {
+            range_start_local: '2026-03-17T00:00:00.000Z',
+            range_end_local: '2026-03-18T00:00:00.000Z',
+            metrics: {
+              visitors: 0,
+              auth_started: 0,
+              auth_success: 0,
+              booking_started: 0,
+              booking_created: 0
+            },
+            conversion: {
+              visit_to_auth_start: null,
+              auth_start_to_auth_success: null,
+              auth_success_to_booking_created: null,
+              visit_to_booking_created: null,
+              booking_started_to_booking_created: null
+            }
+          }
+        }
+      });
+    }).as('leadsDaySlow');
+
+    cy.window().then((win) => {
+      win.MasterApp.switchTab('leads');
+    });
+
+    cy.contains('#tabLeads button', 'Месяц').click();
+    cy.wait('@leadsMonth');
+    cy.wait('@leadsDaySlow');
+
+    cy.get('#leadsVisitors').should('have.text', '140');
+    cy.get('#leadsBookingCreated').should('have.text', '31');
+    cy.get('#leadsRangeLabel').should('contain.text', '2026-02-01 00:00');
+    cy.get('#leadsRangeLabel').should('contain.text', '2026-03-01 00:00');
   });
 });

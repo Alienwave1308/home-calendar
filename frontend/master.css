@@ -9,12 +9,14 @@
   --success: #2f9f68;
   --error: #c44f62;
   --primary-light: #e7f6ed;
+  --keyboard-offset: 0px;
 }
 
 #app {
   max-width: 460px;
   margin: 0 auto;
-  padding: 2px 4px calc(10px + env(safe-area-inset-bottom));
+  padding: 2px 4px calc(10px + env(safe-area-inset-bottom) + var(--keyboard-offset, 0px));
+  transition: padding-bottom 0.2s ease;
 }
 
 button {
@@ -352,6 +354,11 @@ button {
   grid-column: 1 / -1;
 }
 
+.profile-form-grid #profileGiftText {
+  min-height: 68px;
+  resize: vertical;
+}
+
 /* Bookings list */
 .bookings-list {
   display: flex;
@@ -632,7 +639,7 @@ button {
 .network-toast {
   position: fixed;
   left: 50%;
-  bottom: calc(12px + env(safe-area-inset-bottom));
+  bottom: calc(12px + env(safe-area-inset-bottom) + var(--keyboard-offset, 0px));
   transform: translateX(-50%);
   z-index: 900;
   max-width: min(92vw, 460px);
@@ -1037,13 +1044,38 @@ button {
 
 @media (max-width: 600px) {
   .master-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
     margin-bottom: 14px;
+    border-bottom: none;
+    overflow: visible;
+    scroll-snap-type: none;
+    scroll-padding-inline: 0;
   }
 
   .master-tab {
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 6px;
     font-size: 0.78em;
-    min-width: 84px;
-    padding: 9px 6px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+    border: 1px solid color-mix(in srgb, var(--border) 86%, white 14%);
+    border-radius: 10px;
+    margin-bottom: 0;
+    background: color-mix(in srgb, var(--card) 90%, white 10%);
+    color: var(--text-secondary);
+    scroll-snap-align: none;
+  }
+
+  .master-tab.active {
+    color: var(--primary-strong);
+    border-color: color-mix(in srgb, var(--primary) 52%, white 48%);
+    border-bottom-color: color-mix(in srgb, var(--primary) 52%, white 48%);
+    background: color-mix(in srgb, var(--primary-light) 78%, white 22%);
+    box-shadow: 0 8px 14px rgba(26, 110, 74, 0.12);
   }
 
   .master-header h1 {

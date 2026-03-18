@@ -88,6 +88,8 @@
   let overviewFrom = '';
   let overviewTo = '';
   let masterProfileCache = null;
+  let leadsMetricsRequestSeq = 0;
+  let leadsUsersRequestSeq = 0;
 
   const DEFAULT_MASTER_PROFILE = Object.freeze({
     brand: 'Ro Va',
@@ -132,7 +134,8 @@
             return null;
           }
           const data = await res.json().catch(function () { return {}; });
-          const message = data.error || 'Ошибка (' + res.status + ')';
+          const rawMessage = data.error || 'Ошибка (' + res.status + ')';
+          const message = localizeApiErrorMessage(rawMessage);
           if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
             lastError = new Error(message);
             continue;
@@ -164,7 +167,8 @@
         const res = await fetch(base + path, options || {});
         if (!res.ok) {
           const data = await res.json().catch(function () { return {}; });
-          const message = data.error || 'Ошибка (' + res.status + ')';
+          const rawMessage = data.error || 'Ошибка (' + res.status + ')';
+          const message = localizeApiErrorMessage(rawMessage);
           if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
             lastError = new Error(message);
             continue;
@@ -209,6 +213,24 @@
 
   function hideToast() {
     $('networkToast').style.display = 'none';
+  }
+
+  function localizeApiErrorMessage(rawMessage) {
+    const message = String(rawMessage || '').trim();
+    if (!message) return 'Произошла ошибка';
+
+    const knownErrors = {
+      'code must be 3-64 chars': 'Промокод должен содержать от 3 до 64 символов',
+      'code may contain only A-Z, 0-9, _ and -': 'Промокод может содержать только латинские буквы A-Z, цифры, "_" и "-"',
+      'reward_type must be percent or gift_service': 'Выберите корректный тип промокода',
+      'usage_mode must be always or single_use': 'Выберите корректный режим использования промокода',
+      'discount_percent must be integer between 1 and 90': 'Скидка должна быть целым числом от 1 до 90',
+      'gift_service_id must be a positive integer': 'Выберите подарочную зону',
+      'gift service is not available': 'Подарочная зона недоступна',
+      'gift service must be an epilation zone, not a complex': 'Подарком может быть только зона эпиляции, а не комплекс',
+      'promo code already exists': 'Промокод уже существует'
+    };
+    return knownErrors[message] || message;
   }
 
   function escapeHtml(str) {
@@ -315,14 +337,20 @@
   // === TABS ===
 
   function switchTab(tabName) {
+    const tabsContainer = $('masterTabs');
     let activeTab = null;
     document.querySelectorAll('.master-tab').forEach(function (t) {
       const isActive = t.dataset.tab === tabName;
       t.classList.toggle('active', isActive);
       if (isActive) activeTab = t;
     });
-    if (activeTab && typeof activeTab.scrollIntoView === 'function') {
-      activeTab.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    if (
+      tabsContainer
+      && activeTab
+      && typeof activeTab.scrollIntoView === 'function'
+      && tabsContainer.scrollWidth > tabsContainer.clientWidth + 2
+    ) {
+      activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
     }
     document.querySelectorAll('.tab-panel').forEach(function (p) {
       p.style.display = 'none';
@@ -910,10 +938,12 @@
   async function loadLeadsMetrics() {
     const funnelEl = $('leadsFunnel');
     if (!funnelEl) return;
+    const requestSeq = ++leadsMetricsRequestSeq;
 
     funnelEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
     try {
       const data = await apiFetch('/leads/metrics?period=' + encodeURIComponent(leadsPeriod));
+      if (requestSeq !== leadsMetricsRequestSeq || leadsView !== 'summary') return;
       const current = data.current && data.current.metrics ? data.current.metrics : {};
       const previous = data.previous && data.previous.metrics ? data.previous.metrics : {};
       const conversion = data.current && data.current.conversion ? data.current.conversion : {};
@@ -944,6 +974,7 @@
         ? 'Текущий период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
         : 'Период не определен';
     } catch (err) {
+      if (requestSeq !== leadsMetricsRequestSeq || leadsView !== 'summary') return;
       funnelEl.innerHTML = '<p class="settings-hint">Не удалось загрузить воронку</p>';
       showToast(err.message);
     }
@@ -1126,12 +1157,14 @@
     const listEl = $('leadsUsersList');
     const emptyEl = $('leadsUsersEmpty');
     if (!listEl || !emptyEl) return;
+    const requestSeq = ++leadsUsersRequestSeq;
 
     listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
     emptyEl.style.display = 'none';
 
     try {
       const data = await apiFetch('/leads/registrations?period=' + encodeURIComponent(leadsPeriod));
+      if (requestSeq !== leadsUsersRequestSeq || leadsView !== 'users') return;
       const users = Array.isArray(data.users) ? data.users : [];
       const start = data.range_start_local ? String(data.range_start_local).slice(0, 16).replace('T', ' ') : '';
       const end = data.range_end_local ? String(data.range_end_local).slice(0, 16).replace('T', ' ') : '';
@@ -1141,6 +1174,7 @@
       leadsUsersRaw = users;
       updateLeadsUsersFilters();
     } catch (err) {
+      if (requestSeq !== leadsUsersRequestSeq || leadsView !== 'users') return;
       leadsUsersRaw = [];
       listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить список</p>';
       showToast(err.message);
@@ -1419,6 +1453,7 @@
   }
 
   async function deleteAvailabilityRule(ruleId) {
+    if (!window.confirm('Удалить это окно записи?')) return;
     try {
       await apiMethod('DELETE', '/availability/windows/' + ruleId);
       await loadAvailabilitySettings();
@@ -1634,6 +1669,7 @@
   }
 
   async function deleteAvailabilityExclusion(exclusionId) {
+    if (!window.confirm('Удалить выходной день?')) return;
     try {
       await apiMethod('DELETE', '/availability/exclusions/' + exclusionId);
       await loadAvailabilitySettings();
@@ -1759,6 +1795,48 @@
     window.location.href = '/';
   }
 
+  function updateKeyboardOffset() {
+    if (!window.visualViewport) {
+      document.documentElement.style.setProperty('--keyboard-offset', '0px');
+      return;
+    }
+    const vv = window.visualViewport;
+    const rawOffset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    const keyboardOffset = rawOffset > 110 ? rawOffset : 0;
+    document.documentElement.style.setProperty('--keyboard-offset', keyboardOffset + 'px');
+  }
+
+  function setupKeyboardVisibilityHelpers() {
+    const isFocusableFormControl = function (node) {
+      return Boolean(node
+        && node.nodeType === 1
+        && typeof node.matches === 'function'
+        && node.matches('input, textarea, select'));
+    };
+
+    window.addEventListener('focusin', function (event) {
+      const target = event.target;
+      if (!isFocusableFormControl(target)) return;
+      window.setTimeout(function () {
+        if (typeof target.scrollIntoView === 'function') {
+          target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        }
+      }, 180);
+      updateKeyboardOffset();
+    });
+
+    window.addEventListener('focusout', function () {
+      window.setTimeout(updateKeyboardOffset, 120);
+    });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateKeyboardOffset);
+      window.visualViewport.addEventListener('scroll', updateKeyboardOffset);
+    }
+
+    updateKeyboardOffset();
+  }
+
   // === SKELETONS ===
 
   function skeletonBookings(count) {
@@ -1778,6 +1856,7 @@
   if (!token) {
     window.location.href = '/';
   } else {
+    setupKeyboardVisibilityHelpers();
     loadToday();
   }
 

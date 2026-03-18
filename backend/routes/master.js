@@ -709,10 +709,10 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
     const usageMode = String(req.body.usage_mode || 'always').trim();
 
     if (!rawCode || rawCode.length < 3 || rawCode.length > 64) {
-      return res.status(400).json({ error: 'code must be 3-64 chars' });
+      return res.status(400).json({ error: 'Промокод должен содержать от 3 до 64 символов' });
     }
     if (!/^[A-Z0-9_-]+$/.test(rawCode)) {
-      return res.status(400).json({ error: 'code may contain only A-Z, 0-9, _ and -' });
+      return res.status(400).json({ error: 'Промокод может содержать только латинские буквы A-Z, цифры, "_" и "-"' });
     }
     if (!['percent', 'gift_service'].includes(rewardType)) {
       return res.status(400).json({ error: 'reward_type must be percent or gift_service' });
