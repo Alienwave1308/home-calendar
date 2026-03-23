@@ -955,7 +955,7 @@
     // Check if selected slot has a hot window discount
     const hw = state.selectedSlot && state.selectedSlot.hot_window;
     if (hw) {
-      var hwDiscount = 0;
+      let hwDiscount = 0;
       if (hw.reward_type === 'percent') {
         hwDiscount = Math.round(base * Number(hw.discount_percent || 0)) / 100;
       } else if (hw.reward_type === 'gift_service') {
@@ -1015,11 +1015,11 @@
       + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
       + serviceLines;
 
-    var discountLine = '';
+    let discountLine = '';
     if (pricing.promoCode) {
       discountLine = '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
     } else if (pricing.hotWindow) {
-      var hw = pricing.hotWindow;
+      const hw = pricing.hotWindow;
       if (hw.reward_type === 'percent') {
         discountLine = '<div class="row-line hot-discount"><span>🔥 Горячее окно (−' + Number(hw.discount_percent || 0) + '%)</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
       } else {
