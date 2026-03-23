@@ -50,7 +50,7 @@ async function sendTelegramMessage(chatId, text) {
     return { ok: true, skipped: false, retryable: false };
   } catch (error) {
     console.error('Telegram sendMessage error:', error);
-    return { ok: false, skipped: false, retryable: true };
+    return { ok: false, skipped: false, retryable: true, tgError: 'network: ' + String(error.message) };
   }
 }
 
