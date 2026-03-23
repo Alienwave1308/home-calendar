@@ -1528,6 +1528,7 @@
 
     renderAppleCalendarSettings(appleSettings);
     await loadAvailabilitySettings();
+    await loadHotWindows();
     await loadPromoCodes();
   }
 
@@ -1760,6 +1761,131 @@
       await apiMethod('DELETE', '/promo-codes/' + promoId);
       await loadPromoCodes();
       showToast('Промокод удален');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  // ─── Hot Windows ────────────────────────────────────────────────────────────
+
+  let hotWindowsCache = [];
+
+  function onHwRewardTypeChange() {
+    const typeEl = $('hwRewardType');
+    const discountEl = $('hwDiscountPercent');
+    const giftEl = $('hwGiftServiceId');
+    if (!typeEl) return;
+    const isPercent = typeEl.value === 'percent';
+    if (discountEl) discountEl.style.display = isPercent ? '' : 'none';
+    if (giftEl) giftEl.style.display = isPercent ? 'none' : '';
+  }
+
+  function populateHwGiftServiceSelect() {
+    const giftEl = $('hwGiftServiceId');
+    if (!giftEl) return;
+    const zones = servicesCache.filter(function (s) {
+      return s.is_active && !/комплекс/i.test(String(s.name || '')) && !/комплекс/i.test(String(s.description || ''));
+    });
+    giftEl.innerHTML = zones.length
+      ? zones.map(function (s) { return '<option value="' + s.id + '">' + escapeHtml(s.name) + ' (' + Number(s.price) + ' ₽)</option>'; }).join('')
+      : '<option value="">Нет доступных зон</option>';
+  }
+
+  function renderHotWindows() {
+    const listEl = $('hotWindowsList');
+    if (!listEl) return;
+    if (!hotWindowsCache.length) {
+      listEl.innerHTML = '<p class="settings-hint">Горячих окон пока нет</p>';
+      return;
+    }
+    listEl.innerHTML = hotWindowsCache.map(function (hw) {
+      const dateStr = String(hw.date || '').slice(0, 10);
+      const timeRange = String(hw.start_time || '').slice(0, 5) + ' – ' + String(hw.end_time || '').slice(0, 5);
+      const reward = hw.reward_type === 'percent'
+        ? 'Скидка ' + Number(hw.discount_percent || 0) + '%'
+        : 'Подарок: ' + escapeHtml(hw.gift_service_name || 'Зона в подарок');
+      return '<div class="settings-list-item">'
+        + '<div>'
+        + '<strong>🔥 ' + dateStr + ' · ' + timeRange + '</strong>'
+        + '<div class="settings-hint">' + reward + '</div>'
+        + '</div>'
+        + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteHotWindow(' + hw.id + ')">Удалить</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  async function loadHotWindows() {
+    const listEl = $('hotWindowsList');
+    if (!listEl) return;
+    listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    try {
+      const data = await apiFetch('/hot-windows');
+      hotWindowsCache = Array.isArray(data) ? data : [];
+      renderHotWindows();
+    } catch (err) {
+      hotWindowsCache = [];
+      listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить</p>';
+    }
+    populateHwGiftServiceSelect();
+    onHwRewardTypeChange();
+  }
+
+  async function createHotWindow() {
+    try {
+      const dateEl = $('hwDate');
+      const startEl = $('hwStartTime');
+      const endEl = $('hwEndTime');
+      const typeEl = $('hwRewardType');
+      const discountEl = $('hwDiscountPercent');
+      const giftEl = $('hwGiftServiceId');
+      if (!dateEl || !startEl || !endEl || !typeEl) return;
+
+      const date = dateEl.value;
+      const start_time = startEl.value;
+      const end_time = endEl.value;
+      const reward_type = typeEl.value;
+
+      if (!date || !start_time || !end_time) {
+        showToast('Укажите дату и диапазон времени');
+        return;
+      }
+      if (start_time >= end_time) {
+        showToast('Начало должно быть раньше окончания');
+        return;
+      }
+
+      const payload = { date: date, start_time: start_time, end_time: end_time, reward_type: reward_type };
+      if (reward_type === 'percent') {
+        const pct = Number(discountEl && discountEl.value);
+        if (!Number.isInteger(pct) || pct < 1 || pct > 90) {
+          showToast('Скидка должна быть от 1 до 90 %');
+          return;
+        }
+        payload.discount_percent = pct;
+      } else {
+        const svcId = Number(giftEl && giftEl.value);
+        if (!svcId) {
+          showToast('Выберите зону в подарок');
+          return;
+        }
+        payload.gift_service_id = svcId;
+      }
+
+      await apiMethod('POST', '/hot-windows', payload);
+      if (dateEl) dateEl.value = '';
+      await loadHotWindows();
+      showToast('Горячее окно добавлено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deleteHotWindow(hwId) {
+    if (!window.confirm('Удалить горячее окно?')) return;
+    try {
+      await apiMethod('DELETE', '/hot-windows/' + hwId);
+      await loadHotWindows();
+      showToast('Удалено');
     } catch (err) {
       showToast(err.message);
     }
@@ -2014,6 +2140,9 @@
     disableAppleCalendar: disableAppleCalendar,
     saveReminderSettings: saveReminderSettings,
     savePricingSettings: savePricingSettings,
+    onHwRewardTypeChange: onHwRewardTypeChange,
+    createHotWindow: createHotWindow,
+    deleteHotWindow: deleteHotWindow,
     onPromoRewardTypeChange: onPromoRewardTypeChange,
     createPromoCode: createPromoCode,
     togglePromoCodeActive: togglePromoCodeActive,

@@ -827,7 +827,8 @@
       state.slotsByDay.get(day).push({
         start: startIso,
         end: endIso,
-        label: formatTimeIso(startIso, timezone)
+        label: formatTimeIso(startIso, timezone),
+        hot_window: slot.hot_window || null
       });
     });
 
@@ -869,14 +870,17 @@
       const date = new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
       const key = dateKey(date);
       const enabled = inRange(date, state.rangeStart, state.rangeEnd);
-      const available = enabled && (state.slotsByDay.get(key) || []).length > 0;
+      const daySlots = state.slotsByDay.get(key) || [];
+      const available = enabled && daySlots.length > 0;
+      const hasHot = available && daySlots.some(function (s) { return s.hot_window; });
       const selected = state.selectedDate === key;
       const classes = ['day'];
       if (available) classes.push('available');
       if (!enabled) classes.push('disabled');
       if (selected) classes.push('selected');
 
-      html += '<button type="button" class="' + classes.join(' ') + '" data-day="' + key + '"' + (enabled ? '' : ' disabled') + '>' + day + '</button>';
+      const dayLabel = hasHot ? day + '<span class="day-fire">🔥</span>' : String(day);
+      html += '<button type="button" class="' + classes.join(' ') + '" data-day="' + key + '"' + (enabled ? '' : ' disabled') + '>' + dayLabel + '</button>';
     }
 
     el.calGrid.innerHTML = html;
@@ -913,7 +917,8 @@
 
     el.slotsWrap.innerHTML = slots.map(function (slot) {
       const active = state.selectedSlot && state.selectedSlot.start === slot.start;
-      return '<button type="button" class="slot-chip ' + (active ? 'active' : '') + '" data-slot-start="' + slot.start + '">' + slot.label + '</button>';
+      const fireLabel = slot.hot_window ? '🔥 ' + slot.label : slot.label;
+      return '<button type="button" class="slot-chip ' + (active ? 'active' : '') + (slot.hot_window ? ' hot' : '') + '" data-slot-start="' + slot.start + '">' + fireLabel + '</button>';
     }).join('');
 
     Array.prototype.slice.call(el.slotsWrap.querySelectorAll('[data-slot-start]')).forEach(function (node) {
@@ -933,28 +938,54 @@
     const totals = selectedTotals();
     const base = Number(totals.price || 0);
 
-    if (!state.promoPreview || !state.promoCode) {
+    if (state.promoPreview && state.promoCode) {
+      return {
+        base: Number(state.promoPreview.base_price ?? base),
+        final: Number(state.promoPreview.final_price ?? base),
+        discount: Number(state.promoPreview.discount_amount || 0),
+        promoCode: state.promoPreview.promo_code || state.promoCode,
+        rewardType: state.promoPreview.promo_reward_type || null,
+        discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
+        giftServiceName: state.promoPreview.promo_gift_service_name || null,
+        giftAdded: Boolean(state.promoPreview.promo_gift_service_added),
+        hotWindow: null
+      };
+    }
+
+    // Check if selected slot has a hot window discount
+    const hw = state.selectedSlot && state.selectedSlot.hot_window;
+    if (hw) {
+      var hwDiscount = 0;
+      if (hw.reward_type === 'percent') {
+        hwDiscount = Math.round(base * Number(hw.discount_percent || 0)) / 100;
+      } else if (hw.reward_type === 'gift_service') {
+        // gift service price not available on client side — show as "подарок"
+        hwDiscount = 0;
+      }
+      hwDiscount = Math.min(base, Math.max(0, hwDiscount));
       return {
         base: base,
-        final: base,
-        discount: 0,
+        final: Math.max(0, Math.round((base - hwDiscount) * 100) / 100),
+        discount: hwDiscount,
         promoCode: null,
         rewardType: null,
         discountPercent: null,
         giftServiceName: null,
-        giftAdded: false
+        giftAdded: false,
+        hotWindow: hw
       };
     }
 
     return {
-      base: Number(state.promoPreview.base_price ?? base),
-      final: Number(state.promoPreview.final_price ?? base),
-      discount: Number(state.promoPreview.discount_amount || 0),
-      promoCode: state.promoPreview.promo_code || state.promoCode,
-      rewardType: state.promoPreview.promo_reward_type || null,
-      discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
-      giftServiceName: state.promoPreview.promo_gift_service_name || null,
-      giftAdded: Boolean(state.promoPreview.promo_gift_service_added)
+      base: base,
+      final: base,
+      discount: 0,
+      promoCode: null,
+      rewardType: null,
+      discountPercent: null,
+      giftServiceName: null,
+      giftAdded: false,
+      hotWindow: null
     };
   }
 
@@ -984,13 +1015,21 @@
       + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
       + serviceLines;
 
-    const promoLine = pricing.promoCode
-      ? '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>'
-      : '';
+    var discountLine = '';
+    if (pricing.promoCode) {
+      discountLine = '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
+    } else if (pricing.hotWindow) {
+      var hw = pricing.hotWindow;
+      if (hw.reward_type === 'percent') {
+        discountLine = '<div class="row-line hot-discount"><span>🔥 Горячее окно (−' + Number(hw.discount_percent || 0) + '%)</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
+      } else {
+        discountLine = '<div class="row-line hot-discount"><span>🔥 Горячее окно (подарок: ' + escapeHtml(hw.gift_service_name || 'зона') + ')</span><span>в подарок</span></div>';
+      }
+    }
 
     el.confirmPricing.innerHTML = ''
       + '<div class="row-line"><span>Стоимость</span><span>' + money(pricing.base) + ' ₽</span></div>'
-      + promoLine
+      + discountLine
       + '<div class="row-line total"><span>Итого</span><span>' + money(pricing.final) + ' ₽</span></div>';
 
     el.promoInput.value = state.promoCode;
