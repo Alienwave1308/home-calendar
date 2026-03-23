@@ -23,9 +23,12 @@ function formatBookingTime(iso, timezone) {
 async function sendTelegramMessage(chatId, text) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken || !chatId || !text) {
+    console.warn('[notify] sendTelegramMessage skipped: botToken=%s chatId=%s textLen=%s',
+      botToken ? 'set' : 'MISSING', chatId || 'MISSING', text ? text.length : 0);
     return { ok: false, skipped: true, retryable: false };
   }
   if (typeof fetch !== 'function') {
+    console.warn('[notify] sendTelegramMessage skipped: fetch is not available');
     return { ok: false, skipped: true, retryable: false };
   }
 
@@ -77,10 +80,16 @@ async function loadBookingNotificationData(bookingId) {
 async function notifyMasterBookingEvent(bookingId, eventType) {
   try {
     const data = await loadBookingNotificationData(bookingId);
-    if (!data) return { ok: false, skipped: true, retryable: false };
+    if (!data) {
+      console.warn('[notify] notifyMasterBookingEvent: no booking data for id', bookingId);
+      return { ok: false, skipped: true, retryable: false };
+    }
 
     const masterTelegramId = parseTelegramUserId(data.master_username);
-    if (!masterTelegramId) return { ok: false, skipped: true, retryable: false };
+    if (!masterTelegramId) {
+      console.warn('[notify] notifyMasterBookingEvent: master username not tg_ format:', data.master_username);
+      return { ok: false, skipped: true, retryable: false };
+    }
 
     const clientTelegramId = parseTelegramUserId(data.client_username);
     const actionTitle = eventType === 'created' ? 'Новая запись' : 'Запись обновлена';
@@ -100,7 +109,11 @@ async function notifyMasterBookingEvent(bookingId, eventType) {
       lines.push(`Комментарий: ${data.client_note}`);
     }
 
-    return await sendTelegramMessage(masterTelegramId, lines.join('\n'));
+    const result = await sendTelegramMessage(masterTelegramId, lines.join('\n'));
+    if (!result.ok && !result.skipped) {
+      console.warn('[notify] notifyMasterBookingEvent failed for booking', bookingId, 'chatId', masterTelegramId, result);
+    }
+    return result;
   } catch (error) {
     console.error('Error notifying master booking event:', error);
     return { ok: false, skipped: false, retryable: true };

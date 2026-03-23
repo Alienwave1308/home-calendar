@@ -8,7 +8,7 @@ const { URL: NodeURL } = require('url');
 const { generateSlots } = require('../lib/slots');
 const { DEFAULT_SERVICES, toDescription } = require('../lib/default-services');
 const { createReminders, deleteReminders } = require('../lib/reminders');
-const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
+const { notifyMasterBookingEvent, notifyClientBookingEvent, sendTelegramMessage, parseTelegramUserId } = require('../lib/telegram-notify');
 const { loadMaster, LEAD_PERIODS, normalizeLeadPeriod, buildLeadConversion } = require('./master-shared');
 
 // All master routes require authentication
@@ -221,6 +221,23 @@ router.post('/setup', async (req, res) => {
   } catch (error) {
     console.error('Error creating master profile:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/master/test-notification — send a test Telegram message to the master
+router.post('/test-notification', loadMaster, async (req, res) => {
+  try {
+    const userRes = await pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+    const username = userRes.rows[0]?.username;
+    const chatId = parseTelegramUserId(username);
+    if (!chatId) {
+      return res.status(400).json({ ok: false, reason: 'username_format', username: username || null });
+    }
+    const result = await sendTelegramMessage(chatId, '✅ Тестовое уведомление — бот работает корректно.');
+    return res.json({ ok: result.ok, skipped: result.skipped, chatId });
+  } catch (error) {
+    console.error('test-notification error:', error);
+    return res.status(500).json({ ok: false, error: String(error.message) });
   }
 });
 

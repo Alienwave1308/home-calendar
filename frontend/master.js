@@ -721,6 +721,21 @@
         + '<button class="btn-small btn-cancel" onclick="MasterApp.updateBooking(' + b.id + ',\'canceled\')">Отменить</button>';
     }
 
+    let discountBadge = '';
+    if (b.promo_code) {
+      if (b.promo_reward_type === 'percent' && b.promo_discount_percent) {
+        discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' −' + b.promo_discount_percent + '%</span>';
+      } else if (b.promo_reward_type === 'gift_service') {
+        discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' (подарок)</span>';
+      }
+    } else if (b.hot_window_reward_type) {
+      if (b.hot_window_reward_type === 'percent' && b.hot_window_discount_percent) {
+        discountBadge = '<span class="booking-discount-badge hot">🔥 −' + b.hot_window_discount_percent + '%</span>';
+      } else if (b.hot_window_reward_type === 'gift_service') {
+        discountBadge = '<span class="booking-discount-badge hot">🔥 Подарок</span>';
+      }
+    }
+
     return '<div class="booking-card">'
       + '<div class="booking-card-header">'
       + '<h4>' + escapeHtml(b.service_name || 'Услуга') + '</h4>'
@@ -736,6 +751,15 @@
       + '</div>'
       + '<div class="booking-card-meta">'
       + '<span>' + formatDateTime(b.start_at) + '</span>'
+      + (b.pricing_final != null
+        ? '<span class="booking-price">'
+          + (b.pricing_discount_amount > 0
+            ? '<s>' + b.pricing_base + ' ₽</s> '
+            : '')
+          + '<strong>' + b.pricing_final + ' ₽</strong>'
+          + (discountBadge ? ' ' + discountBadge : '')
+          + '</span>'
+        : (discountBadge ? '<span>' + discountBadge + '</span>' : ''))
       + (b.master_note ? '<span>Комментарий: ' + escapeHtml(b.master_note) + '</span>' : '')
       + '</div>'
       + (actions ? '<div class="booking-card-actions">' + actions + '</div>' : '')
