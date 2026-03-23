@@ -781,9 +781,9 @@
           + (b.pricing_discount_amount > 0
             && b.promo_reward_type !== 'gift_service'
             && b.hot_window_reward_type !== 'gift_service'
-            ? '<s>' + b.pricing_base + ' ₽</s> '
+            ? '<s>' + formatMoney(b.pricing_base) + '</s> '
             : '')
-          + '<strong>' + b.pricing_final + ' ₽</strong>'
+          + '<strong>' + formatMoney(b.pricing_final) + '</strong>'
           + (discountBadge ? ' ' + discountBadge : '')
           + '</span>'
         : (discountBadge ? '<span>' + discountBadge + '</span>' : ''))
