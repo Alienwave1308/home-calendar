@@ -29,10 +29,37 @@
 
   if (hasVkSession) {
     try {
-      window.vkBridge.send('VKWebAppInit');
-    } catch (error) {
-      void error;
+      if (hasTelegramSession) {
+        let res = await fetch(API_BASE + '/auth/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: tg.initData })
+        });
+        if (res.ok) {
+          let data = await res.json();
+          if (data.token) { localStorage.setItem('token', data.token); return true; }
+        }
+        let errData = await res.json().catch(function () { return {}; });
+        throw new Error(errData.error || 'Ошибка авторизации Telegram (' + res.status + ')');
+      }
+
+      if (hasVkSession) {
+        let res = await fetch(API_BASE + '/auth/vk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ launchParams: window.location.search.slice(1) })
+        });
+        if (res.ok) {
+          let data = await res.json();
+          if (data.token) { localStorage.setItem('token', data.token); return true; }
+        }
+        let errData = await res.json().catch(function () { return {}; });
+        throw new Error(errData.error || 'Ошибка авторизации ВКонтакте (' + res.status + ')');
+      }
+    } catch (e) {
+      throw e;
     }
+    return false;
   }
 
   function normalizeOrigin(value) {
@@ -1387,6 +1414,87 @@
         openTab(btn.getAttribute('data-tab'));
       });
     });
+
+  // === MY BOOKINGS ===
+
+  let STATUS_LABELS = {
+    pending: 'Ожидает',
+    confirmed: 'Запланировано',
+    completed: 'Выполнено',
+    canceled: 'Отменено'
+  };
+
+  async function showMyBookings() {
+    showStep('stepMyBookings');
+    $('myBookingsList').innerHTML = renderServiceSkeletons();
+    $('myBookingsEmpty').style.display = 'none';
+
+    try {
+      if (!localStorage.getItem('token')) {
+        await initAuth();
+      }
+      let bookings = await apiFetch('/client/bookings');
+
+      if (!bookings.length) {
+        $('myBookingsList').innerHTML = '';
+        $('myBookingsEmpty').style.display = '';
+        return;
+      }
+
+      let html = '';
+      bookings.forEach(function (b) {
+        let tz = b.master_timezone || (master && master.timezone) || 'Asia/Novosibirsk';
+        let startDate = new Date(b.start_at);
+        let dateStr = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, day: '2-digit', month: 'short' }).format(startDate);
+        let timeStr = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(startDate);
+        let endTimeStr = b.end_at ? new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(b.end_at)) : '';
+
+        let statusClass = b.status || 'pending';
+        let statusLabel = STATUS_LABELS[b.status] || b.status;
+
+        const canExport = b.status !== 'canceled';
+        const canManage = b.status === 'confirmed' || b.status === 'pending';
+        let actions = '';
+        if (canExport || canManage) {
+          actions = '<div class="my-booking-actions">'
+            + (canExport
+              ? '<button class="btn-secondary" onclick="BookingApp.exportBookingToGoogle(' + b.id + ')">Экспорт в Google Calendar</button>'
+                + '<button class="btn-secondary" onclick="BookingApp.exportBookingToApple(' + b.id + ')">Экспорт в Apple Calendar (.ics)</button>'
+              : '')
+            + (canManage
+              ? '<button class="btn-secondary" onclick="BookingApp.startReschedule(' + b.id + ')">Перенести запись</button>'
+                + '<button class="btn-secondary btn-cancel-booking" onclick="BookingApp.cancelBooking(' + b.id + ')">Отменить запись</button>'
+              : '')
+            + '</div>';
+        }
+
+        html += '<div class="my-booking-card">'
+          + '<div class="my-booking-header">'
+          + '<strong>' + escapeHtml(b.service_name || 'Услуга') + '</strong>'
+          + '<span class="booking-status-badge ' + statusClass + '">' + statusLabel + '</span>'
+          + '</div>'
+          + '<div class="my-booking-meta">'
+          + '<span>' + dateStr + ', ' + timeStr + (endTimeStr ? ' — ' + endTimeStr : '') + '</span>'
+          + (b.service_price !== null && b.service_price !== undefined
+            ? '<span class="my-booking-price">Стоимость: '
+              + (b.discount_percent > 0
+                ? '<s>' + formatPriceRub(b.service_price) + ' ₽</s> → ' + formatPriceRub(b.final_price) + ' ₽ (скидка ' + b.discount_percent + '%)'
+                : formatPriceRub(b.final_price) + ' ₽')
+              + '</span>'
+            : '')
+          + '</div>'
+          + actions
+          + '</div>';
+      });
+      $('myBookingsList').innerHTML = html;
+    } catch (err) {
+      $('myBookingsList').innerHTML = '';
+      if (err.message && (err.message.includes('No token') || err.message.includes('Access denied') || err.message.includes('авторизации'))) {
+        showToast('Не удалось войти. Закройте и откройте приложение заново.');
+      } else {
+        showToast('Ошибка загрузки записей: ' + err.message);
+      }
+    }
   }
 
   async function loadMaster() {
@@ -1453,12 +1561,10 @@
   bind();
 
   if (slug) {
-    initAuth()
-      .then(function () { return loadMaster(); })
-      .catch(function (error) {
-        showToast('Ошибка авторизации: ' + error.message);
-        loadMaster();
-      });
+    initAuth().then(function () { loadMaster(); }).catch(function (err) {
+      showToast('Ошибка авторизации: ' + err.message);
+      loadMaster();
+    });
   } else {
     showToast('Некорректная ссылка для записи');
   }
