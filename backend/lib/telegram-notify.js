@@ -23,14 +23,18 @@ function formatBookingTime(iso, timezone) {
 async function sendTelegramMessage(chatId, text) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken || !chatId || !text) {
+    console.warn('[notify] sendTelegramMessage skipped: botToken=%s chatId=%s textLen=%s',
+      botToken ? 'set' : 'MISSING', chatId || 'MISSING', text ? text.length : 0);
     return { ok: false, skipped: true, retryable: false };
   }
   if (typeof fetch !== 'function') {
+    console.warn('[notify] sendTelegramMessage skipped: fetch is not available');
     return { ok: false, skipped: true, retryable: false };
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const apiBase = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
+    const response = await fetch(`${apiBase}/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -42,12 +46,12 @@ async function sendTelegramMessage(chatId, text) {
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       console.error('Telegram sendMessage failed:', response.status, body);
-      return { ok: false, skipped: false, retryable: response.status >= 500 };
+      return { ok: false, skipped: false, retryable: response.status >= 500, status: response.status, tgError: body };
     }
     return { ok: true, skipped: false, retryable: false };
   } catch (error) {
     console.error('Telegram sendMessage error:', error);
-    return { ok: false, skipped: false, retryable: true };
+    return { ok: false, skipped: false, retryable: true, tgError: 'network: ' + String(error.message) };
   }
 }
 
@@ -77,10 +81,16 @@ async function loadBookingNotificationData(bookingId) {
 async function notifyMasterBookingEvent(bookingId, eventType) {
   try {
     const data = await loadBookingNotificationData(bookingId);
-    if (!data) return { ok: false, skipped: true, retryable: false };
+    if (!data) {
+      console.warn('[notify] notifyMasterBookingEvent: no booking data for id', bookingId);
+      return { ok: false, skipped: true, retryable: false };
+    }
 
     const masterTelegramId = parseTelegramUserId(data.master_username);
-    if (!masterTelegramId) return { ok: false, skipped: true, retryable: false };
+    if (!masterTelegramId) {
+      console.warn('[notify] notifyMasterBookingEvent: master username not tg_ format:', data.master_username);
+      return { ok: false, skipped: true, retryable: false };
+    }
 
     const clientTelegramId = parseTelegramUserId(data.client_username);
     const actionTitle = eventType === 'created' ? 'Новая запись' : 'Запись обновлена';
@@ -100,7 +110,11 @@ async function notifyMasterBookingEvent(bookingId, eventType) {
       lines.push(`Комментарий: ${data.client_note}`);
     }
 
-    return await sendTelegramMessage(masterTelegramId, lines.join('\n'));
+    const result = await sendTelegramMessage(masterTelegramId, lines.join('\n'));
+    if (!result.ok && !result.skipped) {
+      console.warn('[notify] notifyMasterBookingEvent failed for booking', bookingId, 'chatId', masterTelegramId, result);
+    }
+    return result;
   } catch (error) {
     console.error('Error notifying master booking event:', error);
     return { ok: false, skipped: false, retryable: true };
@@ -137,8 +151,9 @@ async function notifyClientBookingEvent(bookingId, eventType) {
     if (!clientTelegramId) return { ok: false, skipped: true, retryable: false };
 
     const isCanceled = eventType === 'canceled';
+    const isCreated = eventType === 'created';
     const lines = [
-      isCanceled ? '❌ Ваша запись отменена мастером' : '✏️ Ваша запись была изменена мастером',
+      isCanceled ? '❌ Ваша запись отменена мастером' : isCreated ? '✅ Вы записаны!' : '✏️ Ваша запись была изменена мастером',
       `Услуга: ${data.service_name}`,
       `Адрес: ${SALON_ADDRESS}`,
       `Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)} (${data.master_timezone || 'Asia/Novosibirsk'})`,

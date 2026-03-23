@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>RoVa Epil — Clickable Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-0: #f5fff9;
+      --bg-1: #ebf8f0;
+      --bg-2: #e1f3e8;
+      --surface: rgba(255, 255, 255, 0.8);
+      --surface-strong: rgba(255, 255, 255, 0.92);
+      --line: rgba(34, 129, 84, 0.24);
+      --line-strong: rgba(22, 119, 76, 0.45);
+      --primary: #2f9f68;
+      --primary-strong: #1f8c5a;
+      --neon: #1cc88a;
+      --accent: #17b891;
+      --text: #153126;
+      --text-soft: #5b7a6f;
+      --danger: #de5b70;
+      --radius-xl: 32px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --shadow-phone: 0 30px 64px rgba(18, 78, 50, 0.2);
+      --shadow-card: 0 14px 28px rgba(24, 94, 62, 0.14);
+      --shadow-soft: 0 8px 16px rgba(24, 94, 62, 0.1);
+      --shadow-lift: 0 12px 20px rgba(28, 111, 73, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1150px 620px at -8% -16%, #d4f5e2 0%, transparent 58%),
+        radial-gradient(980px 680px at 108% -6%, #d2f0df 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 56%, var(--bg-2) 100%);
+      padding: 24px 18px 96px;
+      overflow-x: hidden;
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -2;
+      opacity: 0.1;
+      background-image: radial-gradient(rgba(31, 124, 82, 0.28) 0.5px, transparent 0.5px);
+      background-size: 3px 3px;
+    }
+
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(34px);
+      pointer-events: none;
+      z-index: -1;
+      animation: drift 12s ease-in-out infinite;
+    }
+
+    .orb.a {
+      width: 240px;
+      height: 240px;
+      background: rgba(35, 186, 127, 0.17);
+      top: 8%;
+      left: -60px;
+    }
+
+    .orb.b {
+      width: 310px;
+      height: 310px;
+      background: rgba(39, 168, 131, 0.14);
+      top: 2%;
+      right: -100px;
+      animation-delay: 2.4s;
+    }
+
+    .orb.c {
+      width: 260px;
+      height: 260px;
+      background: rgba(48, 145, 104, 0.12);
+      bottom: -110px;
+      right: 16%;
+      animation-delay: 5s;
+    }
+
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      gap: 22px;
+      grid-template-columns: minmax(320px, 420px) minmax(300px, 1fr);
+      align-items: start;
+    }
+
+    .phone {
+      position: sticky;
+      top: 14px;
+      border-radius: var(--radius-xl);
+      border: 1px solid #cde8da;
+      background: linear-gradient(180deg, #eef9f2 0%, #e5f4eb 100%);
+      overflow: hidden;
+      box-shadow: var(--shadow-phone);
+      isolation: isolate;
+      min-height: 790px;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 24%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .statusbar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px 4px;
+      color: #5d7a6d;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .app-header {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 36px 1fr 36px;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px 10px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      border: 1px solid #cbe3d5;
+      background: rgba(255, 255, 255, 0.82);
+      color: #2f6f54;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: all 0.15s ease;
+    }
+
+    .icon-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 14px rgba(34, 114, 75, 0.16);
+    }
+
+    .icon-btn:disabled {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .header-title {
+      margin: 0;
+      text-align: center;
+      font-family: "Manrope", sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .header-sub {
+      margin: 2px 0 0;
+      text-align: center;
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .app-body {
+      position: relative;
+      z-index: 1;
+      padding: 0 12px 94px;
+      min-height: 680px;
+    }
+
+    .screen {
+      display: none;
+      animation: screenIn 240ms ease;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .card {
+      border: 1px solid rgba(255, 255, 255, 0.88);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow-card);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .brand-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #295746;
+    }
+
+    .pulse {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(30, 140, 92, 0.24);
+      background: rgba(43, 161, 108, 0.12);
+      color: #217549;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+    }
+
+    .pulse i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 0 0 rgba(28, 200, 138, 0.65);
+      animation: ping 2s infinite;
+    }
+
+    .sub {
+      margin: 2px 0 0;
+      font-size: 13px;
+      color: #688579;
+      font-weight: 600;
+    }
+
+    .master {
+      margin: 1px 0 0;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+      font-weight: 700;
+    }
+
+    .gift {
+      margin-bottom: 10px;
+      border-radius: var(--radius-md);
+      padding: 11px 12px;
+      border: 1px solid var(--line-strong);
+      background:
+        linear-gradient(white, white) padding-box,
+        linear-gradient(115deg, rgba(60, 188, 130, 0.25), rgba(23, 184, 145, 0.24)) border-box;
+      color: #31584a;
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .gift a {
+      color: #177a4a;
+      font-weight: 800;
+      text-underline-offset: 2px;
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+
+    .seg button {
+      min-height: 37px;
+      border-radius: 12px;
+      border: 1px solid #cce5d8;
+      background: rgba(255, 255, 255, 0.78);
+      color: #4e7061;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+
+    .seg button.active {
+      color: #1b6f45;
+      border-color: #88cdae;
+      background: linear-gradient(130deg, #ebf9f1 0%, #dcf1e5 100%);
+      box-shadow: 0 8px 14px rgba(42, 134, 90, 0.14);
+    }
+
+    .services-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .service-card {
+      border-radius: 16px;
+      border: 1px solid #d0e8db;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.84) 0%, rgba(248, 255, 251, 0.92) 100%);
+      box-shadow: var(--shadow-soft);
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+
+    .service-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lift);
+    }
+
+    .service-card.selected {
+      border-color: rgba(22, 126, 82, 0.5);
+      box-shadow: 0 10px 20px rgba(28, 123, 82, 0.22);
+      background:
+        linear-gradient(white, white) padding-box,
+        linear-gradient(120deg, rgba(47, 159, 104, 0.18), rgba(23, 184, 145, 0.2)) border-box;
+      border: 1px solid transparent;
+    }
+
+    .service-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .service-name {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      max-width: 228px;
+    }
+
+    .price {
+      font-family: "Manrope", sans-serif;
+      color: #1f7d4d;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+    }
+
+    .meta {
+      margin-top: 5px;
+      font-size: 12px;
+      color: #6a897c;
+      font-weight: 600;
+    }
+
+    .badge-row {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      border-radius: 999px;
+      border: 1px solid #c8e3d4;
+      background: #ebf8f0;
+      color: #3f6758;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+    }
+
+    .calendar {
+      border-radius: var(--radius-lg);
+      border: 1px solid #cfe7da;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: var(--shadow-soft);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .calendar-head {
+      display: grid;
+      grid-template-columns: 34px 1fr 34px;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .cal-nav {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid #c9e3d5;
+      background: #f4fcf7;
+      color: #2f7255;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .cal-nav:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 12px rgba(37, 120, 79, 0.16);
+    }
+
+    .cal-nav:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .cal-title {
+      margin: 0;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .cal-sub {
+      margin: 2px 0 0;
+      text-align: center;
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .weekdays,
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .weekday {
+      text-align: center;
+      color: #6b8a7d;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding-bottom: 2px;
+    }
+
+    .day-empty {
+      height: 42px;
+    }
+
+    .day {
+      min-height: 42px;
+      border: 1px solid #d3e8dc;
+      border-radius: 12px;
+      background: #f9fefb;
+      color: #3f6657;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      position: relative;
+      transition: all 0.16s ease;
+    }
+
+    .day:hover:not(.disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 10px rgba(37, 120, 79, 0.14);
+    }
+
+    .day.available::after {
+      content: "";
+      position: absolute;
+      bottom: 5px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 5px rgba(23, 184, 145, 0.15);
+    }
+
+    .day.selected {
+      background: linear-gradient(130deg, #2f9f68 0%, #1db093 100%);
+      border-color: rgba(22, 115, 72, 0.55);
+      color: #fff;
+      box-shadow: 0 10px 16px rgba(28, 123, 82, 0.32);
+    }
+
+    .day.selected::after {
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3);
+    }
+
+    .day.disabled {
+      opacity: 0.42;
+      cursor: default;
+      background: #f4f8f6;
+    }
+
+    .slots {
+      border-radius: var(--radius-lg);
+      border: 1px solid #d0e6db;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: var(--shadow-soft);
+      padding: 12px;
+    }
+
+    .slots-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .slots-head h3 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .slots-badge {
+      border-radius: 999px;
+      border: 1px solid #c7e5d6;
+      background: #edf9f2;
+      color: #2a6f50;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+    }
+
+    .slots-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .slot-chip {
+      border-radius: 999px;
+      border: 1px solid #bddfcf;
+      background: #eaf8f1;
+      color: #326c53;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+
+    .slot-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 10px rgba(26, 109, 70, 0.14);
+    }
+
+    .slot-chip.active {
+      border-color: rgba(22, 118, 75, 0.5);
+      background: linear-gradient(120deg, #2f9f68 0%, #1db093 100%);
+      color: #fff;
+      box-shadow: 0 8px 14px rgba(27, 113, 74, 0.26);
+    }
+
+    .slots-empty {
+      margin: 0;
+      color: #688578;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .confirm-group {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .row-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #45695a;
+      font-weight: 600;
+    }
+
+    .row-line strong {
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .row-line.total {
+      border-top: 1px dashed #cde5d8;
+      padding-top: 8px;
+      margin-top: 2px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e6f45;
+    }
+
+    .input,
+    .textarea {
+      width: 100%;
+      border: 1px solid #cae3d6;
+      border-radius: 12px;
+      padding: 10px 11px;
+      font-family: inherit;
+      font-size: 13px;
+      background: #f9fefb;
+      color: var(--text);
+      outline: none;
+      transition: all 0.15s ease;
+    }
+
+    .input:focus,
+    .textarea:focus {
+      border-color: rgba(26, 128, 82, 0.6);
+      box-shadow: 0 0 0 4px rgba(32, 153, 102, 0.14);
+      background: #fff;
+    }
+
+    .textarea {
+      resize: vertical;
+      min-height: 78px;
+      max-height: 140px;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border-radius: 12px;
+      border: 1px solid #cbe5d7;
+      background: #f7fef9;
+      color: #306251;
+      padding: 10px 11px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 14px rgba(26, 109, 70, 0.15);
+    }
+
+    .btn.primary {
+      border-color: rgba(30, 124, 82, 0.44);
+      background: linear-gradient(120deg, #2f9f68 0%, #1db093 100%);
+      color: #fff;
+      box-shadow: 0 8px 16px rgba(32, 123, 84, 0.24);
+    }
+
+    .btn.danger {
+      border-color: rgba(186, 85, 108, 0.45);
+      background: rgba(253, 240, 243, 0.85);
+      color: #a7435a;
+    }
+
+    .booking-item {
+      border-radius: 14px;
+      border: 1px solid #d0e7db;
+      background: #f9fefb;
+      padding: 11px;
+      margin-bottom: 8px;
+    }
+
+    .booking-item.cancelled {
+      opacity: 0.68;
+    }
+
+    .booking-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+      margin-bottom: 5px;
+    }
+
+    .booking-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .booking-status {
+      border-radius: 999px;
+      border: 1px solid #c8e3d4;
+      background: #ebf8f0;
+      color: #2f6c52;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .booking-status.cancelled {
+      border-color: rgba(186, 85, 108, 0.3);
+      background: rgba(253, 240, 243, 0.85);
+      color: #a7435a;
+    }
+
+    .booking-meta {
+      margin: 0;
+      font-size: 12px;
+      color: #668579;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .booking-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .booking-actions .btn {
+      padding: 7px 8px;
+      font-size: 12px;
+    }
+
+    .dock {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 58px;
+      z-index: 2;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.34);
+      background: linear-gradient(100deg, #2f9f68 0%, #1db093 100%);
+      color: #fff;
+      padding: 12px;
+    }
+
+    .dock.visible {
+      display: flex;
+    }
+
+    .dock strong {
+      display: block;
+      font-family: "Manrope", sans-serif;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .dock small {
+      display: block;
+      margin-top: 2px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .dock button {
+      min-width: 120px;
+      border: 0;
+      border-radius: 12px;
+      background: #fff;
+      color: #1c7b4a;
+      padding: 11px 14px;
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 8px 16px rgba(18, 65, 44, 0.3);
+      cursor: pointer;
+    }
+
+    .bottom-nav {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      z-index: 3;
+      border-radius: 14px;
+      border: 1px solid #cde6d9;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 14px rgba(34, 105, 72, 0.12);
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+      padding: 4px;
+    }
+
+    .tab-btn {
+      border: 0;
+      background: transparent;
+      border-radius: 11px;
+      padding: 8px 6px;
+      font-size: 11px;
+      color: #5a796d;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(120deg, #2f9f68 0%, #1db093 100%);
+      color: #fff;
+      box-shadow: 0 8px 14px rgba(31, 115, 76, 0.24);
+    }
+
+    .panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .panel-card {
+      border-radius: 22px;
+      border: 1px solid #d4eadc;
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-card);
+      padding: 16px;
+    }
+
+    .panel h2,
+    .panel h3 {
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    .panel h2 {
+      font-size: 24px;
+    }
+
+    .panel h3 {
+      font-size: 17px;
+      margin-bottom: 8px;
+    }
+
+    .panel p {
+      margin: 8px 0 0;
+      color: #496d5e;
+      font-size: 14px;
+      line-height: 1.56;
+    }
+
+    .kpi-grid {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kpi {
+      border-radius: 12px;
+      border: 1px solid #d6eadf;
+      background: #f9fffb;
+      padding: 10px;
+    }
+
+    .kpi p {
+      margin: 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #5e7e72;
+      font-weight: 700;
+    }
+
+    .kpi strong {
+      display: block;
+      margin-top: 6px;
+      font-family: "Manrope", sans-serif;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      color: #1f7449;
+    }
+
+    .toast {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 70px;
+      z-index: 4;
+      border-radius: 12px;
+      border: 1px solid rgba(27, 114, 74, 0.38);
+      background: rgba(245, 255, 250, 0.92);
+      color: #2f6d53;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 10px 11px;
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: all 0.22s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes ping {
+      70% {
+        box-shadow: 0 0 0 9px rgba(28, 200, 138, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(28, 200, 138, 0);
+      }
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(8px, -10px); }
+    }
+
+    @keyframes screenIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 980px) {
+      body {
+        padding: 18px 12px 92px;
+      }
+
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        position: relative;
+        top: auto;
+        max-width: 420px;
+        margin: 0 auto;
+      }
+
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+  <div class="orb c"></div>
+
+  <main class="shell">
+    <article class="phone" aria-label="Кликабельный мокап приложения">
+      <div class="statusbar">
+        <span>07:45</span>
+        <span>5G ••••</span>
+      </div>
+
+      <header class="app-header">
+        <button id="headerBack" class="icon-btn" aria-label="Назад">‹</button>
+        <div>
+          <p id="headerTitle" class="header-title">Запись</p>
+          <p id="headerSub" class="header-sub">RoVa Epil</p>
+        </div>
+        <button id="headerMore" class="icon-btn" aria-label="Меню">⋯</button>
+      </header>
+
+      <div class="app-body">
+        <section id="screen-services" class="screen active">
+          <section class="card">
+            <div class="brand-top">
+              <p class="brand">RoVa</p>
+              <span class="pulse"><i></i>online</span>
+            </div>
+            <p class="sub">Epil &amp; Care</p>
+            <p class="master">Лера</p>
+          </section>
+
+          <section class="gift">
+            Подарок от меня на первое посещение по ссылке:
+            <a href="https://vk.cc/cVmuLI" target="_blank" rel="noopener noreferrer">vk.cc/cVmuLI</a>
+          </section>
+
+          <div id="methodTabs" class="seg"></div>
+          <div id="categoryTabs" class="seg"></div>
+
+          <div id="servicesList" class="services-list"></div>
+        </section>
+
+        <section id="screen-calendar" class="screen">
+          <section class="card" style="padding:10px 12px;">
+            <div class="row-line"><strong id="calendarServiceTitle">Услуги</strong><span id="calendarServiceMeta">0 мин · 0 ₽</span></div>
+          </section>
+
+          <section class="calendar">
+            <div class="calendar-head">
+              <button id="calPrev" class="cal-nav" aria-label="Предыдущий месяц">‹</button>
+              <div>
+                <p id="calMonth" class="cal-title">Месяц</p>
+                <p class="cal-sub">доступно на 30 дней вперед</p>
+              </div>
+              <button id="calNext" class="cal-nav" aria-label="Следующий месяц">›</button>
+            </div>
+            <div class="weekdays">
+              <div class="weekday">Пн</div><div class="weekday">Вт</div><div class="weekday">Ср</div>
+              <div class="weekday">Чт</div><div class="weekday">Пт</div><div class="weekday">Сб</div><div class="weekday">Вс</div>
+            </div>
+            <div id="calGrid" class="calendar-grid"></div>
+          </section>
+
+          <section class="slots">
+            <div class="slots-head">
+              <h3 id="slotsDate">Выберите дату</h3>
+              <span id="slotsBadge" class="slots-badge">0 слотов</span>
+            </div>
+            <div id="slotsWrap" class="slots-wrap"></div>
+          </section>
+        </section>
+
+        <section id="screen-confirm" class="screen">
+          <section class="card">
+            <div id="confirmServices" class="confirm-group"></div>
+            <div id="confirmPricing" class="confirm-group"></div>
+          </section>
+
+          <section class="card">
+            <div class="confirm-group">
+              <label for="promoInput" class="meta" style="margin:0;">Промокод</label>
+              <div class="btn-row" style="grid-template-columns:1fr auto;">
+                <input id="promoInput" class="input" placeholder="Например, SAVE10 или GIFTLEG" maxlength="64">
+                <button id="promoApply" class="btn">Применить</button>
+              </div>
+              <p id="promoHint" class="meta" style="margin:0;">Демо-коды: SAVE10, GIFTLEG</p>
+            </div>
+
+            <div class="confirm-group" style="margin-top:8px;">
+              <label for="noteInput" class="meta" style="margin:0;">Комментарий к записи</label>
+              <textarea id="noteInput" class="textarea" placeholder="Можно оставить пожелания"></textarea>
+            </div>
+
+            <div class="btn-row">
+              <button id="confirmBack" class="btn">Назад</button>
+              <button id="confirmSubmit" class="btn primary">Подтвердить</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="screen-done" class="screen">
+          <section class="card" style="text-align:center;">
+            <p style="margin:0;font-size:40px;line-height:1;">✓</p>
+            <h3 style="margin:8px 0 4px;">Запись оформлена</h3>
+            <p id="doneText" class="meta" style="margin:0 auto;max-width:260px;"></p>
+          </section>
+
+          <section class="card">
+            <div class="btn-row">
+              <button id="doneNew" class="btn">Новая запись</button>
+              <button id="doneBookings" class="btn primary">Мои записи</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="screen-bookings" class="screen">
+          <section class="card">
+            <div class="row-line"><strong>Мои записи</strong><span id="bookingsCount">0</span></div>
+          </section>
+          <div id="bookingsList"></div>
+        </section>
+
+      </div>
+
+      <div id="dock" class="dock">
+        <div>
+          <strong id="dockTitle">0 услуг</strong>
+          <small id="dockInfo">Выберите услугу</small>
+        </div>
+        <button id="dockAction">Далее →</button>
+      </div>
+
+      <div class="bottom-nav">
+        <button class="tab-btn active" data-tab="services">Запись</button>
+        <button class="tab-btn" data-tab="bookings">Мои</button>
+      </div>
+
+      <div id="toast" class="toast"></div>
+    </article>
+
+    <aside class="panel">
+      <section class="panel-card">
+        <h2>Полностью кликабельный прототип</h2>
+        <p>Можно протыкать полный пользовательский путь: выбор услуг, календарь на месяц вперед, выбор времени, применение промокода, подтверждение, просмотр/отмена/перенос записи.</p>
+        <div class="kpi-grid">
+          <div class="kpi"><p>Экраны</p><strong>5</strong></div>
+          <div class="kpi"><p>Переходы</p><strong>20+</strong></div>
+          <div class="kpi"><p>Промокоды</p><strong>2</strong></div>
+          <div class="kpi"><p>Диапазон</p><strong>30 дней</strong></div>
+        </div>
+      </section>
+
+      <section class="panel-card">
+        <h3>Что можно проверить</h3>
+        <p>1) мультивыбор услуг, 2) фильтры по методу/категории, 3) календарь и слоты, 4) промокоды `SAVE10`/`GIFTLEG`, 5) карточки в "Мои записи", 6) перенос и отмена.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    (function () {
+      var monthNames = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+      var monthNamesGen = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+      var catalog = [
+        { id: 1, name: 'Сахар: Глубокое бикини + голень', method: 'sugar', category: 'complex', duration: 75, price: 1500, top: true },
+        { id: 2, name: 'Сахар: Ноги полностью + бикини классика', method: 'sugar', category: 'complex', duration: 105, price: 2200 },
+        { id: 3, name: 'Сахар: Подмышечные впадины', method: 'sugar', category: 'zone', duration: 20, price: 450 },
+        { id: 4, name: 'Сахар: Глубокое бикини', method: 'sugar', category: 'zone', duration: 35, price: 900 },
+        { id: 5, name: 'Воск: Ноги полностью', method: 'wax', category: 'zone', duration: 60, price: 2000 },
+        { id: 6, name: 'Воск: Руки полностью', method: 'wax', category: 'zone', duration: 40, price: 1200 },
+        { id: 7, name: 'Воск: Комплекс Lite', method: 'wax', category: 'complex', duration: 70, price: 1700 }
+      ];
+
+      var promoRules = {
+        SAVE10: { type: 'percent', percent: 10 },
+        GIFTLEG: { type: 'gift', service: { id: 99, name: 'Подарок: Сахар Голень', duration: 25, price: 700 } }
+      };
+
+      var state = {
+        tab: 'services',
+        flowScreen: 'services',
+        method: 'all',
+        category: 'all',
+        selectedServiceIds: [],
+        currentMonth: null,
+        selectedDate: null,
+        selectedSlot: null,
+        selectedSlotLabel: '',
+        promoCode: '',
+        promo: null,
+        note: '',
+        editingBookingId: null,
+        bookings: []
+      };
+
+      var screenStack = ['services'];
+
+      var el = {
+        headerBack: document.getElementById('headerBack'),
+        headerMore: document.getElementById('headerMore'),
+        headerTitle: document.getElementById('headerTitle'),
+        headerSub: document.getElementById('headerSub'),
+        screens: {
+          services: document.getElementById('screen-services'),
+          calendar: document.getElementById('screen-calendar'),
+          confirm: document.getElementById('screen-confirm'),
+          done: document.getElementById('screen-done'),
+          bookings: document.getElementById('screen-bookings')
+        },
+        methodTabs: document.getElementById('methodTabs'),
+        categoryTabs: document.getElementById('categoryTabs'),
+        servicesList: document.getElementById('servicesList'),
+        calPrev: document.getElementById('calPrev'),
+        calNext: document.getElementById('calNext'),
+        calMonth: document.getElementById('calMonth'),
+        calGrid: document.getElementById('calGrid'),
+        slotsDate: document.getElementById('slotsDate'),
+        slotsBadge: document.getElementById('slotsBadge'),
+        slotsWrap: document.getElementById('slotsWrap'),
+        calendarServiceTitle: document.getElementById('calendarServiceTitle'),
+        calendarServiceMeta: document.getElementById('calendarServiceMeta'),
+        confirmServices: document.getElementById('confirmServices'),
+        confirmPricing: document.getElementById('confirmPricing'),
+        promoInput: document.getElementById('promoInput'),
+        promoApply: document.getElementById('promoApply'),
+        promoHint: document.getElementById('promoHint'),
+        noteInput: document.getElementById('noteInput'),
+        confirmBack: document.getElementById('confirmBack'),
+        confirmSubmit: document.getElementById('confirmSubmit'),
+        doneText: document.getElementById('doneText'),
+        doneNew: document.getElementById('doneNew'),
+        doneBookings: document.getElementById('doneBookings'),
+        bookingsCount: document.getElementById('bookingsCount'),
+        bookingsList: document.getElementById('bookingsList'),
+        dock: document.getElementById('dock'),
+        dockTitle: document.getElementById('dockTitle'),
+        dockInfo: document.getElementById('dockInfo'),
+        dockAction: document.getElementById('dockAction'),
+        tabButtons: Array.prototype.slice.call(document.querySelectorAll('.tab-btn')),
+        toast: document.getElementById('toast')
+      };
+
+      var dayStart = startOfDay(new Date());
+      var dayEnd = startOfDay(new Date());
+      dayEnd.setDate(dayEnd.getDate() + 30);
+
+      var slotsMap = new Map();
+      var cursor = new Date(dayStart);
+      while (cursor.getTime() <= dayEnd.getTime()) {
+        slotsMap.set(dateKey(cursor), generateSlots(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      if (!slotsMap.get(dateKey(dayStart)).length) {
+        slotsMap.set(dateKey(dayStart), ['12:40', '15:20', '18:20']);
+      }
+
+      seedBookings();
+      state.currentMonth = new Date(dayStart.getFullYear(), dayStart.getMonth(), 1);
+      state.selectedDate = new Date(dayStart);
+      state.selectedSlotLabel = '';
+
+      bind();
+      renderAll();
+
+      function bind() {
+        el.headerBack.addEventListener('click', goBack);
+        el.headerMore.addEventListener('click', function () { toast('Это демо-мокап. Меню не подключено.'); });
+
+        el.calPrev.addEventListener('click', function () {
+          if (el.calPrev.disabled) return;
+          state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() - 1, 1);
+          renderCalendar();
+        });
+
+        el.calNext.addEventListener('click', function () {
+          if (el.calNext.disabled) return;
+          state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + 1, 1);
+          renderCalendar();
+        });
+
+        el.promoApply.addEventListener('click', applyPromo);
+        el.confirmBack.addEventListener('click', function () { setFlow('calendar'); });
+        el.confirmSubmit.addEventListener('click', confirmBooking);
+        el.doneNew.addEventListener('click', resetFlow);
+        el.doneBookings.addEventListener('click', function () { openTab('bookings'); });
+
+        el.promoInput.addEventListener('input', function () {
+          state.promoCode = String(el.promoInput.value || '').trim().toUpperCase();
+          if (!state.promoCode) {
+            state.promo = null;
+            renderConfirm();
+          }
+        });
+
+        el.noteInput.addEventListener('input', function () {
+          state.note = el.noteInput.value.trim();
+        });
+
+        el.dockAction.addEventListener('click', function () {
+          if (state.flowScreen === 'services') {
+            if (!state.selectedServiceIds.length) {
+              toast('Выберите хотя бы одну услугу');
+              return;
+            }
+            setFlow('calendar');
+          } else if (state.flowScreen === 'calendar') {
+            if (!state.selectedDate || !state.selectedSlot) {
+              toast('Выберите дату и время');
+              return;
+            }
+            setFlow('confirm');
+          }
+        });
+
+        el.tabButtons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            openTab(btn.getAttribute('data-tab'));
+          });
+        });
+      }
+
+      function renderAll() {
+        renderTabs();
+        renderMethodTabs();
+        renderCategoryTabs();
+        renderServices();
+        renderCalendar();
+        renderSlots();
+        renderConfirm();
+        renderBookings();
+        renderHeader();
+        renderDock();
+        renderScreens();
+      }
+
+      function openTab(tab) {
+        state.tab = tab;
+        if (tab === 'services') {
+          state.flowScreen = screenStack[screenStack.length - 1] || 'services';
+        }
+        renderTabs();
+        renderHeader();
+        renderScreens();
+        renderDock();
+      }
+
+      function setFlow(screen) {
+        state.tab = 'services';
+        if (screen === 'services') {
+          screenStack = ['services'];
+        } else {
+          var idx = screenStack.indexOf(screen);
+          if (idx !== -1) {
+            screenStack = screenStack.slice(0, idx + 1);
+          } else {
+            screenStack.push(screen);
+          }
+        }
+        state.flowScreen = screen;
+        if (screen === 'confirm') renderConfirm();
+        renderTabs();
+        renderHeader();
+        renderScreens();
+        renderDock();
+      }
+
+      function goBack() {
+        if (state.tab !== 'services') {
+          openTab('services');
+          return;
+        }
+        if (screenStack.length > 1) {
+          screenStack.pop();
+          state.flowScreen = screenStack[screenStack.length - 1];
+          renderHeader();
+          renderScreens();
+          renderDock();
+        }
+      }
+
+      function renderTabs() {
+        el.tabButtons.forEach(function (btn) {
+          var tab = btn.getAttribute('data-tab');
+          btn.classList.toggle('active', state.tab === tab);
+        });
+      }
+
+      function renderScreens() {
+        Object.keys(el.screens).forEach(function (key) {
+          el.screens[key].classList.remove('active');
+        });
+        if (state.tab === 'services') {
+          el.screens[state.flowScreen].classList.add('active');
+        } else {
+          el.screens[state.tab].classList.add('active');
+        }
+      }
+
+      function renderHeader() {
+        var title = 'Запись';
+        var sub = 'RoVa Epil';
+        var canBack = false;
+
+        if (state.tab === 'services') {
+          if (state.flowScreen === 'services') {
+            title = 'Выбор услуги';
+            sub = 'Шаг 1 из 3';
+          } else if (state.flowScreen === 'calendar') {
+            title = 'Календарь';
+            sub = 'Шаг 2 из 3';
+            canBack = true;
+          } else if (state.flowScreen === 'confirm') {
+            title = 'Подтверждение';
+            sub = 'Шаг 3 из 3';
+            canBack = true;
+          } else if (state.flowScreen === 'done') {
+            title = 'Готово';
+            sub = 'Запись создана';
+            canBack = true;
+          }
+        } else if (state.tab === 'bookings') {
+          title = 'Мои записи';
+          sub = 'Управление визитами';
+        }
+
+        el.headerTitle.textContent = title;
+        el.headerSub.textContent = sub;
+        el.headerBack.disabled = !canBack;
+      }
+
+      function renderDock() {
+        var visible = state.tab === 'services' && (state.flowScreen === 'services' || state.flowScreen === 'calendar');
+        el.dock.classList.toggle('visible', visible);
+        if (!visible) return;
+
+        if (state.flowScreen === 'services') {
+          var totals = selectedTotals();
+          el.dockTitle.textContent = selectedServices().length + ' услуг';
+          el.dockInfo.textContent = totals.duration + ' мин · ' + money(totals.price) + ' ₽';
+          el.dockAction.textContent = 'Выбрать дату →';
+        } else if (state.flowScreen === 'calendar') {
+          var slotText = state.selectedSlot ? (state.selectedSlot + ' · ') : '';
+          el.dockTitle.textContent = state.selectedDate ? formatDateShort(state.selectedDate) : 'Дата не выбрана';
+          el.dockInfo.textContent = slotText + (state.selectedSlot ? 'К подтверждению' : 'Выберите слот');
+          el.dockAction.textContent = 'К подтверждению →';
+        }
+      }
+
+      function renderMethodTabs() {
+        var items = [
+          { id: 'all', label: 'Все' },
+          { id: 'sugar', label: 'Сахар' },
+          { id: 'wax', label: 'Воск' }
+        ];
+        el.methodTabs.innerHTML = items.map(function (it) {
+          return '<button data-method="' + it.id + '" class="' + (state.method === it.id ? 'active' : '') + '">' + it.label + '</button>';
+        }).join('');
+        Array.prototype.slice.call(el.methodTabs.querySelectorAll('button')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            state.method = btn.getAttribute('data-method');
+            renderMethodTabs();
+            renderServices();
+          });
+        });
+      }
+
+      function renderCategoryTabs() {
+        var items = [
+          { id: 'all', label: 'Все' },
+          { id: 'zone', label: 'Зоны' },
+          { id: 'complex', label: 'Комплексы' }
+        ];
+        el.categoryTabs.innerHTML = items.map(function (it) {
+          return '<button data-category="' + it.id + '" class="' + (state.category === it.id ? 'active' : '') + '">' + it.label + '</button>';
+        }).join('');
+        Array.prototype.slice.call(el.categoryTabs.querySelectorAll('button')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            state.category = btn.getAttribute('data-category');
+            renderCategoryTabs();
+            renderServices();
+          });
+        });
+      }
+
+      function filteredServices() {
+        return catalog.filter(function (s) {
+          var byMethod = state.method === 'all' || s.method === state.method;
+          var byCat = state.category === 'all' || s.category === state.category;
+          return byMethod && byCat;
+        });
+      }
+
+      function selectedServices() {
+        return catalog.filter(function (s) { return state.selectedServiceIds.indexOf(s.id) !== -1; });
+      }
+
+      function selectedTotals() {
+        return selectedServices().reduce(function (acc, s) {
+          acc.duration += s.duration;
+          acc.price += s.price;
+          return acc;
+        }, { duration: 0, price: 0 });
+      }
+
+      function renderServices() {
+        var list = filteredServices();
+        if (!list.length) {
+          el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Нет услуг по выбранным фильтрам.</p></section>';
+          return;
+        }
+
+        el.servicesList.innerHTML = list.map(function (s) {
+          var selected = state.selectedServiceIds.indexOf(s.id) !== -1;
+          var method = s.method === 'sugar' ? 'Сахар' : 'Воск';
+          var category = s.category === 'complex' ? 'Комплекс' : 'Зона';
+          var badges = [];
+          if (s.top) badges.push('Top choice');
+          badges.push(method);
+          badges.push(category);
+          return ''
+            + '<article class="service-card ' + (selected ? 'selected' : '') + '" data-service-id="' + s.id + '">'
+            + '<div class="service-head">'
+            + '<h3 class="service-name">' + escapeHtml(s.name) + '</h3>'
+            + '<span class="price">' + money(s.price) + ' ₽</span>'
+            + '</div>'
+            + '<p class="meta">' + category + ' · ' + s.duration + ' мин</p>'
+            + '<div class="badge-row">' + badges.map(function (b) { return '<span class="badge">' + b + '</span>'; }).join('') + '</div>'
+            + '</article>';
+        }).join('');
+
+        Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (node) {
+          node.addEventListener('click', function () {
+            var id = Number(node.getAttribute('data-service-id'));
+            var idx = state.selectedServiceIds.indexOf(id);
+            if (idx === -1) {
+              state.selectedServiceIds.push(id);
+            } else {
+              state.selectedServiceIds.splice(idx, 1);
+            }
+            renderServices();
+            renderDock();
+          });
+        });
+      }
+
+      function renderCalendar() {
+        var totals = selectedTotals();
+        var names = selectedServices().map(function (s) { return s.name; }).join(', ');
+        el.calendarServiceTitle.textContent = names || 'Услуги не выбраны';
+        el.calendarServiceMeta.textContent = totals.duration + ' мин · ' + money(totals.price) + ' ₽';
+
+        el.calMonth.textContent = monthNames[state.currentMonth.getMonth()] + ' ' + state.currentMonth.getFullYear();
+        el.calGrid.innerHTML = '';
+
+        var monthStart = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth(), 1);
+        var monthEnd = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + 1, 0);
+        var leading = (monthStart.getDay() + 6) % 7;
+
+        for (var i = 0; i < leading; i += 1) {
+          var empty = document.createElement('div');
+          empty.className = 'day-empty';
+          el.calGrid.appendChild(empty);
+        }
+
+        for (var d = 1; d <= monthEnd.getDate(); d += 1) {
+          var date = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth(), d);
+          var key = dateKey(date);
+          var slots = slotsMap.get(key) || [];
+          var enabled = inRange(date, dayStart, dayEnd);
+          var available = enabled && slots.length > 0;
+          var selected = state.selectedDate && key === dateKey(state.selectedDate);
+
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'day' + (available ? ' available' : '') + (enabled ? '' : ' disabled') + (selected ? ' selected' : '');
+          btn.textContent = String(d);
+
+          if (!enabled) {
+            btn.disabled = true;
+          } else {
+            (function (picked) {
+              btn.addEventListener('click', function () {
+                state.selectedDate = new Date(picked);
+                state.selectedSlot = null;
+                state.selectedSlotLabel = '';
+                renderCalendar();
+                renderSlots();
+                renderDock();
+              });
+            })(date);
+          }
+
+          el.calGrid.appendChild(btn);
+        }
+
+        var prevMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() - 1, 1);
+        var nextMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + 1, 1);
+        el.calPrev.disabled = !monthIntersectsRange(prevMonth, dayStart, dayEnd);
+        el.calNext.disabled = !monthIntersectsRange(nextMonth, dayStart, dayEnd);
+      }
+
+      function renderSlots() {
+        if (!state.selectedDate) {
+          el.slotsDate.textContent = 'Выберите дату';
+          el.slotsBadge.textContent = '0 слотов';
+          el.slotsWrap.innerHTML = '<p class="slots-empty">Сначала выберите день в календаре.</p>';
+          return;
+        }
+
+        var key = dateKey(state.selectedDate);
+        var slots = slotsMap.get(key) || [];
+
+        el.slotsDate.textContent = 'Слоты на ' + state.selectedDate.getDate() + ' ' + monthNamesGen[state.selectedDate.getMonth()];
+        el.slotsBadge.textContent = slots.length + ' слотов';
+        el.slotsWrap.innerHTML = '';
+
+        if (!slots.length) {
+          el.slotsWrap.innerHTML = '<p class="slots-empty">На эту дату свободных слотов нет. Выберите другой день.</p>';
+          return;
+        }
+
+        slots.forEach(function (time) {
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'slot-chip' + (state.selectedSlot === time ? ' active' : '');
+          chip.textContent = time;
+          chip.addEventListener('click', function () {
+            state.selectedSlot = time;
+            state.selectedSlotLabel = time;
+            renderSlots();
+            renderDock();
+          });
+          el.slotsWrap.appendChild(chip);
+        });
+      }
+
+      function pricing() {
+        var totals = selectedTotals();
+        var base = totals.price;
+        var discount = 0;
+        var giftService = null;
+
+        if (state.promo && state.promo.type === 'percent') {
+          discount = Math.round(base * state.promo.percent) / 100;
+        }
+
+        if (state.promo && state.promo.type === 'gift') {
+          giftService = state.promo.service;
+          discount = giftService.price;
+        }
+
+        discount = Math.max(0, Math.min(base, discount));
+        var final = Math.max(0, base - discount);
+
+        return {
+          base: base,
+          discount: discount,
+          final: final,
+          giftService: giftService
+        };
+      }
+
+      function renderConfirm() {
+        var services = selectedServices();
+        if (!services.length) {
+          el.confirmServices.innerHTML = '<p class="meta" style="margin:0;">Услуги не выбраны.</p>';
+          el.confirmPricing.innerHTML = '';
+          return;
+        }
+
+        var p = pricing();
+
+        var dateText = state.selectedDate ? formatDateLong(state.selectedDate) : '—';
+        var timeText = state.selectedSlot || '—';
+
+        var serviceLines = services.map(function (s) {
+          return '<div class="row-line"><span>' + escapeHtml(s.name) + '</span><span>' + money(s.price) + ' ₽</span></div>';
+        }).join('');
+
+        if (p.giftService) {
+          serviceLines += '<div class="row-line"><span>' + escapeHtml(p.giftService.name) + '</span><span>подарок</span></div>';
+        }
+
+        el.confirmServices.innerHTML = ''
+          + '<div class="row-line"><strong>Дата</strong><span>' + dateText + '</span></div>'
+          + '<div class="row-line"><strong>Время</strong><span>' + timeText + '</span></div>'
+          + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
+          + serviceLines;
+
+        var promoLine = state.promo
+          ? '<div class="row-line"><span>Промокод (' + escapeHtml(state.promoCode) + ')</span><span>−' + money(p.discount) + ' ₽</span></div>'
+          : '';
+
+        el.confirmPricing.innerHTML = ''
+          + '<div class="row-line"><span>Стоимость</span><span>' + money(p.base) + ' ₽</span></div>'
+          + promoLine
+          + '<div class="row-line total"><span>Итого</span><span>' + money(p.final) + ' ₽</span></div>';
+
+        el.promoInput.value = state.promoCode;
+        el.noteInput.value = state.note;
+      }
+
+      function applyPromo() {
+        var code = String(el.promoInput.value || '').trim().toUpperCase();
+        state.promoCode = code;
+
+        if (!code) {
+          state.promo = null;
+          el.promoHint.textContent = 'Промокод очищен';
+          renderConfirm();
+          toast('Промокод убран');
+          return;
+        }
+
+        var promo = promoRules[code] || null;
+        if (!promo) {
+          state.promo = null;
+          el.promoHint.textContent = 'Промокод не найден';
+          renderConfirm();
+          toast('Промокод неактивен');
+          return;
+        }
+
+        state.promo = promo;
+        if (promo.type === 'percent') {
+          el.promoHint.textContent = 'Применено: скидка ' + promo.percent + '%';
+        } else {
+          el.promoHint.textContent = 'Применено: зона в подарок';
+        }
+        renderConfirm();
+        toast('Промокод применён');
+      }
+
+      function confirmBooking() {
+        if (!state.selectedServiceIds.length || !state.selectedDate || !state.selectedSlot) {
+          toast('Проверьте выбор услуги, даты и времени');
+          return;
+        }
+
+        var p = pricing();
+        var id = Date.now();
+        var startIso = buildIso(state.selectedDate, state.selectedSlot);
+        var duration = selectedTotals().duration;
+        if (p.giftService) duration += p.giftService.duration;
+        var endIso = new Date(new Date(startIso).getTime() + duration * 60000).toISOString();
+
+        var booking = {
+          id: id,
+          status: 'confirmed',
+          serviceNames: selectedServices().map(function (s) { return s.name; }),
+          start: startIso,
+          end: endIso,
+          slot: state.selectedSlot,
+          basePrice: p.base,
+          finalPrice: p.final,
+          discount: p.discount,
+          promoCode: state.promoCode || null,
+          note: state.note || null
+        };
+
+        if (state.editingBookingId) {
+          var idx = state.bookings.findIndex(function (b) { return b.id === state.editingBookingId; });
+          if (idx !== -1) {
+            booking.id = state.editingBookingId;
+            state.bookings[idx] = booking;
+          } else {
+            state.bookings.unshift(booking);
+          }
+        } else {
+          state.bookings.unshift(booking);
+        }
+
+        el.doneText.textContent = 'Дата: ' + formatDateLong(state.selectedDate) + ', ' + state.selectedSlot + '. Стоимость: ' + money(p.final) + ' ₽.';
+
+        renderBookings();
+        setFlow('done');
+        toast(state.editingBookingId ? 'Запись перенесена' : 'Запись подтверждена');
+        state.editingBookingId = null;
+      }
+
+      function renderBookings() {
+        var items = state.bookings.slice().sort(function (a, b) {
+          return new Date(a.start).getTime() - new Date(b.start).getTime();
+        });
+
+        el.bookingsCount.textContent = items.length + ' шт';
+        if (!items.length) {
+          el.bookingsList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Записей пока нет.</p></section>';
+          return;
+        }
+
+        el.bookingsList.innerHTML = items.map(function (b) {
+          var cancelled = b.status === 'cancelled';
+          var meta = formatDateLong(new Date(b.start)) + ' · ' + b.slot + ' · ' + money(b.finalPrice) + ' ₽';
+          var promo = b.promoCode ? '<br>Промокод: ' + escapeHtml(b.promoCode) : '';
+          var note = b.note ? '<br>Комментарий: ' + escapeHtml(b.note) : '';
+          return ''
+            + '<article class="booking-item ' + (cancelled ? 'cancelled' : '') + '" data-booking-id="' + b.id + '">'
+              + '<div class="booking-head">'
+                + '<h4 class="booking-title">' + escapeHtml(b.serviceNames.join(' + ')) + '</h4>'
+                + '<span class="booking-status ' + (cancelled ? 'cancelled' : '') + '">' + (cancelled ? 'Отменена' : 'Запланирована') + '</span>'
+              + '</div>'
+              + '<p class="booking-meta">' + meta + promo + note + '</p>'
+              + (cancelled ? '' : '<div class="booking-actions">'
+                  + '<button class="btn" data-action="reschedule">Перенести</button>'
+                  + '<button class="btn danger" data-action="cancel">Отменить</button>'
+                + '</div>')
+            + '</article>';
+        }).join('');
+
+        Array.prototype.slice.call(el.bookingsList.querySelectorAll('[data-action]')).forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var card = btn.closest('[data-booking-id]');
+            var id = Number(card.getAttribute('data-booking-id'));
+            var action = btn.getAttribute('data-action');
+            if (action === 'cancel') cancelBooking(id);
+            if (action === 'reschedule') rescheduleBooking(id);
+          });
+        });
+      }
+
+      function cancelBooking(id) {
+        var b = state.bookings.find(function (x) { return x.id === id; });
+        if (!b) return;
+        b.status = 'cancelled';
+        renderBookings();
+        toast('Запись отменена');
+      }
+
+      function rescheduleBooking(id) {
+        var b = state.bookings.find(function (x) { return x.id === id; });
+        if (!b) return;
+
+        state.selectedServiceIds = catalog.filter(function (s) {
+          return b.serviceNames.some(function (name) { return name === s.name; });
+        }).map(function (s) { return s.id; });
+
+        state.selectedDate = startOfDay(new Date(b.start));
+        state.currentMonth = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth(), 1);
+        state.selectedSlot = b.slot;
+        state.selectedSlotLabel = b.slot;
+        state.note = b.note || '';
+        state.promoCode = b.promoCode || '';
+        state.promo = state.promoCode ? (promoRules[state.promoCode] || null) : null;
+        state.editingBookingId = b.id;
+
+        setFlow('calendar');
+        renderServices();
+        renderCalendar();
+        renderSlots();
+        renderConfirm();
+        toast('Выберите новую дату и время');
+      }
+
+      function resetFlow() {
+        state.flowScreen = 'services';
+        screenStack = ['services'];
+        state.selectedDate = new Date(dayStart);
+        state.currentMonth = new Date(dayStart.getFullYear(), dayStart.getMonth(), 1);
+        state.selectedSlot = null;
+        state.selectedSlotLabel = '';
+        state.promoCode = '';
+        state.promo = null;
+        state.note = '';
+        state.editingBookingId = null;
+        openTab('services');
+        renderCalendar();
+        renderSlots();
+        renderConfirm();
+        renderDock();
+      }
+
+      function seedBookings() {
+        var first = new Date(dayStart);
+        first.setDate(first.getDate() + 2);
+        var second = new Date(dayStart);
+        second.setDate(second.getDate() + 7);
+
+        state.bookings = [
+          {
+            id: 1001,
+            status: 'confirmed',
+            serviceNames: ['Сахар: Глубокое бикини + голень'],
+            start: buildIso(first, '12:40'),
+            end: buildIso(first, '13:55'),
+            slot: '12:40',
+            basePrice: 1500,
+            finalPrice: 1350,
+            discount: 150,
+            promoCode: 'SAVE10',
+            note: null
+          },
+          {
+            id: 1002,
+            status: 'confirmed',
+            serviceNames: ['Воск: Руки полностью'],
+            start: buildIso(second, '15:20'),
+            end: buildIso(second, '16:00'),
+            slot: '15:20',
+            basePrice: 1200,
+            finalPrice: 1200,
+            discount: 0,
+            promoCode: null,
+            note: 'Пожалуйста, без ароматизированных средств'
+          }
+        ];
+      }
+
+      function generateSlots(date) {
+        if (date.getDay() === 0) return [];
+        var base = ['09:30', '10:20', '11:10', '12:40', '14:00', '15:20', '17:10', '18:20', '19:00'];
+        var seed = date.getDate() * 13 + (date.getMonth() + 1) * 7 + date.getFullYear();
+        var count = Math.min(base.length, (seed % 4) + 2);
+        if (date.getDay() === 6) count = Math.max(1, count - 2);
+        var start = seed % (base.length - count + 1);
+        return base.slice(start, start + count);
+      }
+
+      function toast(message) {
+        el.toast.textContent = message;
+        el.toast.classList.add('show');
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () {
+          el.toast.classList.remove('show');
+        }, 1700);
+      }
+
+      function startOfDay(d) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      }
+
+      function dateKey(d) {
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return d.getFullYear() + '-' + m + '-' + day;
+      }
+
+      function inRange(d, a, b) {
+        return d.getTime() >= a.getTime() && d.getTime() <= b.getTime();
+      }
+
+      function monthIntersectsRange(monthDate, rangeStart, rangeEnd) {
+        var first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+        var last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+        return last.getTime() >= rangeStart.getTime() && first.getTime() <= rangeEnd.getTime();
+      }
+
+      function money(value) {
+        return new Intl.NumberFormat('ru-RU').format(Math.round(value || 0));
+      }
+
+      function buildIso(date, hhmm) {
+        var p = String(hhmm).split(':');
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate(), Number(p[0]), Number(p[1]), 0, 0).toISOString();
+      }
+
+      function formatDateShort(d) {
+        return String(d.getDate()).padStart(2, '0') + ' ' + monthNamesGen[d.getMonth()];
+      }
+
+      function formatDateLong(d) {
+        var w = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+        return w[d.getDay()] + ', ' + String(d.getDate()).padStart(2, '0') + ' ' + monthNamesGen[d.getMonth()];
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+    })();
+  </script>
+</body>
+</html>

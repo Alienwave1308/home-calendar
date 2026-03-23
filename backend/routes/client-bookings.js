@@ -51,31 +51,27 @@ router.get('/:id/calendar-feed', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `WITH first_booking AS (
-         SELECT master_id, client_id, MIN(id) AS first_booking_id
-         FROM bookings
-         GROUP BY master_id, client_id
-       )
-       SELECT b.*, s.name AS service_name, s.price AS service_price,
+      `SELECT b.*, s.name AS service_name, s.price AS service_price,
               m.display_name AS master_name, m.timezone AS master_timezone,
-              CASE
-                WHEN b.id = fb.first_booking_id
-                  THEN COALESCE(ms.first_visit_discount_percent, 0)
-                ELSE 0
-              END AS discount_percent,
-              CASE
-                WHEN s.price IS NULL THEN NULL
-                WHEN b.id = fb.first_booking_id
-                  THEN GREATEST(0, ROUND(s.price * (100 - COALESCE(ms.first_visit_discount_percent, 0)) / 100.0)::int)
-                ELSE s.price
-              END AS final_price
+              COALESCE(b.promo_discount_percent, 0) AS discount_percent,
+              COALESCE(b.pricing_base, s.price) AS base_price,
+              COALESCE(b.pricing_final, b.pricing_base, s.price) AS final_price,
+              COALESCE(b.pricing_discount_amount, 0) AS discount_amount,
+              gs.name AS promo_gift_service_name
        FROM bookings b
        JOIN services s ON b.service_id = s.id
        JOIN masters m ON b.master_id = m.id
-       LEFT JOIN master_settings ms ON ms.master_id = b.master_id
-       LEFT JOIN first_booking fb ON fb.master_id = b.master_id AND fb.client_id = b.client_id
+       LEFT JOIN services gs ON gs.id = b.promo_gift_service_id
        WHERE b.client_id = $1
-       ORDER BY b.start_at DESC`,
+       ORDER BY
+         CASE
+           WHEN b.status IN ('pending', 'confirmed') THEN 0
+           WHEN b.status = 'completed' THEN 1
+           WHEN b.status = 'canceled' THEN 2
+           ELSE 1
+         END,
+         b.start_at DESC,
+         b.id DESC`,
       [req.user.id]
     );
     return res.json(rows);
@@ -89,29 +85,17 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `WITH first_booking AS (
-         SELECT master_id, client_id, MIN(id) AS first_booking_id
-         FROM bookings
-         GROUP BY master_id, client_id
-       )
-       SELECT b.*, s.name AS service_name, s.price AS service_price,
+      `SELECT b.*, s.name AS service_name, s.price AS service_price,
               m.display_name AS master_name, m.timezone AS master_timezone,
-              CASE
-                WHEN b.id = fb.first_booking_id
-                  THEN COALESCE(ms.first_visit_discount_percent, 0)
-                ELSE 0
-              END AS discount_percent,
-              CASE
-                WHEN s.price IS NULL THEN NULL
-                WHEN b.id = fb.first_booking_id
-                  THEN GREATEST(0, ROUND(s.price * (100 - COALESCE(ms.first_visit_discount_percent, 0)) / 100.0)::int)
-                ELSE s.price
-              END AS final_price
+              COALESCE(b.promo_discount_percent, 0) AS discount_percent,
+              COALESCE(b.pricing_base, s.price) AS base_price,
+              COALESCE(b.pricing_final, b.pricing_base, s.price) AS final_price,
+              COALESCE(b.pricing_discount_amount, 0) AS discount_amount,
+              gs.name AS promo_gift_service_name
        FROM bookings b
        JOIN services s ON b.service_id = s.id
        JOIN masters m ON b.master_id = m.id
-       LEFT JOIN master_settings ms ON ms.master_id = b.master_id
-       LEFT JOIN first_booking fb ON fb.master_id = b.master_id AND fb.client_id = b.client_id
+       LEFT JOIN services gs ON gs.id = b.promo_gift_service_id
        WHERE b.id = $1 AND b.client_id = $2`,
       [req.params.id, req.user.id]
     );

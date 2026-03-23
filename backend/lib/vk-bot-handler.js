@@ -89,11 +89,11 @@ async function loadActiveServices(masterId) {
 
 async function loadMasterSettings(masterId) {
   const { rows } = await pool.query(
-    `SELECT reminder_hours, first_visit_discount_percent, min_booking_notice_minutes
+    `SELECT reminder_hours, min_booking_notice_minutes
      FROM master_settings WHERE master_id = $1`,
     [masterId]
   );
-  return rows[0] || { reminder_hours: [24, 2], first_visit_discount_percent: 15, min_booking_notice_minutes: 60 };
+  return rows[0] || { reminder_hours: [24, 2], min_booking_notice_minutes: 60 };
 }
 
 async function getOrCreateVkUser(vkUserId, firstName, lastName) {
@@ -148,7 +148,7 @@ async function getAvailableSlots(master, service, settings, dates) {
     blocks: blocks.rows,
     timezone: tz,
     stepMinutes: 10,
-    minLeadMinutes: settings.min_booking_notice_minutes || 60
+    minLeadMinutes: settings.min_booking_notice_minutes ?? 60
   });
 }
 
@@ -281,7 +281,6 @@ async function createBooking(vkUserId, session) {
   const master = await loadMaster();
   if (!master) throw new Error('Мастер не найден');
 
-  const settings = await loadMasterSettings(master.id);
   const startDate = new Date(session.startAt);
   const endDate = new Date(session.endAt);
 
@@ -296,20 +295,15 @@ async function createBooking(vkUserId, session) {
     return { ok: false, reason: 'limit' };
   }
 
-  // Первый визит → скидка
-  const { rows: prevRows } = await pool.query(
-    'SELECT id FROM bookings WHERE master_id = $1 AND client_id = $2 LIMIT 1',
-    [master.id, session.dbUserId]
-  );
-  const isFirst = prevRows.length === 0;
-  const discountPct = isFirst ? Number(settings.first_visit_discount_percent || 0) : 0;
-  const finalPrice = Math.max(0, session.servicePrice - Math.round(session.servicePrice * discountPct) / 100);
+  const basePrice = Number(session.servicePrice || 0);
+  const finalPrice = basePrice;
 
   try {
     const { rows } = await pool.query(
       `INSERT INTO bookings
-         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note)
-       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'vk', $7)
+         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
+          pricing_base, pricing_final, pricing_discount_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'vk', $7, $8, $9, $10)
        RETURNING *`,
       [
         master.id,
@@ -318,7 +312,10 @@ async function createBooking(vkUserId, session) {
         JSON.stringify([]),
         startDate.toISOString(),
         endDate.toISOString(),
-        session.comment || null
+        session.comment || null,
+        basePrice,
+        finalPrice,
+        0
       ]
     );
     const booking = rows[0];
@@ -330,7 +327,7 @@ async function createBooking(vkUserId, session) {
       console.error('[vk-bot] side-effects error:', e.message);
     }
 
-    return { ok: true, booking, isFirst, discountPct, finalPrice };
+    return { ok: true, booking, finalPrice };
   } catch (err) {
     if (err.code === '23P01') return { ok: false, reason: 'conflict' };
     throw err;
@@ -350,7 +347,7 @@ async function handleVkMessage(msg, info = {}) {
 
   let payload = null;
   if (msg.payload) {
-    try { payload = JSON.parse(msg.payload); } catch (e) { /* ignore */ }
+    try { payload = JSON.parse(msg.payload); } catch { /* ignore */ }
   }
   const text = (msg.text || '').trim();
   const cmd = payload && payload.c;
@@ -467,10 +464,6 @@ async function handleVkMessage(msg, info = {}) {
         + `Дата: ${formatLocalDate(session.startAt, tz)}\n`
         + `Время: ${formatLocalTime(session.startAt, tz)}\n`
         + `Адрес: Мкр Околица д.1, кв. 60\n`;
-
-      if (result.isFirst && result.discountPct > 0) {
-        successText += `\n🎁 Скидка за первый визит ${result.discountPct}% — итого ${result.finalPrice} ₽`;
-      }
 
       successText += `\n\nНапомню за 24 ч и за 2 ч до записи ⏰\n\nЧтобы записаться снова — напиши «Записаться».`;
 

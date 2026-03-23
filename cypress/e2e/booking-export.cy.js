@@ -1,5 +1,14 @@
 describe('Booking Mini App - Calendar Export E2E', () => {
+  let slotStartIso;
+  let slotEndIso;
+
   beforeEach(() => {
+    const now = new Date();
+    now.setDate(now.getDate() + 1);
+    now.setHours(10, 0, 0, 0);
+    slotStartIso = now.toISOString();
+    slotEndIso = new Date(now.getTime() + (60 * 60 * 1000)).toISOString();
+
     cy.intercept('GET', /\/api\/public\/master\/[^/]+\/?(?:\?.*)?$/, {
       statusCode: 200,
       body: {
@@ -9,30 +18,31 @@ describe('Booking Mini App - Calendar Export E2E', () => {
           timezone: 'Asia/Novosibirsk',
           booking_slug: 'test-master'
         },
-        services: [{ id: 10, name: 'Шугаринг', duration_minutes: 60, price: 2000 }]
+        services: [{ id: '10', name: 'Шугаринг', duration_minutes: 60, price: 2000 }]
       }
     }).as('getMaster');
 
     cy.intercept('GET', /\/api\/public\/master\/test-master\/slots.*/, {
       statusCode: 200,
       body: {
-        slots: [{ start: '2026-02-20T10:00:00.000Z', end: '2026-02-20T11:00:00.000Z' }]
+        slots: [{ start: slotStartIso, end: slotEndIso }]
       }
     }).as('getSlots');
 
     cy.intercept('POST', /\/api\/public\/master\/test-master\/book\/?$/, (req) => {
-      expect(req.body.service_ids).to.deep.equal([10]);
-      expect(req.body.start_at).to.equal('2026-02-20T10:00:00.000Z');
-      expect(req.body.client_note).to.equal('Зона подмышек');
-      req.reply({ statusCode: 201, body: { id: 1, status: 'confirmed', pricing: {} } });
+      req.reply({
+        statusCode: 201,
+        body: {
+          id: 1,
+          status: 'confirmed',
+          pricing: {
+            promo_code: req.body.promo_code || null,
+            promo_reward_type: req.body.promo_code ? 'percent' : null,
+            promo_usage_mode: req.body.promo_code ? 'single_use' : null
+          }
+        }
+      });
     }).as('postBook');
-
-    cy.intercept('GET', /\/api\/client\/bookings\/1\/calendar-feed\/?$/, {
-      statusCode: 200,
-      body: {
-        feed_path: '/api/public/master/test-master/client-calendar.ics?token=test-client-token'
-      }
-    }).as('getClientCalendarFeed');
 
     cy.visit('/booking.html?slug=test-master', {
       onBeforeLoad(win) {
@@ -54,30 +64,137 @@ describe('Booking Mini App - Calendar Export E2E', () => {
     });
   });
 
-  it('shows calendar export actions after successful booking', () => {
-    // Multi-select flow: click card to select, then click "Далее →" to proceed to slots
+  it('completes booking flow and shows confirmation screen', () => {
     cy.contains('.service-card', 'Шугаринг').click();
-    cy.get('.selection-bar-btn').click();
+    cy.get('#dockAction').click();
     cy.wait('@getSlots');
 
-    cy.get('.slot-btn').first().click();
-    cy.get('#confirmNote').type('Зона подмышек');
-    cy.get('#btnBook').click();
-    cy.wait('@postBook');
+    cy.get('.day.available').first().click();
+    cy.get('.slot-chip').first().click();
+    cy.get('#dockAction').click();
+    cy.get('#noteInput').type('Зона подмышек');
+    cy.get('#confirmSubmit').click();
+    cy.wait('@postBook').then((interception) => {
+      expect(interception.request.body.service_ids).to.deep.equal([10]);
+      expect(interception.request.body.start_at).to.equal(slotStartIso);
+      expect(interception.request.body.client_note).to.equal('Зона подмышек');
+    });
 
-    cy.get('#stepDone').should('be.visible');
-    cy.get('#doneGoogleLink')
-      .should('be.visible')
-      .and('have.attr', 'href')
-      .and('include', 'calendar.google.com')
-      .and('include', 'ctz=Asia%2FNovosibirsk');
-    cy.get('#doneAppleBtn').should('be.visible');
+    cy.get('#screen-done').should('have.class', 'active');
+    cy.get('#doneText').should('contain.text', 'Стоимость');
+  });
 
-    cy.get('#doneAppleBtn').click();
-    cy.wait('@getClientCalendarFeed');
-    cy.get('@openLink').should('have.been.called');
-    cy.get('@openLink').its('lastCall.args.0').should('match', /^https?:\/\//);
-    cy.get('@openLink').its('lastCall.args.0').should('include', 'client-calendar.ics');
-    cy.get('@openLink').its('lastCall.args.0').should('include', 'token=test-client-token');
+  it('keeps service selected when touch/pointer and synthetic click both fire', () => {
+    cy.get('#dock').should('not.have.class', 'visible');
+
+    cy.contains('.service-card', 'Шугаринг').then(($card) => {
+      const card = $card[0];
+      const win = card.ownerDocument.defaultView;
+      if (typeof win.PointerEvent === 'function') {
+        card.dispatchEvent(new win.PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'touch',
+          pointerId: 11,
+          clientX: 18,
+          clientY: 18
+        }));
+        card.dispatchEvent(new win.PointerEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'touch',
+          pointerId: 11,
+          clientX: 20,
+          clientY: 20
+        }));
+      } else {
+        card.dispatchEvent(new win.Event('touchend', { bubbles: true, cancelable: true }));
+      }
+      card.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    cy.contains('.service-card.selected', 'Шугаринг').should('be.visible');
+    cy.contains('.service-card.selected .service-selected-tag', 'Выбрана').should('be.visible');
+    cy.get('#dockTitle').should('contain.text', '1 услуга');
+    cy.get('#dockSelectedList').should('have.class', 'visible');
+    cy.get('#dockSelectedList li').should('have.length', 1).first().should('contain.text', 'Шугаринг');
+  });
+
+  it('does not toggle service on scroll-like touch gesture', () => {
+    cy.contains('.service-card', 'Шугаринг').then(($card) => {
+      const card = $card[0];
+      const win = card.ownerDocument.defaultView;
+
+      if (typeof win.PointerEvent === 'function') {
+        card.dispatchEvent(new win.PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'touch',
+          pointerId: 22,
+          clientX: 24,
+          clientY: 24
+        }));
+        card.dispatchEvent(new win.PointerEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'touch',
+          pointerId: 22,
+          clientX: 24,
+          clientY: 24
+        }));
+
+        card.dispatchEvent(new win.PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'touch',
+          pointerId: 22,
+          clientX: 28,
+          clientY: 28
+        }));
+        card.dispatchEvent(new win.PointerEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'touch',
+          pointerId: 22,
+          clientX: 28,
+          clientY: 110
+        }));
+      } else {
+        card.dispatchEvent(new win.Event('touchend', { bubbles: true, cancelable: true }));
+      }
+    });
+
+    cy.contains('.service-card.selected', 'Шугаринг').should('be.visible');
+    cy.get('#dockTitle').should('contain.text', '1 услуга');
+  });
+
+  it('renders month calendar view for date picking', () => {
+    cy.contains('.service-card', 'Шугаринг').click();
+    cy.get('#dockAction').click();
+    cy.wait('@getSlots');
+
+    cy.get('#calMonth').should('not.have.text', '');
+    cy.get('#calPrev').should('be.disabled');
+    cy.get('#calGrid .day').should('have.length.at.least', 28);
+    cy.get('.day.available').first().click();
+    cy.get('.slot-chip').should('have.length.at.least', 1);
+  });
+
+  it('sends promo code from confirm screen to booking API', () => {
+    cy.contains('.service-card', 'Шугаринг').click();
+    cy.get('#dockAction').click();
+    cy.wait('@getSlots');
+
+    cy.get('.day.available').first().click();
+    cy.get('.slot-chip').first().click();
+    cy.get('#dockAction').click();
+    cy.get('#promoInput').clear().type('once10');
+    cy.get('#confirmSubmit').click();
+
+    cy.wait('@postBook').then((interception) => {
+      expect(interception.request.body.service_ids).to.deep.equal([10]);
+      expect(interception.request.body.promo_code).to.equal('ONCE10');
+    });
+    cy.get('#screen-done').should('have.class', 'active');
   });
 });

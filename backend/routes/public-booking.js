@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const { URL: NodeURL } = require('url');
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { generateSlotsFromWindows, localDateTimeToUtcMs } = require('../lib/slots');
 const { createReminders } = require('../lib/reminders');
-const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
+const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -55,42 +56,349 @@ function timeInTimezone(date, timezone) {
   return `${hour}:${minute}`;
 }
 
+const DEFAULT_PUBLIC_PROFILE = Object.freeze({
+  brand: 'Ro Va',
+  subtitle: 'Epil & Care',
+  name: 'Лера',
+  role: 'Мастер эпиляции',
+  city: 'Новосибирск',
+  experience: '',
+  phone: '',
+  address: '',
+  bio: '',
+  gift_text: 'Подарок от меня на первое посещение по ссылке:',
+  gift_url: 'https://vk.cc/cVmuLI'
+});
+
+function normalizeOptionalText(value, maxLength) {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  if (maxLength && trimmed.length > maxLength) return trimmed.slice(0, maxLength);
+  return trimmed;
+}
+
+function normalizeGiftUrl(value) {
+  const normalized = normalizeOptionalText(value, 255);
+  if (!normalized) return null;
+  const withProtocol = /^[a-z]+:\/\//i.test(normalized) ? normalized : `https://${normalized}`;
+  try {
+    const parsed = new NodeURL(withProtocol);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildPublicProfile(row) {
+  const fallbackName = normalizeOptionalText(row && row.display_name, 120);
+  return {
+    brand: normalizeOptionalText(row && row.brand_name, 120) || DEFAULT_PUBLIC_PROFILE.brand,
+    subtitle: normalizeOptionalText(row && row.brand_subtitle, 120) || DEFAULT_PUBLIC_PROFILE.subtitle,
+    name: normalizeOptionalText(row && row.profile_name, 120) || fallbackName || DEFAULT_PUBLIC_PROFILE.name,
+    role: normalizeOptionalText(row && row.profile_role, 120) || DEFAULT_PUBLIC_PROFILE.role,
+    city: normalizeOptionalText(row && row.profile_city, 120) || DEFAULT_PUBLIC_PROFILE.city,
+    experience: normalizeOptionalText(row && row.profile_experience, 120) || DEFAULT_PUBLIC_PROFILE.experience,
+    phone: normalizeOptionalText(row && row.profile_phone, 120) || DEFAULT_PUBLIC_PROFILE.phone,
+    address: normalizeOptionalText(row && row.profile_address, 255) || DEFAULT_PUBLIC_PROFILE.address,
+    bio: normalizeOptionalText(row && row.profile_bio, 1200) || DEFAULT_PUBLIC_PROFILE.bio,
+    gift_text: normalizeOptionalText(row && row.gift_text, 255) || DEFAULT_PUBLIC_PROFILE.gift_text,
+    gift_url: normalizeGiftUrl(row && row.gift_url) || DEFAULT_PUBLIC_PROFILE.gift_url
+  };
+}
+
 async function loadMasterBySlug(slug) {
-  const { rows } = await pool.query(
+  const attempts = [
+    `SELECT * FROM masters WHERE booking_slug = $1`,
     `SELECT id, user_id, display_name, timezone, booking_slug, cancel_policy_hours
-     FROM masters
-     WHERE booking_slug = $1`,
-    [slug]
-  );
-  return rows[0] || null;
+     FROM masters WHERE booking_slug = $1`,
+    `SELECT id, user_id, display_name, timezone, booking_slug
+     FROM masters WHERE booking_slug = $1`,
+    `SELECT id, user_id, booking_slug
+     FROM masters WHERE booking_slug = $1`,
+    `SELECT id, booking_slug
+     FROM masters WHERE booking_slug = $1`
+  ];
+
+  for (const sql of attempts) {
+    try {
+      const { rows } = await pool.query(sql, [slug]);
+      if (!rows.length) return null;
+      const row = rows[0];
+      return {
+        id: Number(row.id),
+        user_id: row.user_id !== undefined ? Number(row.user_id) : null,
+        display_name: String(row.display_name || process.env.MASTER_DISPLAY_NAME || 'Мастер'),
+        timezone: String(row.timezone || process.env.MASTER_TIMEZONE || 'Asia/Novosibirsk'),
+        booking_slug: String(row.booking_slug || slug),
+        cancel_policy_hours: Number(row.cancel_policy_hours ?? 24),
+        profile: buildPublicProfile(row)
+      };
+    } catch (error) {
+      if (error.code === '42P01') return null;
+      if (error.code === '42703') continue;
+      throw error;
+    }
+  }
+
+  return null;
 }
 
 async function loadService(masterId, serviceId) {
-  const { rows } = await pool.query(
-    `SELECT id, master_id, name, duration_minutes, price, description,
-            buffer_before_minutes, buffer_after_minutes, is_active
-     FROM services
-     WHERE id = $1 AND master_id = $2 AND is_active = true`,
-    [serviceId, masterId]
-  );
-  return rows[0] || null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price, description,
+              buffer_before_minutes, buffer_after_minutes, is_active
+       FROM services
+       WHERE id = $1 AND master_id = $2 AND is_active = true`,
+      [serviceId, masterId]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    // Legacy schema compatibility: missing/typed-differently is_active and buffer columns.
+    if (!isLegacySchemaCompatibilityError(error)) throw error;
+    const fallback = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price
+       FROM services
+       WHERE id = $1 AND master_id = $2`,
+      [serviceId, masterId]
+    );
+    if (!fallback.rows.length) return null;
+    return {
+      ...fallback.rows[0],
+      buffer_before_minutes: 0,
+      buffer_after_minutes: 0,
+      is_active: true
+    };
+  }
+}
+
+function normalizeServiceRow(service) {
+  return {
+    ...service,
+    buffer_before_minutes: Number(service && service.buffer_before_minutes ? service.buffer_before_minutes : 0),
+    buffer_after_minutes: Number(service && service.buffer_after_minutes ? service.buffer_after_minutes : 0),
+    is_active: service && service.is_active !== undefined ? Boolean(service.is_active) : true
+  };
+}
+
+async function loadPublicServices(masterId) {
+  try {
+    const services = await pool.query(
+      `SELECT id, master_id, name, duration_minutes, price, description,
+              buffer_before_minutes, buffer_after_minutes, is_active
+       FROM services
+       WHERE master_id = $1 AND is_active = true
+       ORDER BY created_at ASC`,
+      [masterId]
+    );
+    return services.rows.map(normalizeServiceRow);
+  } catch (error) {
+    if (error.code === '42P01') return [];
+    if (!isLegacySchemaCompatibilityError(error)) throw error;
+
+    // Legacy schema fallback for services table without newer columns.
+    try {
+      const fallback = await pool.query(
+        `SELECT id, master_id, name, duration_minutes, price
+         FROM services
+         WHERE master_id = $1
+         ORDER BY id ASC`,
+        [masterId]
+      );
+      return fallback.rows.map(normalizeServiceRow);
+    } catch (fallbackError) {
+      if (isLegacySchemaCompatibilityError(fallbackError)) return [];
+      throw fallbackError;
+    }
+  }
 }
 
 async function loadMasterSettings(masterId) {
-  const { rows } = await pool.query(
-    `SELECT reminder_hours, first_visit_discount_percent, min_booking_notice_minutes
-     FROM master_settings
-     WHERE master_id = $1`,
-    [masterId]
-  );
-  if (!rows.length) {
+  const defaults = {
+    reminder_hours: [24, 2],
+    min_booking_notice_minutes: 60
+  };
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT reminder_hours, min_booking_notice_minutes
+       FROM master_settings
+       WHERE master_id = $1`,
+      [masterId]
+    );
+    if (!rows.length) return defaults;
     return {
-      reminder_hours: [24, 2],
-      first_visit_discount_percent: 15,
-      min_booking_notice_minutes: 60
+      reminder_hours: rows[0].reminder_hours || defaults.reminder_hours,
+      min_booking_notice_minutes: Number(rows[0].min_booking_notice_minutes ?? defaults.min_booking_notice_minutes)
+    };
+  } catch (error) {
+    // Compatibility for partially migrated DB: fallback to minimal settings.
+    if (!isLegacySchemaCompatibilityError(error)) throw error;
+    try {
+      const { rows } = await pool.query(
+        `SELECT reminder_hours
+         FROM master_settings
+         WHERE master_id = $1`,
+        [masterId]
+      );
+      if (!rows.length) return defaults;
+      return {
+        reminder_hours: rows[0].reminder_hours || defaults.reminder_hours,
+        min_booking_notice_minutes: defaults.min_booking_notice_minutes
+      };
+    } catch {
+      return defaults;
+    }
+  }
+}
+
+function normalizePromoCode(rawPromoCode) {
+  return String(rawPromoCode || '').trim().toUpperCase();
+}
+
+function isLegacySchemaCompatibilityError(error) {
+  return Boolean(error && ['42P01', '42703', '42883'].includes(error.code));
+}
+
+async function loadActivePromoCode(masterId, normalizedCode) {
+  if (!normalizedCode) return null;
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active,
+              p.usage_mode, p.uses_count,
+              gs.id AS gift_id, gs.master_id AS gift_master_id, gs.name AS gift_name,
+              gs.duration_minutes AS gift_duration_minutes, gs.price AS gift_price,
+              gs.description AS gift_description, gs.buffer_before_minutes AS gift_buffer_before_minutes,
+              gs.buffer_after_minutes AS gift_buffer_after_minutes, gs.is_active AS gift_is_active
+       FROM master_promo_codes p
+       LEFT JOIN services gs ON gs.id = p.gift_service_id
+       WHERE p.master_id = $1
+         AND p.code = $2
+         AND p.is_active = true
+         AND (COALESCE(p.usage_mode, 'always') <> 'single_use' OR COALESCE(p.uses_count, 0) < 1)
+       LIMIT 1`,
+      [masterId, normalizedCode]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    // Compatibility mode: promo schema can be absent on partially migrated DB.
+    if (error.code === '42P01') return null;
+    if (error.code === '42703') {
+      try {
+        const fallback = await pool.query(
+          `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active
+           FROM master_promo_codes p
+           WHERE p.master_id = $1
+             AND p.code = $2
+             AND p.is_active = true
+           LIMIT 1`,
+          [masterId, normalizedCode]
+        );
+        const row = fallback.rows[0];
+        if (!row) return null;
+
+        const normalized = {
+          ...row,
+          usage_mode: 'always',
+          uses_count: 0,
+          gift_id: null,
+          gift_master_id: null,
+          gift_name: null,
+          gift_duration_minutes: 0,
+          gift_price: 0,
+          gift_description: null,
+          gift_buffer_before_minutes: 0,
+          gift_buffer_after_minutes: 0,
+          gift_is_active: false
+        };
+
+        const giftId = Number(row.gift_service_id || 0);
+        if (giftId > 0) {
+          normalized.gift_id = giftId;
+          try {
+            const giftService = await loadService(masterId, giftId);
+            if (giftService) {
+              normalized.gift_master_id = Number(giftService.master_id || masterId);
+              normalized.gift_name = giftService.name || null;
+              normalized.gift_duration_minutes = Number(giftService.duration_minutes || 0);
+              normalized.gift_price = Number(giftService.price || 0);
+              normalized.gift_description = giftService.description || null;
+              normalized.gift_buffer_before_minutes = Number(giftService.buffer_before_minutes || 0);
+              normalized.gift_buffer_after_minutes = Number(giftService.buffer_after_minutes || 0);
+              normalized.gift_is_active = Boolean(giftService.is_active);
+            }
+          } catch (giftLoadError) {
+            // Keep promo code usable even if gift service cannot be fetched on legacy schema.
+            void giftLoadError;
+          }
+        }
+
+        return normalized;
+      } catch (fallbackError) {
+        if (fallbackError.code === '42P01') return null;
+        throw fallbackError;
+      }
+    }
+    throw error;
+  }
+}
+
+function isComplexServiceRow(service) {
+  const name = String(service && service.name ? service.name : '');
+  const description = String(service && service.description ? service.description : '');
+  return /комплекс/i.test(name) || /комплекс/i.test(description);
+}
+
+function selectCheapestService(services) {
+  if (!Array.isArray(services) || !services.length) return null;
+  return services.reduce((best, service) => {
+    if (!best) return service;
+    const price = Number(service && service.price ? service.price : 0);
+    const bestPrice = Number(best && best.price ? best.price : 0);
+    if (price !== bestPrice) return price < bestPrice ? service : best;
+    return Number(service && service.id ? service.id : 0) < Number(best && best.id ? best.id : 0)
+      ? service
+      : best;
+  }, null);
+}
+
+function resolvePromoGiftService(appliedPromo, selectedServices) {
+  const services = Array.isArray(selectedServices) ? selectedServices.filter(Boolean) : [];
+  const configuredGiftServiceId = Number(
+    (appliedPromo && (appliedPromo.gift_id || appliedPromo.gift_service_id)) || 0
+  );
+
+  if (configuredGiftServiceId > 0) {
+    const configuredService = services.find((service) => Number(service.id) === configuredGiftServiceId);
+    if (!configuredService) {
+      return {
+        giftService: null,
+        error: 'Для этого промокода выберите подарочную зону, указанную мастером'
+      };
+    }
+    if (isComplexServiceRow(configuredService)) {
+      return {
+        giftService: null,
+        error: 'Подарочная зона промокода должна быть зоной эпиляции'
+      };
+    }
+    return { giftService: configuredService, error: null };
+  }
+
+  const zoneServices = services.filter((service) => !isComplexServiceRow(service));
+  if (!zoneServices.length) {
+    return {
+      giftService: null,
+      error: 'Промокод «Зона в подарок» действует только на зоны эпиляции'
     };
   }
-  return rows[0];
+  return {
+    giftService: selectCheapestService(zoneServices),
+    error: null
+  };
 }
 
 function resolveMasterTimezone(master) {
@@ -161,14 +469,7 @@ router.get('/master/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Master not found' });
     }
 
-    const services = await pool.query(
-      `SELECT id, master_id, name, duration_minutes, price, description,
-              buffer_before_minutes, buffer_after_minutes, is_active
-       FROM services
-       WHERE master_id = $1 AND is_active = true
-       ORDER BY created_at ASC`,
-      [master.id]
-    );
+    const services = await loadPublicServices(master.id);
 
     const timezone = resolveMasterTimezone(master);
     return res.json({
@@ -177,9 +478,10 @@ router.get('/master/:slug', async (req, res) => {
         display_name: master.display_name,
         timezone: timezone,
         booking_slug: master.booking_slug,
-        cancel_policy_hours: master.cancel_policy_hours
+        cancel_policy_hours: master.cancel_policy_hours,
+        profile: master.profile || DEFAULT_PUBLIC_PROFILE
       },
-      services: services.rows,
+      services: services,
       settings: await loadMasterSettings(master.id)
     });
   } catch (error) {
@@ -218,35 +520,108 @@ router.get('/master/:slug/slots', async (req, res) => {
     const queryStartUtc = new Date(localDateTimeToUtcMs(date_from, '00:00:00', timezone)).toISOString();
     const queryEndUtc = new Date(localDateTimeToUtcMs(date_to, '23:59:59', timezone)).toISOString();
 
-    const [windows, bookings, blocks] = await Promise.all([
-      pool.query(
+    let windows = { rows: [] };
+    try {
+      windows = await pool.query(
         `SELECT id, date, start_time, end_time
          FROM availability_windows
          WHERE master_id = $1 AND date >= $2 AND date <= $3
          ORDER BY date, start_time`,
         [master.id, date_from, date_to]
-      ),
-      pool.query(
+      );
+    } catch (windowError) {
+      if (windowError.code !== '42P01') throw windowError;
+    }
+
+    let bookings;
+    try {
+      bookings = await pool.query(
         `SELECT start_at, end_at FROM bookings
          WHERE master_id = $1 AND status NOT IN ('canceled')
            AND start_at < $3 AND end_at > $2`,
         [master.id, queryStartUtc, queryEndUtc]
-      ),
-      pool.query(
+      );
+    } catch (bookingError) {
+      if (bookingError.code !== '42703') throw bookingError;
+      bookings = await pool.query(
+        `SELECT b.start_at,
+                (b.start_at + ((COALESCE(s.duration_minutes, 0))::text || ' minutes')::interval) AS end_at
+         FROM bookings b
+         JOIN services s ON s.id = b.service_id
+         WHERE b.master_id = $1
+           AND b.status NOT IN ('canceled')
+           AND b.start_at >= $2
+           AND b.start_at <= $3`,
+        [master.id, queryStartUtc, queryEndUtc]
+      );
+    }
+
+    let blocks = { rows: [] };
+    try {
+      blocks = await pool.query(
         `SELECT start_at, end_at FROM master_blocks
          WHERE master_id = $1 AND start_at < $3 AND end_at > $2`,
         [master.id, queryStartUtc, queryEndUtc]
-      )
-    ]);
+      );
+    } catch (blockError) {
+      if (blockError.code !== '42P01') throw blockError;
+    }
 
-    const slots = generateSlotsFromWindows({
+    const rawSlots = generateSlotsFromWindows({
       service: effectiveService,
       windows: windows.rows,
       bookings: bookings.rows,
       blocks: blocks.rows,
       timezone,
       stepMinutes: 10,
-      minLeadMinutes: settings.min_booking_notice_minutes || 60
+      minLeadMinutes: settings.min_booking_notice_minutes ?? 60
+    });
+
+    // Load hot windows for this date range
+    let hotWindows = [];
+    try {
+      const hwRes = await pool.query(
+        `SELECT hw.id, hw.date, hw.start_time, hw.end_time,
+                hw.reward_type, hw.discount_percent,
+                hw.gift_service_id, s.name AS gift_service_name
+         FROM hot_windows hw
+         LEFT JOIN services s ON s.id = hw.gift_service_id
+         WHERE hw.master_id = $1
+           AND hw.date >= $2 AND hw.date <= $3
+           AND hw.is_active = true`,
+        [master.id, date_from, date_to]
+      );
+      hotWindows = hwRes.rows;
+    } catch (hwError) {
+      if (hwError.code !== '42P01') throw hwError;
+    }
+
+    const effectiveDurationMs = Number(effectiveService.duration_minutes || 0) * 60000;
+
+    // Annotate each slot that overlaps >= 50% with a hot window
+    const slots = rawSlots.map((slot) => {
+      if (!hotWindows.length) return slot;
+      const slotStartMs = new Date(slot.start).getTime();
+      const slotEndMs = slotStartMs + effectiveDurationMs;
+      for (const hw of hotWindows) {
+        const dateStr = hw.date instanceof Date ? hw.date.toISOString().slice(0, 10) : String(hw.date).slice(0, 10);
+        const hwStartMs = localDateTimeToUtcMs(dateStr, hw.start_time, timezone);
+        const hwEndMs = localDateTimeToUtcMs(dateStr, hw.end_time, timezone);
+        const overlap = Math.max(0, Math.min(slotEndMs, hwEndMs) - Math.max(slotStartMs, hwStartMs));
+        if (effectiveDurationMs > 0 && overlap / effectiveDurationMs >= 0.5) {
+          return {
+            ...slot,
+            hot_window: {
+              id: hw.id,
+              reward_type: hw.reward_type,
+              discount_percent: hw.discount_percent,
+              gift_service_id: hw.gift_service_id,
+              gift_service_name: hw.gift_service_name
+            }
+          };
+        }
+      }
+      return slot;
     });
 
     return res.json({ slots });
@@ -424,9 +799,100 @@ router.get('/master/:slug/client-calendar.ics', async (req, res) => {
 // POST /api/public/master/:slug/book
 // Accepts either { service_id, start_at } (legacy single) or { service_ids: [...], start_at } (multi-service).
 // Complexes must be booked alone (service_ids.length === 1 if any complex is selected).
+router.post('/master/:slug/pricing-preview', async (req, res) => {
+  try {
+    let rawIds = req.body && req.body.service_ids;
+    if (!rawIds) {
+      rawIds = req.body && req.body.service_id ? [req.body.service_id] : [];
+    }
+    const serviceIds = (Array.isArray(rawIds) ? rawIds : [rawIds])
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const normalizedServiceIds = [...new Set(serviceIds)];
+
+    if (!normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'service_ids (or service_id) is required' });
+    }
+
+    const master = await loadMasterBySlug(req.params.slug);
+    if (!master) {
+      return res.status(404).json({ error: 'Master not found' });
+    }
+
+    const loadedServices = await Promise.all(
+      normalizedServiceIds.map((id) => loadService(master.id, id))
+    );
+    const missingIdx = loadedServices.findIndex((service) => !service);
+    if (missingIdx !== -1) {
+      return res.status(404).json({ error: `Service ${normalizedServiceIds[missingIdx]} not found or inactive` });
+    }
+
+    const servicesById = new Map(loadedServices.map((service) => [Number(service.id), service]));
+    const promoCodeInput = normalizePromoCode(req.body && req.body.promo_code);
+    let appliedPromo = null;
+    let promoGiftService = null;
+    let promoDiscountPercent = null;
+
+    if (promoCodeInput) {
+      appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
+      if (!appliedPromo) {
+        return res.status(400).json({ error: 'Промокод не найден или неактивен' });
+      }
+
+      if (appliedPromo.reward_type === 'percent') {
+        promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
+      } else if (appliedPromo.reward_type === 'gift_service') {
+        const giftResolution = resolvePromoGiftService(appliedPromo, loadedServices);
+        if (giftResolution.error) {
+          return res.status(400).json({ error: giftResolution.error });
+        }
+        promoGiftService = giftResolution.giftService;
+      } else {
+        return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
+      }
+    }
+
+    const effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
+    if (effectiveServices.length !== normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'Не удалось собрать услуги для расчёта' });
+    }
+
+    const totalDurationMinutes = effectiveServices.reduce((sum, service) => sum + Number(service.duration_minutes || 0), 0);
+    const totalBasePrice = effectiveServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+    let discountAmount = 0;
+    if (promoDiscountPercent !== null) {
+      discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
+    } else if (promoGiftService) {
+      discountAmount = Number(promoGiftService.price || 0);
+    }
+    discountAmount = Math.min(totalBasePrice, Math.max(0, discountAmount));
+    const finalPrice = Math.max(0, Math.round((totalBasePrice - discountAmount) * 100) / 100);
+
+    return res.json({
+      service_ids: normalizedServiceIds,
+      total_duration_minutes: totalDurationMinutes,
+      pricing: {
+        base_price: totalBasePrice,
+        final_price: finalPrice,
+        discount_amount: discountAmount,
+        promo_code: appliedPromo ? String(appliedPromo.code) : null,
+        promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
+        promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
+        promo_discount_percent: promoDiscountPercent,
+        promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
+        promo_gift_service_added: false
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating public pricing preview:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/master/:slug/book', authenticateToken, async (req, res) => {
   try {
-    const { start_at, client_note } = req.body;
+    const { start_at } = req.body;
+    const client_note = req.body.client_note ? String(req.body.client_note).slice(0, 500) : null;
 
     // Normalize to array of IDs
     let rawIds = req.body.service_ids;
@@ -436,8 +902,9 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const serviceIds = (Array.isArray(rawIds) ? rawIds : [rawIds])
       .map((id) => parseInt(id, 10))
       .filter((id) => Number.isFinite(id) && id > 0);
+    const normalizedServiceIds = [...new Set(serviceIds)];
 
-    if (!serviceIds.length || !start_at) {
+    if (!normalizedServiceIds.length || !start_at) {
       return res.status(400).json({ error: 'service_ids (or service_id) and start_at are required' });
     }
 
@@ -448,11 +915,41 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
 
     // Load and validate all requested services
     const loadedServices = await Promise.all(
-      serviceIds.map((id) => loadService(master.id, id))
+      normalizedServiceIds.map((id) => loadService(master.id, id))
     );
     const missingIdx = loadedServices.findIndex((s) => !s);
     if (missingIdx !== -1) {
-      return res.status(404).json({ error: `Service ${serviceIds[missingIdx]} not found or inactive` });
+      return res.status(404).json({ error: `Service ${normalizedServiceIds[missingIdx]} not found or inactive` });
+    }
+    const servicesById = new Map(loadedServices.map((service) => [Number(service.id), service]));
+
+    const promoCodeInput = normalizePromoCode(req.body.promo_code);
+    let appliedPromo = null;
+    let promoGiftService = null;
+    let promoDiscountPercent = null;
+
+    if (promoCodeInput) {
+      appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
+      if (!appliedPromo) {
+        return res.status(400).json({ error: 'Промокод не найден или неактивен' });
+      }
+
+      if (appliedPromo.reward_type === 'percent') {
+        promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
+      } else if (appliedPromo.reward_type === 'gift_service') {
+        const giftResolution = resolvePromoGiftService(appliedPromo, loadedServices);
+        if (giftResolution.error) {
+          return res.status(400).json({ error: giftResolution.error });
+        }
+        promoGiftService = giftResolution.giftService;
+      } else {
+        return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
+      }
+    }
+
+    const effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
+    if (effectiveServices.length !== normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'Не удалось собрать услуги для записи' });
     }
 
     const settings = await loadMasterSettings(master.id);
@@ -466,14 +963,62 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     if (minute % 10 !== 0) {
       return res.status(400).json({ error: 'Start time must be aligned to 10 minutes' });
     }
-    const minNoticeMinutes = Number(settings.min_booking_notice_minutes || 60);
+    const minNoticeMinutes = Number(settings.min_booking_notice_minutes ?? 60);
     if (startDate.getTime() < Date.now() + minNoticeMinutes * 60000) {
       return res.status(400).json({ error: `Booking is allowed at least ${minNoticeMinutes} minutes in advance` });
     }
 
     // Calculate totals across all services
-    const totalDurationMinutes = loadedServices.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
-    const totalBasePrice = loadedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+    const totalDurationMinutes = effectiveServices.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
+    const totalBasePrice = effectiveServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+    // Check for applicable hot window (only if no promo code used)
+    let appliedHotWindow = null;
+    let hotWindowGiftService = null;
+    if (!appliedPromo) {
+      try {
+        const localDate2 = dateInTimezone(startDate, timezone);
+        const slotStartMs = startDate.getTime();
+        const slotEndMs = slotStartMs + totalDurationMinutes * 60000;
+        const hwRes = await pool.query(
+          `SELECT hw.*, s.name AS gift_service_name, s.price AS gift_service_price
+           FROM hot_windows hw
+           LEFT JOIN services s ON s.id = hw.gift_service_id
+           WHERE hw.master_id = $1 AND hw.date = $2 AND hw.is_active = true`,
+          [master.id, localDate2]
+        );
+        for (const hw of hwRes.rows) {
+          const dateStr = hw.date instanceof Date ? hw.date.toISOString().slice(0, 10) : String(hw.date).slice(0, 10);
+          const hwStartMs = localDateTimeToUtcMs(dateStr, hw.start_time, timezone);
+          const hwEndMs = localDateTimeToUtcMs(dateStr, hw.end_time, timezone);
+          const overlap = Math.max(0, Math.min(slotEndMs, hwEndMs) - Math.max(slotStartMs, hwStartMs));
+          if (totalDurationMinutes > 0 && overlap / (totalDurationMinutes * 60000) >= 0.5) {
+            appliedHotWindow = hw;
+            if (hw.reward_type === 'gift_service' && hw.gift_service_id) {
+              hotWindowGiftService = { id: hw.gift_service_id, name: hw.gift_service_name, price: Number(hw.gift_service_price || 0) };
+            }
+            break;
+          }
+        }
+      } catch (hwError) {
+        if (hwError.code !== '42P01') throw hwError;
+      }
+    }
+
+    let discountAmount = 0;
+    if (promoDiscountPercent !== null) {
+      discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
+    } else if (promoGiftService) {
+      discountAmount = Number(promoGiftService.price || 0);
+    } else if (appliedHotWindow) {
+      if (appliedHotWindow.reward_type === 'percent') {
+        discountAmount = Math.round(totalBasePrice * Number(appliedHotWindow.discount_percent || 0)) / 100;
+      } else if (hotWindowGiftService) {
+        discountAmount = hotWindowGiftService.price;
+      }
+    }
+    discountAmount = Math.min(totalBasePrice, Math.max(0, discountAmount));
+    const finalPrice = Math.max(0, Math.round((totalBasePrice - discountAmount) * 100) / 100);
 
     const localDate = dateInTimezone(startDate, timezone);
     const windowCoverage = await pool.query(
@@ -511,39 +1056,88 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       });
     }
 
-    const firstBookingCheck = await pool.query(
-      `SELECT id FROM bookings WHERE master_id = $1 AND client_id = $2 LIMIT 1`,
-      [master.id, req.user.id]
-    );
-    const isFirstVisit = firstBookingCheck.rows.length === 0;
-    const discountPercent = isFirstVisit ? Number(settings.first_visit_discount_percent || 0) : 0;
-    const discountAmount = Math.round(totalBasePrice * discountPercent) / 100;
-    const finalPrice = Math.max(0, totalBasePrice - discountAmount);
-
-    const primaryServiceId = serviceIds[0];
-    const extraServiceIds = serviceIds.slice(1);
+    const primaryServiceId = normalizedServiceIds[0];
+    const extraServiceIds = normalizedServiceIds.slice(1);
     const endDate = new Date(startDate.getTime() + totalDurationMinutes * 60000);
 
-    const result = await pool.query(
-      `INSERT INTO bookings
-         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note)
-       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7)
-       RETURNING *`,
-      [
-        master.id,
-        req.user.id,
-        primaryServiceId,
-        JSON.stringify(extraServiceIds),
-        startDate.toISOString(),
-        endDate.toISOString(),
-        client_note || null
-      ]
-    );
-    const created = result.rows[0];
+    const insertSql = `INSERT INTO bookings
+         (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
+          promo_code_id, promo_code, promo_reward_type, promo_discount_percent, promo_gift_service_id,
+          hot_window_id, hot_window_reward_type, hot_window_discount_percent, hot_window_gift_service_id,
+          pricing_base, pricing_final, pricing_discount_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7,
+               $8, $9, $10, $11, $12,
+               $13, $14, $15, $16,
+               $17, $18, $19)
+       RETURNING *`;
+    const insertParams = [
+      master.id,
+      req.user.id,
+      primaryServiceId,
+      JSON.stringify(extraServiceIds),
+      startDate.toISOString(),
+      endDate.toISOString(),
+      client_note || null,
+      appliedPromo ? Number(appliedPromo.id) : null,
+      appliedPromo ? String(appliedPromo.code) : null,
+      appliedPromo ? String(appliedPromo.reward_type) : null,
+      promoDiscountPercent,
+      promoGiftService ? Number(promoGiftService.id) : null,
+      appliedHotWindow ? Number(appliedHotWindow.id) : null,
+      appliedHotWindow ? String(appliedHotWindow.reward_type) : null,
+      appliedHotWindow && appliedHotWindow.reward_type === 'percent' ? Number(appliedHotWindow.discount_percent) : null,
+      hotWindowGiftService ? Number(hotWindowGiftService.id) : null,
+      totalBasePrice,
+      finalPrice,
+      discountAmount
+    ];
+
+    let created = null;
+    const promoUsageMode = appliedPromo ? String(appliedPromo.usage_mode || 'always') : 'always';
+    if (appliedPromo && promoUsageMode === 'single_use') {
+      let txOpened = false;
+      try {
+        await pool.query('BEGIN');
+        txOpened = true;
+
+        const consumeRes = await pool.query(
+          `UPDATE master_promo_codes
+           SET uses_count = COALESCE(uses_count, 0) + 1,
+               is_active = false,
+               updated_at = NOW()
+           WHERE id = $1
+             AND master_id = $2
+             AND is_active = true
+             AND usage_mode = 'single_use'
+             AND COALESCE(uses_count, 0) < 1
+           RETURNING id`,
+          [Number(appliedPromo.id), master.id]
+        );
+        if (!consumeRes.rows.length) {
+          await pool.query('ROLLBACK');
+          txOpened = false;
+          return res.status(400).json({ error: 'Промокод уже использован' });
+        }
+
+        const txResult = await pool.query(insertSql, insertParams);
+        created = txResult.rows[0];
+
+        await pool.query('COMMIT');
+      } catch (txError) {
+        if (txOpened) {
+          await pool.query('ROLLBACK').catch(() => {});
+        }
+        throw txError;
+      }
+    } else {
+      const result = await pool.query(insertSql, insertParams);
+      created = result.rows[0];
+    }
 
     try {
       await createReminders(created.id, created.master_id, created.start_at);
       await notifyMasterBookingEvent(created.id, 'created');
+      await notifyClientBookingEvent(created.id, 'created');
     } catch (notifyError) {
       console.error('Error handling public booking side-effects:', notifyError);
     }
@@ -552,8 +1146,18 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       ...created,
       pricing: {
         base_price: totalBasePrice,
-        first_visit_discount_percent: discountPercent,
-        final_price: finalPrice
+        final_price: finalPrice,
+        discount_amount: discountAmount,
+        promo_code: appliedPromo ? String(appliedPromo.code) : null,
+        promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
+        promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
+        promo_discount_percent: promoDiscountPercent,
+        promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
+        promo_gift_service_added: false,
+        hot_window_id: appliedHotWindow ? Number(appliedHotWindow.id) : null,
+        hot_window_reward_type: appliedHotWindow ? String(appliedHotWindow.reward_type) : null,
+        hot_window_discount_percent: appliedHotWindow && appliedHotWindow.reward_type === 'percent' ? Number(appliedHotWindow.discount_percent) : null,
+        hot_window_gift_service_name: hotWindowGiftService ? hotWindowGiftService.name : null
       }
     });
   } catch (error) {

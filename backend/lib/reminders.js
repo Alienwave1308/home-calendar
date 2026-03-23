@@ -50,27 +50,28 @@ async function processPendingReminders() {
 
   if (rows.length === 0) return [];
 
-  // Load booking details for each reminder
+  // Load all booking details in a single query instead of N+1
+  const bookingIds = rows.map((r) => r.booking_id);
+  const bookingsRes = await pool.query(
+    `SELECT b.*, s.name AS service_name, s.duration_minutes,
+            m.display_name AS master_name, m.timezone,
+            u.username AS client_name
+     FROM bookings b
+     JOIN services s ON b.service_id = s.id
+     JOIN masters m ON b.master_id = m.id
+     JOIN users u ON b.client_id = u.id
+     WHERE b.id = ANY($1) AND b.status NOT IN ('canceled')`,
+    [bookingIds]
+  );
+
+  const bookingMap = {};
+  for (const b of bookingsRes.rows) bookingMap[b.id] = b;
+
   const results = [];
   for (const reminder of rows) {
-    const booking = await pool.query(
-      `SELECT b.*, s.name AS service_name, s.duration_minutes,
-              m.display_name AS master_name, m.timezone,
-              u.username AS client_name
-       FROM bookings b
-       JOIN services s ON b.service_id = s.id
-       JOIN masters m ON b.master_id = m.id
-       JOIN users u ON b.client_id = u.id
-       WHERE b.id = $1 AND b.status NOT IN ('canceled')`,
-      [reminder.booking_id]
-    );
-
-    if (booking.rows.length > 0) {
-      results.push({
-        reminder_id: reminder.id,
-        remind_at: reminder.remind_at,
-        booking: booking.rows[0]
-      });
+    const booking = bookingMap[reminder.booking_id];
+    if (booking) {
+      results.push({ reminder_id: reminder.id, remind_at: reminder.remind_at, booking });
     }
   }
 

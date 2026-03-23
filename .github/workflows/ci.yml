@@ -87,6 +87,10 @@ jobs:
             spec: cypress/e2e/master-calendar-settings.cy.js
           - section: MasterBookings
             spec: cypress/e2e/master-bookings-crud.cy.js
+          - section: MasterPromoCodes
+            spec: cypress/e2e/master-promo-codes.cy.js
+          - section: MasterOverview
+            spec: cypress/e2e/master-overview.cy.js
     services:
       postgres:
         image: postgres:16-alpine

@@ -16,6 +16,7 @@ const token1 = `Bearer ${jwt.sign(user1, JWT_SECRET, { expiresIn: '1h' })}`;
 describe('Recurrence API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    pool.query.mockReset();
   });
 
   it('should return 401 without token', async () => {

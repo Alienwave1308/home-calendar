@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#2f9f68">
   <title>Панель мастера</title>
-  <link rel="stylesheet" href="booking.css">
-  <link rel="stylesheet" href="master.css">
+  <link rel="stylesheet" href="booking.css?v=20260318b">
+  <link rel="stylesheet" href="master.css?v=20260318b">
 </head>
 <body>
   <div id="app">
@@ -17,7 +17,8 @@
 
     <!-- Tabs -->
     <nav class="master-tabs" id="masterTabs">
-      <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Сегодня</button>
+      <button class="master-tab active" data-tab="today" onclick="MasterApp.switchTab('today')">Обзор</button>
+      <button class="master-tab" data-tab="profile" onclick="MasterApp.switchTab('profile')">Профиль</button>
       <button class="master-tab" data-tab="bookings" onclick="MasterApp.switchTab('bookings')">Записи</button>
       <button class="master-tab" data-tab="leads" onclick="MasterApp.switchTab('leads')">Лиды</button>
       <button class="master-tab" data-tab="services" onclick="MasterApp.switchTab('services')">Услуги</button>
@@ -26,12 +27,98 @@
 
     <!-- Tab: Today -->
     <section class="tab-panel" id="tabToday">
+      <article class="settings-card overview-card">
+        <h3>Метрики</h3>
+        <div class="overview-controls">
+          <div class="overview-period-grid">
+            <button class="btn-secondary active" id="overviewPresetDay" onclick="MasterApp.setOverviewPreset('day')">День</button>
+            <button class="btn-secondary" id="overviewPresetWeek" onclick="MasterApp.setOverviewPreset('week')">Неделя</button>
+            <button class="btn-secondary" id="overviewPresetMonth" onclick="MasterApp.setOverviewPreset('month')">Месяц</button>
+            <button class="btn-secondary" id="overviewPresetAll" onclick="MasterApp.setOverviewPreset('all')">Все время</button>
+          </div>
+          <div class="overview-custom-period">
+            <input id="overviewFrom" type="date">
+            <input id="overviewTo" type="date">
+            <button class="btn-secondary" onclick="MasterApp.applyOverviewPeriod()">Применить</button>
+          </div>
+          <p id="overviewRangeLabel" class="settings-hint">Период: —</p>
+        </div>
+        <div class="overview-kpi-grid">
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Записей</p>
+            <p id="overviewKpiBookings" class="overview-kpi-value">0</p>
+          </article>
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Выручка</p>
+            <p id="overviewKpiRevenue" class="overview-kpi-value">0 ₽</p>
+          </article>
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Средний чек</p>
+            <p id="overviewKpiAvg" class="overview-kpi-value">0 ₽</p>
+          </article>
+          <article class="overview-kpi-item">
+            <p class="overview-kpi-label">Клиентов</p>
+            <p id="overviewKpiClients" class="overview-kpi-value">0</p>
+          </article>
+        </div>
+        <p class="settings-hint overview-kpi-note">В расчет попадают только неотмененные записи, время которых уже прошло.</p>
+      </article>
       <div id="todayBookings" class="bookings-list"></div>
       <div id="todayEmpty" class="empty-state" style="display:none;">
         <div class="empty-icon">🎉</div>
         <p>На сегодня записей нет</p>
         <p class="empty-hint">Поделитесь ссылкой для записи с клиентами</p>
       </div>
+    </section>
+
+    <!-- Tab: Profile -->
+    <section class="tab-panel" id="tabProfile" style="display:none;">
+      <article class="settings-card profile-preview-card">
+        <div class="profile-preview-top">
+          <div>
+            <h3 id="profilePreviewBrand" class="profile-preview-brand">Ro Va</h3>
+            <p id="profilePreviewSub" class="profile-preview-sub">Epil &amp; Care</p>
+            <p id="profilePreviewName" class="profile-preview-name">Лера · Мастер эпиляции</p>
+          </div>
+          <span id="profilePreviewCity" class="profile-chip">Новосибирск</span>
+        </div>
+        <div class="profile-preview-grid">
+          <article class="profile-preview-stat">
+            <p>Опыт</p>
+            <strong id="profilePreviewExp">—</strong>
+          </article>
+          <article class="profile-preview-stat">
+            <p>Телефон</p>
+            <strong id="profilePreviewPhone">—</strong>
+          </article>
+          <article class="profile-preview-stat" style="grid-column: 1 / -1;">
+            <p>Адрес</p>
+            <strong id="profilePreviewAddress">—</strong>
+          </article>
+        </div>
+        <p id="profilePreviewBio" class="profile-preview-bio">Заполните блок «О себе», чтобы он отображался в карточке.</p>
+        <p id="profilePreviewGiftText" class="settings-hint">Подарок от меня на первое посещение по ссылке:</p>
+        <a id="profilePreviewGiftUrl" class="profile-preview-link" href="https://vk.cc/cVmuLI" target="_blank" rel="noopener noreferrer">vk.cc/cVmuLI</a>
+      </article>
+
+      <article class="settings-card">
+        <h3>Данные профиля</h3>
+        <div class="availability-form profile-form-grid">
+          <input id="profileBrand" type="text" maxlength="120" placeholder="Бренд">
+          <input id="profileSubtitle" type="text" maxlength="120" placeholder="Подзаголовок">
+          <input id="profileName" type="text" maxlength="120" placeholder="Имя мастера">
+          <input id="profileRole" type="text" maxlength="120" placeholder="Роль">
+          <input id="profileExperience" type="text" maxlength="120" placeholder="Опыт">
+          <input id="profileCity" type="text" maxlength="120" placeholder="Город">
+          <input id="profilePhone" type="text" maxlength="120" placeholder="Телефон">
+          <input id="profileAddress" type="text" maxlength="255" placeholder="Адрес">
+          <textarea id="profileBio" rows="4" maxlength="1200" placeholder="О себе"></textarea>
+          <textarea id="profileGiftText" rows="2" maxlength="255" placeholder="Текст подарка"></textarea>
+          <input id="profileGiftUrl" type="url" maxlength="255" placeholder="Ссылка на подарок">
+          <button class="btn-secondary" onclick="MasterApp.openGiftLink()">Открыть ссылку</button>
+          <button class="btn-primary" onclick="MasterApp.saveMasterProfile()">Сохранить профиль</button>
+        </div>
+      </article>
     </section>
 
     <!-- Tab: Bookings -->
@@ -188,6 +275,11 @@
     <!-- Tab: Settings -->
     <section class="tab-panel" id="tabSettings" style="display:none;">
       <div class="settings-card">
+        <h3>Уведомления</h3>
+        <button class="btn-secondary" onclick="MasterApp.testNotification()" id="btnTestNotification">Отправить тест в Telegram</button>
+        <p id="testNotificationResult" class="settings-hint" style="margin-top:6px;"></p>
+      </div>
+      <div class="settings-card">
         <h3>Ссылка для записи</h3>
         <div class="link-copy-row">
           <input type="text" id="bookingLink" readonly class="link-input">
@@ -224,9 +316,43 @@
         </div>
         <div class="availability-form">
           <input id="minBookingNoticeMinutes" type="number" min="0" max="1440" value="60" placeholder="Минимум до записи, минут">
-          <input id="firstVisitDiscountPercent" type="number" min="0" max="90" value="15" placeholder="Скидка на первый визит, %">
-          <button class="btn-secondary" onclick="MasterApp.savePricingSettings()">Сохранить ограничения и скидку</button>
+          <button class="btn-secondary" onclick="MasterApp.savePricingSettings()">Сохранить ограничение</button>
         </div>
+      </div>
+      <div class="settings-card">
+        <h3>🔥 Горячие окна</h3>
+        <p class="settings-hint">Укажите дату и диапазон времени со скидкой. Клиент увидит эти слоты отмеченными 🔥. Скидка применяется автоматически, если более половины записи попадает в горячее окно.</p>
+        <div class="availability-form">
+          <input id="hwDate" type="date">
+          <input id="hwStartTime" type="time" value="10:00">
+          <input id="hwEndTime" type="time" value="12:00">
+          <select id="hwRewardType" onchange="MasterApp.onHwRewardTypeChange()">
+            <option value="percent">Скидка, %</option>
+            <option value="gift_service">Зона в подарок</option>
+          </select>
+          <input id="hwDiscountPercent" type="number" min="1" max="90" value="20" placeholder="Скидка, %">
+          <select id="hwGiftServiceId" style="display:none"></select>
+          <button class="btn-secondary" onclick="MasterApp.createHotWindow()">Добавить окно</button>
+        </div>
+        <div id="hotWindowsList" class="settings-list"></div>
+      </div>
+      <div class="settings-card">
+        <h3>Промокоды</h3>
+        <p class="settings-hint">Промокод может давать процент скидки или «зону в подарок». Зону и материал выбирает клиент при записи.</p>
+        <div class="availability-form">
+          <input id="promoCodeValue" type="text" maxlength="64" placeholder="Код, например SPRING30">
+          <select id="promoRewardType" onchange="MasterApp.onPromoRewardTypeChange()">
+            <option value="percent">Скидка, %</option>
+            <option value="gift_service">Зона в подарок</option>
+          </select>
+          <select id="promoUsageMode">
+            <option value="always">Действует постоянно</option>
+            <option value="single_use">Одноразовый</option>
+          </select>
+          <input id="promoDiscountPercent" type="number" min="1" max="90" value="10" placeholder="Скидка, %">
+          <button class="btn-secondary" onclick="MasterApp.createPromoCode()">Создать промокод</button>
+        </div>
+        <div id="promoCodesList" class="settings-list"></div>
       </div>
       <div class="settings-card">
         <h3>Свободные окна для записи</h3>
@@ -259,6 +385,6 @@
   </div>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="master.js"></script>
+  <script src="master.js?v=20260318b"></script>
 </body>
 </html>

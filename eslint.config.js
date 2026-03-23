@@ -50,7 +50,7 @@ module.exports = [
     },
   },
   {
-    ignores: ["node_modules/", "cypress/", "cypress.config.js"],
+    ignores: ["node_modules/", "cypress/", "cypress.config.js", "cypress-auth-tests/"],
   },
 ];
 

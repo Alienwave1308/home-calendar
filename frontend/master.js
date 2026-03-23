@@ -27,7 +27,50 @@
     return;
   }
 
-  let API_BASE = '/api/master';
+  function normalizeOrigin(value) {
+    if (!value) return '';
+    return String(value).trim().replace(/\/+$/, '');
+  }
+
+  function isCanonicalHost(hostname) {
+    return /(^|\.)rova-epil\.ru$/i.test(String(hostname || ''));
+  }
+
+  function buildRootApiCandidates() {
+    const candidates = [];
+    const pushCandidate = function (base) {
+      if (!base || candidates.includes(base)) return;
+      candidates.push(base);
+    };
+
+    const params = new window.URLSearchParams(window.location.search);
+    const queryOrigin = normalizeOrigin(params.get('api_origin'));
+    const globalOrigin = normalizeOrigin(window.__HC_API_ORIGIN__);
+    const globalBase = normalizeOrigin(window.__HC_ROOT_API_BASE__);
+
+    if (globalBase) pushCandidate(globalBase);
+    if (queryOrigin) pushCandidate(queryOrigin + '/api');
+    if (globalOrigin) pushCandidate(globalOrigin + '/api');
+    pushCandidate('/api');
+
+    const shouldFallbackToCanonical = window.location.protocol === 'https:'
+      && !isCanonicalHost(window.location.hostname)
+      && window.location.hostname !== 'localhost'
+      && window.location.hostname !== '127.0.0.1';
+    if (!window.Cypress && shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
+
+    return candidates;
+  }
+
+  const ROOT_API_CANDIDATES = buildRootApiCandidates();
+  const MASTER_API_CANDIDATES = ROOT_API_CANDIDATES.map(function (base) { return base + '/master'; });
+  let ROOT_API_BASE = ROOT_API_CANDIDATES[0] || '/api';
+  let API_BASE = MASTER_API_CANDIDATES[0] || '/api/master';
+  const PUBLIC_APP_ORIGIN = isCanonicalHost(window.location.hostname)
+    || window.location.hostname === 'localhost'
+    || window.location.hostname === '127.0.0.1'
+    ? window.location.origin
+    : 'https://rova-epil.ru';
   let token = localStorage.getItem('token') || '';
   let bookingsCache = [];
   let currentMasterSlug = '';
@@ -40,27 +83,115 @@
   let leadsHelpVisible = false;
   let leadsView = 'summary';
   let leadsUsersRaw = [];
+  let promoCodesCache = [];
+  let overviewPreset = 'day';
+  let overviewFrom = '';
+  let overviewTo = '';
+  let masterProfileCache = null;
+  let leadsMetricsRequestSeq = 0;
+  let leadsUsersRequestSeq = 0;
+
+  const DEFAULT_MASTER_PROFILE = Object.freeze({
+    brand: 'Ro Va',
+    subtitle: 'Epil & Care',
+    name: 'Лера',
+    role: 'Мастер эпиляции',
+    city: 'Новосибирск',
+    experience: '',
+    phone: '',
+    address: '',
+    bio: '',
+    gift_text: 'Подарок от меня на первое посещение по ссылке:',
+    gift_url: 'https://vk.cc/cVmuLI'
+  });
 
   function $(id) { return document.getElementById(id); }
+
+  function clearAuthAndRedirect() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('currentRole');
+    window.location.href = '/';
+  }
+
+  function shouldRetryWithNextBase(status) {
+    return status >= 500 || status === 404;
+  }
+
+  async function requestJson(path, options) {
+    const orderedBases = [API_BASE].concat(MASTER_API_CANDIDATES.filter(function (base) { return base !== API_BASE; }));
+    let lastError = null;
+
+    for (let i = 0; i < orderedBases.length; i++) {
+      const base = orderedBases[i];
+      try {
+        const res = await fetch(base + path, options || {});
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            if (i < orderedBases.length - 1) continue;
+            clearAuthAndRedirect();
+            return null;
+          }
+          const data = await res.json().catch(function () { return {}; });
+          const rawMessage = data.error || 'Ошибка (' + res.status + ')';
+          const message = localizeApiErrorMessage(rawMessage);
+          if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
+            lastError = new Error(message);
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        API_BASE = base;
+        const rootBase = String(base).replace(/\/master$/, '');
+        if (ROOT_API_CANDIDATES.includes(rootBase)) ROOT_API_BASE = rootBase;
+        return res.json();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error || 'Ошибка сети'));
+        if (i < orderedBases.length - 1) continue;
+        throw lastError;
+      }
+    }
+
+    throw (lastError || new Error('Ошибка сети'));
+  }
+
+  async function requestRootJson(path, options) {
+    const orderedBases = [ROOT_API_BASE].concat(ROOT_API_CANDIDATES.filter(function (base) { return base !== ROOT_API_BASE; }));
+    let lastError = null;
+
+    for (let i = 0; i < orderedBases.length; i++) {
+      const base = orderedBases[i];
+      try {
+        const res = await fetch(base + path, options || {});
+        if (!res.ok) {
+          const data = await res.json().catch(function () { return {}; });
+          const rawMessage = data.error || 'Ошибка (' + res.status + ')';
+          const message = localizeApiErrorMessage(rawMessage);
+          if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
+            lastError = new Error(message);
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        ROOT_API_BASE = base;
+        return res.json();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error || 'Ошибка сети'));
+        if (i < orderedBases.length - 1) continue;
+        throw lastError;
+      }
+    }
+
+    throw (lastError || new Error('Ошибка сети'));
+  }
 
   async function apiFetch(path) {
     let headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
-
-    let res = await fetch(API_BASE + path, { headers: headers });
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('currentRole');
-        window.location.href = '/';
-        return;
-      }
-      let data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка (' + res.status + ')');
-    }
-    return res.json();
+    return requestJson(path, { headers: headers });
   }
 
   async function apiMethod(method, path, body) {
@@ -70,12 +201,7 @@
     let opts = { method: method, headers: headers };
     if (body) opts.body = JSON.stringify(body);
 
-    let res = await fetch(API_BASE + path, opts);
-    if (!res.ok) {
-      let data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка (' + res.status + ')');
-    }
-    return res.json();
+    return requestJson(path, opts);
   }
 
   function showToast(msg) {
@@ -87,6 +213,49 @@
 
   function hideToast() {
     $('networkToast').style.display = 'none';
+  }
+
+  async function testNotification() {
+    const btn = $('btnTestNotification');
+    const result = $('testNotificationResult');
+    btn.disabled = true;
+    result.textContent = 'Отправляем...';
+    try {
+      const data = await apiMethod('POST', '/test-notification');
+      if (data.ok) {
+        result.textContent = '✅ Сообщение отправлено! Проверь Telegram.';
+      } else if (data.reason === 'username_format') {
+        result.textContent = '❌ Username не в формате tg_XXXXX: ' + (data.username || 'не задан');
+      } else if (data.skipped) {
+        result.textContent = '❌ Пропущено: нет токена бота или chatId';
+      } else if (data.tgError) {
+        result.textContent = '❌ Telegram HTTP ' + (data.status || '?') + ': ' + data.tgError;
+      } else {
+        result.textContent = '❌ Ошибка: ' + (data.error || 'неизвестно');
+      }
+    } catch (e) {
+      result.textContent = '❌ Запрос не выполнен: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function localizeApiErrorMessage(rawMessage) {
+    const message = String(rawMessage || '').trim();
+    if (!message) return 'Произошла ошибка';
+
+    const knownErrors = {
+      'code must be 3-64 chars': 'Промокод должен содержать от 3 до 64 символов',
+      'code may contain only A-Z, 0-9, _ and -': 'Промокод может содержать только латинские буквы A-Z, цифры, "_" и "-"',
+      'reward_type must be percent or gift_service': 'Выберите корректный тип промокода',
+      'usage_mode must be always or single_use': 'Выберите корректный режим использования промокода',
+      'discount_percent must be integer between 1 and 90': 'Скидка должна быть целым числом от 1 до 90',
+      'gift_service_id must be a positive integer': 'Выберите подарочную зону',
+      'gift service is not available': 'Подарочная зона недоступна',
+      'gift service must be an epilation zone, not a complex': 'Подарком может быть только зона эпиляции, а не комплекс',
+      'promo code already exists': 'Промокод уже существует'
+    };
+    return knownErrors[message] || message;
   }
 
   function escapeHtml(str) {
@@ -128,12 +297,86 @@
     return d.toISOString();
   }
 
+  function toIsoDate(dateValue) {
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  }
+
+  function startOfLocalDay(dateValue) {
+    const d = new Date(dateValue);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function endOfLocalDay(dateValue) {
+    const d = startOfLocalDay(dateValue);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
+
+  function formatMoney(value) {
+    const num = Number(value || 0);
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(num)) + ' ₽';
+  }
+
+  function normalizeProfileText(value) {
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  }
+
+  function normalizeGiftUrl(value) {
+    const raw = normalizeProfileText(value);
+    if (!raw) return '';
+    const withProtocol = /^[a-z]+:\/\//i.test(raw) ? raw : 'https://' + raw;
+    try {
+      const parsed = new window.URL(withProtocol);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+      return parsed.toString();
+    } catch {
+      return '';
+    }
+  }
+
+  function resolveMasterProfile(profileResponse) {
+    const profile = profileResponse && profileResponse.profile && typeof profileResponse.profile === 'object'
+      ? profileResponse.profile
+      : {};
+    return {
+      brand: normalizeProfileText(profile.brand) || DEFAULT_MASTER_PROFILE.brand,
+      subtitle: normalizeProfileText(profile.subtitle) || DEFAULT_MASTER_PROFILE.subtitle,
+      name: normalizeProfileText(profile.name)
+        || normalizeProfileText(profileResponse && profileResponse.display_name)
+        || DEFAULT_MASTER_PROFILE.name,
+      role: normalizeProfileText(profile.role) || DEFAULT_MASTER_PROFILE.role,
+      city: normalizeProfileText(profile.city) || DEFAULT_MASTER_PROFILE.city,
+      experience: normalizeProfileText(profile.experience),
+      phone: normalizeProfileText(profile.phone),
+      address: normalizeProfileText(profile.address),
+      bio: normalizeProfileText(profile.bio),
+      gift_text: normalizeProfileText(profile.gift_text) || DEFAULT_MASTER_PROFILE.gift_text,
+      gift_url: normalizeGiftUrl(profile.gift_url) || DEFAULT_MASTER_PROFILE.gift_url
+    };
+  }
+
   // === TABS ===
 
   function switchTab(tabName) {
+    const tabsContainer = $('masterTabs');
+    let activeTab = null;
     document.querySelectorAll('.master-tab').forEach(function (t) {
-      t.classList.toggle('active', t.dataset.tab === tabName);
+      const isActive = t.dataset.tab === tabName;
+      t.classList.toggle('active', isActive);
+      if (isActive) activeTab = t;
     });
+    if (
+      tabsContainer
+      && activeTab
+      && typeof activeTab.scrollIntoView === 'function'
+      && tabsContainer.scrollWidth > tabsContainer.clientWidth + 2
+    ) {
+      activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+    }
     document.querySelectorAll('.tab-panel').forEach(function (p) {
       p.style.display = 'none';
     });
@@ -142,10 +385,158 @@
     if (panel) panel.style.display = '';
 
     if (tabName === 'today') loadToday();
+    if (tabName === 'profile') loadMasterProfile();
     if (tabName === 'bookings') loadBookings();
     if (tabName === 'leads') setLeadsView(leadsView);
     if (tabName === 'services') loadServices();
     if (tabName === 'settings') loadSettings();
+  }
+
+  function getFinishedNonCanceledBookings(bookings) {
+    const nowTs = Date.now();
+    return (bookings || []).filter(function (item) {
+      if (!item || item.status === 'canceled') return false;
+      const endTs = item.end_at ? new Date(item.end_at).getTime() : new Date(item.start_at).getTime();
+      if (!Number.isFinite(endTs)) return false;
+      return endTs < nowTs;
+    });
+  }
+
+  function getOverviewBounds(bookings) {
+    const done = getFinishedNonCanceledBookings(bookings);
+    if (!done.length) return null;
+    const sorted = done.slice().sort(function (a, b) {
+      return new Date(a.end_at || a.start_at).getTime() - new Date(b.end_at || b.start_at).getTime();
+    });
+    return {
+      min: toIsoDate(sorted[0].end_at || sorted[0].start_at),
+      max: toIsoDate(sorted[sorted.length - 1].end_at || sorted[sorted.length - 1].start_at)
+    };
+  }
+
+  function getOverviewRange(bounds) {
+    const now = new Date();
+    const maxDate = bounds && bounds.max ? startOfLocalDay(bounds.max) : startOfLocalDay(now);
+    const minDate = bounds && bounds.min ? startOfLocalDay(bounds.min) : startOfLocalDay(now);
+    let from;
+    let to = startOfLocalDay(maxDate);
+
+    if (overviewPreset === 'week') {
+      from = startOfLocalDay(maxDate);
+      from.setDate(from.getDate() - 6);
+    } else if (overviewPreset === 'month') {
+      from = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+    } else if (overviewPreset === 'all') {
+      from = startOfLocalDay(minDate);
+    } else {
+      from = startOfLocalDay(maxDate);
+    }
+
+    if (!from) from = startOfLocalDay(maxDate);
+    if (from < minDate) from = startOfLocalDay(minDate);
+    if (to < from) to = startOfLocalDay(from);
+    return { from: toIsoDate(from), to: toIsoDate(to) };
+  }
+
+  function renderOverviewPresetButtons() {
+    const mapping = {
+      day: 'overviewPresetDay',
+      week: 'overviewPresetWeek',
+      month: 'overviewPresetMonth',
+      all: 'overviewPresetAll'
+    };
+    Object.keys(mapping).forEach(function (key) {
+      const node = $(mapping[key]);
+      if (node) node.classList.toggle('active', overviewPreset === key);
+    });
+  }
+
+  function setOverviewPreset(preset) {
+    overviewPreset = preset;
+    overviewFrom = '';
+    overviewTo = '';
+    refreshOverview();
+  }
+
+  function applyOverviewPeriod() {
+    const from = $('overviewFrom') ? $('overviewFrom').value : '';
+    const to = $('overviewTo') ? $('overviewTo').value : '';
+    if (!from || !to) {
+      showToast('Укажите обе даты периода');
+      return;
+    }
+    if (from > to) {
+      showToast('Дата начала позже даты окончания');
+      return;
+    }
+    overviewPreset = 'custom';
+    overviewFrom = from;
+    overviewTo = to;
+    refreshOverview();
+  }
+
+  async function fetchOverviewBookings() {
+    try {
+      const data = await apiFetch('/bookings');
+      return Array.isArray(data) ? data : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function refreshOverview() {
+    const label = $('overviewRangeLabel');
+    if (label) label.textContent = 'Период: загрузка...';
+    renderOverviewPresetButtons();
+
+    try {
+      const bookings = await fetchOverviewBookings();
+      const finished = getFinishedNonCanceledBookings(bookings);
+      const bounds = getOverviewBounds(bookings);
+      let range = null;
+      if (overviewPreset === 'custom' && overviewFrom && overviewTo) {
+        range = { from: overviewFrom, to: overviewTo };
+      } else {
+        range = getOverviewRange(bounds);
+      }
+
+      if ($('overviewFrom') && range && range.from) $('overviewFrom').value = range.from;
+      if ($('overviewTo') && range && range.to) $('overviewTo').value = range.to;
+
+      const fromTs = range ? startOfLocalDay(range.from).getTime() : -Infinity;
+      const toTs = range ? endOfLocalDay(range.to).getTime() : Infinity;
+
+      const rows = finished.filter(function (item) {
+        const endTs = new Date(item.end_at || item.start_at).getTime();
+        return endTs >= fromTs && endTs <= toTs;
+      });
+
+      const revenue = rows.reduce(function (sum, item) {
+        const finalPrice = Number(item.pricing_final != null ? item.pricing_final : item.final_price);
+        const fallbackPrice = Number(item.pricing_base != null ? item.pricing_base : item.service_price);
+        if (Number.isFinite(finalPrice) && finalPrice > 0) return sum + finalPrice;
+        if (Number.isFinite(fallbackPrice) && fallbackPrice > 0) return sum + fallbackPrice;
+        return sum;
+      }, 0);
+      const clients = new Set(rows.map(function (item) { return item.client_id || item.client_name || item.client_telegram_id || item.id; }));
+      const avg = rows.length ? (revenue / rows.length) : 0;
+
+      if ($('overviewKpiBookings')) $('overviewKpiBookings').textContent = String(rows.length);
+      if ($('overviewKpiRevenue')) $('overviewKpiRevenue').textContent = formatMoney(revenue);
+      if ($('overviewKpiAvg')) $('overviewKpiAvg').textContent = formatMoney(avg);
+      if ($('overviewKpiClients')) $('overviewKpiClients').textContent = String(clients.size);
+      if (label) {
+        label.textContent = range
+          ? ('Период: ' + range.from + ' — ' + range.to)
+          : 'Период: —';
+      }
+    } catch (err) {
+      if (label) label.textContent = 'Период: —';
+      if ($('overviewKpiBookings')) $('overviewKpiBookings').textContent = '0';
+      if ($('overviewKpiRevenue')) $('overviewKpiRevenue').textContent = '0 ₽';
+      if ($('overviewKpiAvg')) $('overviewKpiAvg').textContent = '0 ₽';
+      if ($('overviewKpiClients')) $('overviewKpiClients').textContent = '0';
+    }
   }
 
   // === TODAY ===
@@ -154,6 +545,7 @@
     let container = $('todayBookings');
     container.innerHTML = skeletonBookings(3);
     $('todayEmpty').style.display = 'none';
+    refreshOverview();
 
     try {
       let today = new Date().toISOString().slice(0, 10);
@@ -167,6 +559,7 @@
       }
 
       container.innerHTML = bookings.map(renderBookingCard).join('');
+      bindBookingContactButtons(container);
     } catch (err) {
       container.innerHTML = '';
       showToast(err.message);
@@ -174,6 +567,39 @@
   }
 
   // === BOOKINGS ===
+
+  function bookingStartTimeMs(startAt) {
+    const ts = new Date(startAt || '').getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  function bookingSortRank(booking, nowMs) {
+    const status = String(booking && booking.status ? booking.status : '');
+    const isActiveStatus = status === 'pending' || status === 'confirmed';
+    const startAtMs = bookingStartTimeMs(booking && booking.start_at);
+    if (isActiveStatus && startAtMs >= nowMs) return 0;
+    if (isActiveStatus) return 1;
+    if (status === 'completed') return 2;
+    if (status === 'canceled') return 3;
+    return 4;
+  }
+
+  function sortMasterBookings(bookings) {
+    const nowMs = Date.now();
+    return (Array.isArray(bookings) ? bookings.slice() : []).sort(function (a, b) {
+      const rankA = bookingSortRank(a, nowMs);
+      const rankB = bookingSortRank(b, nowMs);
+      const rankDiff = rankA - rankB;
+      if (rankDiff !== 0) return rankDiff;
+      const aStart = bookingStartTimeMs(a && a.start_at);
+      const bStart = bookingStartTimeMs(b && b.start_at);
+      if (rankA === 0 && rankB === 0) {
+        // For upcoming active bookings show nearest slot first.
+        return aStart - bStart;
+      }
+      return bStart - aStart;
+    });
+  }
 
   async function loadBookings() {
     let container = $('bookingsList');
@@ -183,7 +609,8 @@
     try {
       let status = $('bookingsStatus').value;
       let q = status ? '?status=' + status : '';
-      let bookings = await apiFetch('/bookings' + q);
+      const rawBookings = await apiFetch('/bookings' + q);
+      const bookings = sortMasterBookings(rawBookings);
       bookingsCache = bookings;
 
       if (bookings.length === 0) {
@@ -193,13 +620,123 @@
       }
 
       container.innerHTML = bookings.map(renderBookingCard).join('');
+      bindBookingContactButtons(container);
     } catch (err) {
       container.innerHTML = '';
       showToast(err.message);
     }
   }
 
+  function parseBookingClientViewData(booking) {
+    const rawClientName = String(booking && booking.client_name ? booking.client_name : '').trim();
+    const rawDisplayName = String(booking && booking.client_display_name ? booking.client_display_name : '').trim();
+    const rawAvatarUrl = String(booking && booking.client_avatar_url ? booking.client_avatar_url : '').trim();
+    const rawTelegramUsername = String(booking && booking.client_telegram_username ? booking.client_telegram_username : '')
+      .trim()
+      .replace(/^@/, '');
+    const telegramUsername = /^tg_[0-9]+$/i.test(rawTelegramUsername) ? '' : rawTelegramUsername;
+
+    let telegramId = Number(booking && booking.client_telegram_id ? booking.client_telegram_id : 0);
+    const telegramMatch = rawClientName.match(/^tg_(\d+)$/i);
+    if (!telegramId && telegramMatch) {
+      telegramId = Number(telegramMatch[1]);
+    }
+
+    let vkUserId = Number(booking && booking.client_vk_user_id ? booking.client_vk_user_id : 0);
+    const vkMatch = rawClientName.match(/^vk_(\d+)$/i);
+    if (!vkUserId && vkMatch) {
+      vkUserId = Number(vkMatch[1]);
+    }
+
+    const rawNameLooksTechnical = /^tg_[0-9]+$/i.test(rawClientName) || /^vk_[0-9]+$/i.test(rawClientName);
+    const displayNameRaw = rawDisplayName
+      || (telegramUsername ? ('@' + telegramUsername) : '')
+      || (!rawNameLooksTechnical ? rawClientName : '')
+      || (telegramId > 0 ? ('Telegram #' + telegramId) : '')
+      || (vkUserId > 0 ? ('VK #' + vkUserId) : '')
+      || 'Клиент';
+
+    const loginRaw = telegramUsername
+      ? ('@' + telegramUsername)
+      : (telegramId > 0 ? ('Telegram ID: ' + telegramId) : (vkUserId > 0 ? ('VK ID: ' + vkUserId) : ''));
+
+    const fallbackToken = vkUserId > 0
+      ? 'VK'
+      : (telegramId > 0 || telegramUsername ? 'TG' : String(displayNameRaw).trim().slice(0, 1).toUpperCase() || 'К');
+
+    const avatarHtml = rawAvatarUrl
+      ? '<img class="booking-client-avatar-img" src="' + escapeHtml(rawAvatarUrl) + '" alt="avatar">'
+      : '<div class="booking-client-avatar-fallback">' + escapeHtml(fallbackToken) + '</div>';
+
+    return {
+      displayName: displayNameRaw,
+      login: loginRaw,
+      avatarHtml: avatarHtml,
+      telegramId: telegramId,
+      telegramUsername: telegramUsername,
+      vkUserId: vkUserId,
+      canContact: telegramId > 0 || Boolean(telegramUsername) || vkUserId > 0
+    };
+  }
+
+  function openVkProfile(vkUserId) {
+    const normalizedVkUserId = Number(vkUserId || 0);
+    if (!normalizedVkUserId) {
+      showToast('Нет данных VK для открытия диалога');
+      return;
+    }
+    const targetLink = 'https://vk.com/id' + normalizedVkUserId;
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+    if (window.Cypress) {
+      if (!Array.isArray(window.__openedVkLinks)) window.__openedVkLinks = [];
+      window.__openedVkLinks.push(targetLink);
+      return;
+    }
+
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(targetLink, { try_instant_view: false });
+      return;
+    }
+    window.location.href = targetLink;
+  }
+
+  function openBookingClientContact(telegramUserId, telegramUsername, vkUserId) {
+    const tgId = Number(telegramUserId || 0);
+    const tgUsername = String(telegramUsername || '').trim();
+    if (tgId > 0 || tgUsername) {
+      openLeadChat(tgId, tgUsername);
+      return;
+    }
+    if (Number(vkUserId || 0) > 0) {
+      openVkProfile(vkUserId);
+      return;
+    }
+    showToast('Нет данных для связи с клиентом');
+  }
+
+  function bindBookingContactButtons(root) {
+    if (!root) return;
+    root.querySelectorAll('.booking-contact-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const telegramId = Number(btn.getAttribute('data-tg-id') || 0);
+        const telegramUsername = String(btn.getAttribute('data-tg-username') || '');
+        const vkUserId = Number(btn.getAttribute('data-vk-id') || 0);
+        openBookingClientContact(telegramId, telegramUsername, vkUserId);
+      });
+    });
+  }
+
   function renderBookingCard(b) {
+    const clientView = parseBookingClientViewData(b);
+    const contactControl = clientView.canContact
+      ? '<button class="btn-small btn-chat booking-contact-btn"'
+        + ' data-tg-id="' + Number(clientView.telegramId || 0) + '"'
+        + ' data-tg-username="' + escapeHtml(clientView.telegramUsername || '') + '"'
+        + ' data-vk-id="' + Number(clientView.vkUserId || 0) + '"'
+        + '>Связаться</button>'
+      : '<span class="booking-client-contact-hint">Без контакта</span>';
+
     let actions = '<button class="btn-small btn-edit" onclick="MasterApp.openBookingForm(' + b.id + ')">Редактировать</button>';
     if (b.status === 'pending') {
       actions += '<button class="btn-small btn-confirm" onclick="MasterApp.updateBooking(' + b.id + ',\'confirmed\')">Запланировать</button>'
@@ -209,14 +746,51 @@
         + '<button class="btn-small btn-cancel" onclick="MasterApp.updateBooking(' + b.id + ',\'canceled\')">Отменить</button>';
     }
 
+    let discountBadge = '';
+    if (b.promo_code) {
+      if (b.promo_reward_type === 'percent' && b.promo_discount_percent) {
+        discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' −' + b.promo_discount_percent + '%</span>';
+      } else if (b.promo_reward_type === 'gift_service') {
+        discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' (подарок)</span>';
+      }
+    } else if (b.hot_window_reward_type) {
+      if (b.hot_window_reward_type === 'percent' && b.hot_window_discount_percent) {
+        discountBadge = '<span class="booking-discount-badge hot">🔥 −' + b.hot_window_discount_percent + '%</span>';
+      } else if (b.hot_window_reward_type === 'gift_service') {
+        discountBadge = '<span class="booking-discount-badge hot">🔥 Подарок</span>';
+      }
+    }
+
+    const extraNames = Array.isArray(b.extra_service_names) ? b.extra_service_names.filter(Boolean) : [];
+    const allNames = [b.service_name].concat(extraNames).filter(Boolean);
+    const serviceTitle = allNames.map(escapeHtml).join(' + ');
+
     return '<div class="booking-card">'
       + '<div class="booking-card-header">'
-      + '<h4>' + escapeHtml(b.service_name || 'Услуга') + '</h4>'
+      + '<h4>' + serviceTitle + '</h4>'
       + '<span class="booking-status ' + b.status + '">' + (STATUS_LABELS[b.status] || b.status) + '</span>'
       + '</div>'
+      + '<div class="booking-client-row">'
+      + '<div class="booking-client-avatar">' + clientView.avatarHtml + '</div>'
+      + '<div class="booking-client-main">'
+      + '<span class="booking-client-name">' + escapeHtml(clientView.displayName) + '</span>'
+      + (clientView.login ? '<span class="booking-client-login">' + escapeHtml(clientView.login) + '</span>' : '')
+      + '</div>'
+      + contactControl
+      + '</div>'
       + '<div class="booking-card-meta">'
-      + '<span>' + escapeHtml(b.client_name || 'Клиент') + '</span>'
       + '<span>' + formatDateTime(b.start_at) + '</span>'
+      + (b.pricing_final != null
+        ? '<span class="booking-price">'
+          + (b.pricing_discount_amount > 0
+            && b.promo_reward_type !== 'gift_service'
+            && b.hot_window_reward_type !== 'gift_service'
+            ? '<s>' + formatMoney(b.pricing_base) + '</s> '
+            : '')
+          + '<strong>' + formatMoney(b.pricing_final) + '</strong>'
+          + (discountBadge ? ' ' + discountBadge : '')
+          + '</span>'
+        : (discountBadge ? '<span>' + discountBadge + '</span>' : ''))
       + (b.master_note ? '<span>Комментарий: ' + escapeHtml(b.master_note) + '</span>' : '')
       + '</div>'
       + (actions ? '<div class="booking-card-actions">' + actions + '</div>' : '')
@@ -571,10 +1145,12 @@
   async function loadLeadsMetrics() {
     const funnelEl = $('leadsFunnel');
     if (!funnelEl) return;
+    const requestSeq = ++leadsMetricsRequestSeq;
 
     funnelEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
     try {
       const data = await apiFetch('/leads/metrics?period=' + encodeURIComponent(leadsPeriod));
+      if (requestSeq !== leadsMetricsRequestSeq || leadsView !== 'summary') return;
       const current = data.current && data.current.metrics ? data.current.metrics : {};
       const previous = data.previous && data.previous.metrics ? data.previous.metrics : {};
       const conversion = data.current && data.current.conversion ? data.current.conversion : {};
@@ -605,6 +1181,7 @@
         ? 'Текущий период: ' + start + ' — ' + end + ' (' + (data.timezone || 'UTC') + ')'
         : 'Период не определен';
     } catch (err) {
+      if (requestSeq !== leadsMetricsRequestSeq || leadsView !== 'summary') return;
       funnelEl.innerHTML = '<p class="settings-hint">Не удалось загрузить воронку</p>';
       showToast(err.message);
     }
@@ -787,12 +1364,14 @@
     const listEl = $('leadsUsersList');
     const emptyEl = $('leadsUsersEmpty');
     if (!listEl || !emptyEl) return;
+    const requestSeq = ++leadsUsersRequestSeq;
 
     listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
     emptyEl.style.display = 'none';
 
     try {
       const data = await apiFetch('/leads/registrations?period=' + encodeURIComponent(leadsPeriod));
+      if (requestSeq !== leadsUsersRequestSeq || leadsView !== 'users') return;
       const users = Array.isArray(data.users) ? data.users : [];
       const start = data.range_start_local ? String(data.range_start_local).slice(0, 16).replace('T', ' ') : '';
       const end = data.range_end_local ? String(data.range_end_local).slice(0, 16).replace('T', ' ') : '';
@@ -802,10 +1381,124 @@
       leadsUsersRaw = users;
       updateLeadsUsersFilters();
     } catch (err) {
+      if (requestSeq !== leadsUsersRequestSeq || leadsView !== 'users') return;
       leadsUsersRaw = [];
       listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить список</p>';
       showToast(err.message);
     }
+  }
+
+  // === PROFILE ===
+
+  function renderProfilePreview() {
+    if (!masterProfileCache) return;
+    const profile = masterProfileCache;
+    if ($('profilePreviewBrand')) $('profilePreviewBrand').textContent = profile.brand;
+    if ($('profilePreviewSub')) $('profilePreviewSub').textContent = profile.subtitle;
+    if ($('profilePreviewName')) {
+      $('profilePreviewName').textContent = profile.name + (profile.role ? ' · ' + profile.role : '');
+    }
+    if ($('profilePreviewCity')) $('profilePreviewCity').textContent = profile.city || DEFAULT_MASTER_PROFILE.city;
+    if ($('profilePreviewExp')) $('profilePreviewExp').textContent = profile.experience || '—';
+    if ($('profilePreviewPhone')) $('profilePreviewPhone').textContent = profile.phone || '—';
+    if ($('profilePreviewAddress')) $('profilePreviewAddress').textContent = profile.address || '—';
+    if ($('profilePreviewBio')) {
+      $('profilePreviewBio').textContent = profile.bio || 'Заполните блок «О себе», чтобы он отображался в карточке.';
+    }
+    if ($('profilePreviewGiftText')) $('profilePreviewGiftText').textContent = profile.gift_text;
+    if ($('profilePreviewGiftUrl')) {
+      const normalized = normalizeGiftUrl(profile.gift_url) || DEFAULT_MASTER_PROFILE.gift_url;
+      $('profilePreviewGiftUrl').href = normalized;
+      $('profilePreviewGiftUrl').textContent = normalized.replace(/^https?:\/\//, '');
+    }
+  }
+
+  function fillProfileForm() {
+    if (!masterProfileCache) return;
+    const profile = masterProfileCache;
+    if ($('profileBrand')) $('profileBrand').value = profile.brand;
+    if ($('profileSubtitle')) $('profileSubtitle').value = profile.subtitle;
+    if ($('profileName')) $('profileName').value = profile.name;
+    if ($('profileRole')) $('profileRole').value = profile.role;
+    if ($('profileExperience')) $('profileExperience').value = profile.experience;
+    if ($('profileCity')) $('profileCity').value = profile.city;
+    if ($('profilePhone')) $('profilePhone').value = profile.phone;
+    if ($('profileAddress')) $('profileAddress').value = profile.address;
+    if ($('profileBio')) $('profileBio').value = profile.bio;
+    if ($('profileGiftText')) $('profileGiftText').value = profile.gift_text;
+    if ($('profileGiftUrl')) $('profileGiftUrl').value = profile.gift_url;
+  }
+
+  async function loadMasterProfile(force) {
+    if (masterProfileCache && !force) {
+      fillProfileForm();
+      renderProfilePreview();
+      return;
+    }
+
+    try {
+      const profileResponse = await apiFetch('/profile');
+      currentMasterSlug = profileResponse.booking_slug || currentMasterSlug;
+      if ($('bookingLink') && currentMasterSlug) {
+        $('bookingLink').value = window.location.origin + '/book/' + currentMasterSlug;
+      }
+      masterProfileCache = resolveMasterProfile(profileResponse);
+      fillProfileForm();
+      renderProfilePreview();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function saveMasterProfile() {
+    try {
+      const giftUrlRaw = $('profileGiftUrl') ? $('profileGiftUrl').value : '';
+      const giftUrl = normalizeGiftUrl(giftUrlRaw);
+      if (giftUrlRaw && !giftUrl) {
+        showToast('Проверьте ссылку подарка (только http/https)');
+        return;
+      }
+
+      const payload = {
+        profile: {
+          brand: $('profileBrand') ? $('profileBrand').value : '',
+          subtitle: $('profileSubtitle') ? $('profileSubtitle').value : '',
+          name: $('profileName') ? $('profileName').value : '',
+          role: $('profileRole') ? $('profileRole').value : '',
+          experience: $('profileExperience') ? $('profileExperience').value : '',
+          city: $('profileCity') ? $('profileCity').value : '',
+          phone: $('profilePhone') ? $('profilePhone').value : '',
+          address: $('profileAddress') ? $('profileAddress').value : '',
+          bio: $('profileBio') ? $('profileBio').value : '',
+          gift_text: $('profileGiftText') ? $('profileGiftText').value : '',
+          gift_url: giftUrl || ''
+        }
+      };
+
+      const updated = await apiMethod('PUT', '/profile', payload);
+      masterProfileCache = resolveMasterProfile(updated);
+      fillProfileForm();
+      renderProfilePreview();
+      showToast('Профиль сохранен');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function openGiftLink() {
+    const value = $('profileGiftUrl') ? $('profileGiftUrl').value : '';
+    const link = normalizeGiftUrl(value);
+    if (!link) {
+      showToast('Ссылка не задана');
+      return;
+    }
+
+    const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (webApp && typeof webApp.openLink === 'function') {
+      webApp.openLink(link, { try_instant_view: false });
+      return;
+    }
+    window.open(link, '_blank', 'noopener,noreferrer');
   }
 
   // === SETTINGS ===
@@ -813,45 +1506,85 @@
   async function loadSettings() {
     let appleSettings = null;
     try {
-      let profile = await apiFetch('/profile');
-      currentMasterSlug = profile.booking_slug || '';
-      $('bookingLink').value = window.location.origin + '/book/' + profile.booking_slug;
+      await loadMasterProfile(true);
+      if ($('bookingLink')) {
+        $('bookingLink').value = currentMasterSlug
+          ? PUBLIC_APP_ORIGIN + '/book/' + currentMasterSlug
+          : 'Не удалось загрузить';
+      }
     } catch (err) {
-      $('bookingLink').value = 'Не удалось загрузить';
+      if ($('bookingLink')) $('bookingLink').value = 'Не удалось загрузить';
     }
 
     // Google Calendar status
     try {
-      let res = await fetch('/api/calendar-sync/status', {
+      let data = await requestRootJson('/calendar-sync/status', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      let data = await res.json();
-      if (data.connected) {
-        $('gcalStatus').innerHTML = '<span style="color:var(--success);">Подключен</span> (режим: ' + (data.binding.sync_mode || 'push') + ')';
-      } else {
-        $('gcalStatus').innerHTML = '<a href="#" onclick="MasterApp.connectGCal();return false;" style="color:var(--primary);font-weight:600;">Подключить</a>';
+      const gcalStatusEl = $('gcalStatus');
+      if (gcalStatusEl) {
+        if (data.connected) {
+          const syncMode = String((data.binding && data.binding.sync_mode) || 'push');
+          gcalStatusEl.textContent = '';
+          const connectedEl = document.createElement('span');
+          connectedEl.style.color = 'var(--success)';
+          connectedEl.textContent = 'Подключен';
+          gcalStatusEl.appendChild(connectedEl);
+          gcalStatusEl.appendChild(document.createTextNode(' (режим: ' + syncMode + ')'));
+        } else {
+          gcalStatusEl.textContent = '';
+          const connectLink = document.createElement('a');
+          connectLink.href = '#';
+          connectLink.style.color = 'var(--primary)';
+          connectLink.style.fontWeight = '600';
+          connectLink.textContent = 'Подключить';
+          connectLink.addEventListener('click', function (event) {
+            event.preventDefault();
+            connectGCal();
+          });
+          gcalStatusEl.appendChild(connectLink);
+        }
       }
     } catch (_) {
-      $('gcalStatus').textContent = 'Не удалось проверить';
+      if ($('gcalStatus')) $('gcalStatus').textContent = 'Не удалось проверить';
     }
 
     // Reminder and pricing settings
     try {
       let settings = await apiFetch('/settings');
       appleSettings = settings;
-      $('reminderSettings').innerHTML = 'Напоминания за: <strong>' + (settings.reminder_hours || [24, 2]).join(', ') + '</strong> ч.'
-        + '<br>Минимум до записи: <strong>' + (settings.min_booking_notice_minutes || 60) + '</strong> мин'
-        + '<br>Скидка на первый визит: <strong>' + (settings.first_visit_discount_percent || 15) + '%</strong>';
-      $('reminderHoursFirst').value = Number((settings.reminder_hours || [24, 2])[0] || 24);
-      $('reminderHoursSecond').value = Number((settings.reminder_hours || [24, 2])[1] || 2);
-      $('minBookingNoticeMinutes').value = Number(settings.min_booking_notice_minutes || 60);
-      $('firstVisitDiscountPercent').value = Number(settings.first_visit_discount_percent || 15);
+      const minBookingNotice = settings.min_booking_notice_minutes ?? 60;
+      const reminderHours = Array.isArray(settings.reminder_hours) ? settings.reminder_hours : [24, 2];
+      const firstReminderRaw = Number(reminderHours[0]);
+      const secondReminderRaw = Number(reminderHours[1]);
+      const firstReminder = Number.isFinite(firstReminderRaw) ? firstReminderRaw : 24;
+      const secondReminder = Number.isFinite(secondReminderRaw) ? secondReminderRaw : 2;
+      const reminderSettingsEl = $('reminderSettings');
+      if (reminderSettingsEl) {
+        reminderSettingsEl.textContent = '';
+        reminderSettingsEl.appendChild(document.createTextNode('Напоминания за: '));
+        const hoursStrong = document.createElement('strong');
+        hoursStrong.textContent = [firstReminder, secondReminder].join(', ');
+        reminderSettingsEl.appendChild(hoursStrong);
+        reminderSettingsEl.appendChild(document.createTextNode(' ч.'));
+        reminderSettingsEl.appendChild(document.createElement('br'));
+        reminderSettingsEl.appendChild(document.createTextNode('Минимум до записи: '));
+        const minStrong = document.createElement('strong');
+        minStrong.textContent = String(Number(minBookingNotice));
+        reminderSettingsEl.appendChild(minStrong);
+        reminderSettingsEl.appendChild(document.createTextNode(' мин'));
+      }
+      $('reminderHoursFirst').value = firstReminder;
+      $('reminderHoursSecond').value = secondReminder;
+      $('minBookingNoticeMinutes').value = Number(minBookingNotice);
     } catch (_) {
       $('reminderSettings').textContent = 'Не удалось загрузить';
     }
 
     renderAppleCalendarSettings(appleSettings);
     await loadAvailabilitySettings();
+    await loadHotWindows();
+    await loadPromoCodes();
   }
 
   async function loadAvailabilitySettings() {
@@ -872,11 +1605,13 @@
         rulesEl.innerHTML = '<p class="settings-hint">Пока нет рабочих окон. Добавьте первое окно выше.</p>';
       } else {
         rulesEl.innerHTML = rules.map(function (rule) {
-          const dateText = String(rule.date).slice(0, 10);
+          const dateText = escapeHtml(String(rule.date || '').slice(0, 10));
+          const startText = escapeHtml(String(rule.start_time || '').slice(0, 5));
+          const endText = escapeHtml(String(rule.end_time || '').slice(0, 5));
           return '<div class="settings-list-item">'
             + '<div>'
             + '<strong>' + dateText + '</strong>'
-            + '<div class="settings-hint">' + rule.start_time.slice(0, 5) + ' - ' + rule.end_time.slice(0, 5) + '</div>'
+            + '<div class="settings-hint">' + startText + ' - ' + endText + '</div>'
             + '</div>'
             + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityRule(' + rule.id + ')">Удалить</button>'
             + '</div>';
@@ -887,9 +1622,10 @@
         exclusionsEl.innerHTML = '<p class="settings-hint">Нет выходных дат.</p>';
       } else {
         exclusionsEl.innerHTML = exclusions.map(function (item) {
-          const reason = item.reason ? ' — ' + escapeHtml(item.reason) : '';
+          const dateText = escapeHtml(String(item.date || '').slice(0, 10));
+          const reason = item.reason ? ' — ' + escapeHtml(String(item.reason)) : '';
           return '<div class="settings-list-item">'
-            + '<div><strong>' + item.date + '</strong><div class="settings-hint">' + reason + '</div></div>'
+            + '<div><strong>' + dateText + '</strong><div class="settings-hint">' + reason + '</div></div>'
             + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteAvailabilityExclusion(' + item.id + ')">Удалить</button>'
             + '</div>';
         }).join('');
@@ -925,6 +1661,7 @@
   }
 
   async function deleteAvailabilityRule(ruleId) {
+    if (!window.confirm('Удалить это окно записи?')) return;
     try {
       await apiMethod('DELETE', '/availability/windows/' + ruleId);
       await loadAvailabilitySettings();
@@ -954,14 +1691,257 @@
 
   async function savePricingSettings() {
     try {
-      const minMinutes = Number($('minBookingNoticeMinutes').value || 60);
-      const discount = Number($('firstVisitDiscountPercent').value || 15);
+      const minMinutesRaw = $('minBookingNoticeMinutes').value;
+      const minMinutes = minMinutesRaw === '' ? 60 : Number(minMinutesRaw);
       await apiMethod('PUT', '/settings', {
-        min_booking_notice_minutes: minMinutes,
-        first_visit_discount_percent: discount
+        min_booking_notice_minutes: minMinutes
       });
       await loadSettings();
-      showToast('Ограничения и скидка сохранены');
+      showToast('Ограничение по времени сохранено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function onPromoRewardTypeChange() {
+    const typeEl = $('promoRewardType');
+    const discountEl = $('promoDiscountPercent');
+    if (!typeEl || !discountEl) return;
+
+    const isPercent = typeEl.value === 'percent';
+    discountEl.style.display = isPercent ? '' : 'none';
+  }
+
+  function renderPromoCodes() {
+    const listEl = $('promoCodesList');
+    if (!listEl) return;
+
+    if (!promoCodesCache.length) {
+      listEl.innerHTML = '<p class="settings-hint">Промокодов пока нет</p>';
+      return;
+    }
+
+    listEl.innerHTML = promoCodesCache.map(function (promo) {
+      const reward = promo.reward_type === 'percent'
+        ? 'Скидка ' + Number(promo.discount_percent || 0) + '%'
+        : 'Подарок: ' + escapeHtml(promo.gift_service_name || 'Зона в подарок');
+      const usageMode = String(promo.usage_mode || 'always');
+      const usageLabel = usageMode === 'single_use' ? 'Одноразовый' : 'Постоянный';
+      const actualUses = Number(promo.actual_uses_count != null ? promo.actual_uses_count : promo.uses_count || 0);
+      const usageState = usageMode === 'single_use'
+        ? (actualUses > 0 ? 'использован' : 'не использован')
+        : ('применён ' + actualUses + ' ' + (actualUses === 1 ? 'раз' : actualUses >= 2 && actualUses <= 4 ? 'раза' : 'раз'));
+      const status = promo.is_active ? 'Активен' : 'Выключен';
+      const toggleLabel = promo.is_active ? 'Выключить' : 'Включить';
+      const nextActive = promo.is_active ? 'false' : 'true';
+
+      return '<div class="settings-list-item">'
+        + '<div>'
+        + '<strong>' + escapeHtml(promo.code) + '</strong>'
+        + '<div class="settings-hint">' + reward + ' · ' + usageLabel + ' · ' + usageState + ' · ' + status + '</div>'
+        + '</div>'
+        + '<div class="settings-list-actions">'
+        + '<button class="btn-small btn-edit" onclick="MasterApp.togglePromoCodeActive(' + promo.id + ',' + nextActive + ')">' + toggleLabel + '</button>'
+        + '<button class="btn-small btn-cancel" onclick="MasterApp.deletePromoCode(' + promo.id + ')">Удалить</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  async function loadPromoCodes() {
+    const listEl = $('promoCodesList');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+
+    try {
+      const promoCodes = await apiFetch('/promo-codes');
+      promoCodesCache = Array.isArray(promoCodes) ? promoCodes : [];
+      renderPromoCodes();
+      onPromoRewardTypeChange();
+    } catch (err) {
+      promoCodesCache = [];
+      listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить промокоды</p>';
+      showToast(err.message);
+    }
+  }
+
+  async function createPromoCode() {
+    try {
+      const codeEl = $('promoCodeValue');
+      const typeEl = $('promoRewardType');
+      const usageModeEl = $('promoUsageMode');
+      const discountEl = $('promoDiscountPercent');
+      if (!codeEl || !typeEl || !usageModeEl || !discountEl) return;
+
+      const code = String(codeEl.value || '').trim().toUpperCase();
+      const rewardType = String(typeEl.value || '');
+      const usageMode = String(usageModeEl.value || 'always');
+      if (!code) {
+        showToast('Введите промокод');
+        return;
+      }
+
+      const payload = { code: code, reward_type: rewardType, usage_mode: usageMode };
+      if (rewardType === 'percent') {
+        const discount = Number(discountEl.value);
+        if (!Number.isInteger(discount) || discount < 1 || discount > 90) {
+          showToast('Скидка должна быть целым числом от 1 до 90');
+          return;
+        }
+        payload.discount_percent = discount;
+      }
+
+      await apiMethod('POST', '/promo-codes', payload);
+      codeEl.value = '';
+      await loadPromoCodes();
+      showToast('Промокод создан');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function togglePromoCodeActive(promoId, isActive) {
+    try {
+      await apiMethod('PATCH', '/promo-codes/' + promoId, { is_active: Boolean(isActive) });
+      await loadPromoCodes();
+      showToast(isActive ? 'Промокод включен' : 'Промокод выключен');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deletePromoCode(promoId) {
+    if (!window.confirm('Удалить промокод?')) return;
+    try {
+      await apiMethod('DELETE', '/promo-codes/' + promoId);
+      await loadPromoCodes();
+      showToast('Промокод удален');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  // ─── Hot Windows ────────────────────────────────────────────────────────────
+
+  let hotWindowsCache = [];
+
+  function onHwRewardTypeChange() {
+    const typeEl = $('hwRewardType');
+    const discountEl = $('hwDiscountPercent');
+    const giftEl = $('hwGiftServiceId');
+    if (!typeEl) return;
+    const isPercent = typeEl.value === 'percent';
+    if (discountEl) discountEl.style.display = isPercent ? '' : 'none';
+    if (giftEl) giftEl.style.display = isPercent ? 'none' : '';
+  }
+
+  function populateHwGiftServiceSelect() {
+    const giftEl = $('hwGiftServiceId');
+    if (!giftEl) return;
+    const zones = servicesCache.filter(function (s) {
+      return s.is_active && !/комплекс/i.test(String(s.name || '')) && !/комплекс/i.test(String(s.description || ''));
+    });
+    giftEl.innerHTML = zones.length
+      ? zones.map(function (s) { return '<option value="' + s.id + '">' + escapeHtml(s.name) + ' (' + Number(s.price) + ' ₽)</option>'; }).join('')
+      : '<option value="">Нет доступных зон</option>';
+  }
+
+  function renderHotWindows() {
+    const listEl = $('hotWindowsList');
+    if (!listEl) return;
+    if (!hotWindowsCache.length) {
+      listEl.innerHTML = '<p class="settings-hint">Горячих окон пока нет</p>';
+      return;
+    }
+    listEl.innerHTML = hotWindowsCache.map(function (hw) {
+      const dateStr = String(hw.date || '').slice(0, 10);
+      const timeRange = String(hw.start_time || '').slice(0, 5) + ' – ' + String(hw.end_time || '').slice(0, 5);
+      const reward = hw.reward_type === 'percent'
+        ? 'Скидка ' + Number(hw.discount_percent || 0) + '%'
+        : 'Подарок: ' + escapeHtml(hw.gift_service_name || 'Зона в подарок');
+      return '<div class="settings-list-item">'
+        + '<div>'
+        + '<strong>🔥 ' + dateStr + ' · ' + timeRange + '</strong>'
+        + '<div class="settings-hint">' + reward + '</div>'
+        + '</div>'
+        + '<button class="btn-small btn-cancel" onclick="MasterApp.deleteHotWindow(' + hw.id + ')">Удалить</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  async function loadHotWindows() {
+    const listEl = $('hotWindowsList');
+    if (!listEl) return;
+    listEl.innerHTML = '<p class="settings-hint">Загрузка...</p>';
+    try {
+      const data = await apiFetch('/hot-windows');
+      hotWindowsCache = Array.isArray(data) ? data : [];
+      renderHotWindows();
+    } catch (err) {
+      hotWindowsCache = [];
+      listEl.innerHTML = '<p class="settings-hint">Не удалось загрузить</p>';
+    }
+    populateHwGiftServiceSelect();
+    onHwRewardTypeChange();
+  }
+
+  async function createHotWindow() {
+    try {
+      const dateEl = $('hwDate');
+      const startEl = $('hwStartTime');
+      const endEl = $('hwEndTime');
+      const typeEl = $('hwRewardType');
+      const discountEl = $('hwDiscountPercent');
+      const giftEl = $('hwGiftServiceId');
+      if (!dateEl || !startEl || !endEl || !typeEl) return;
+
+      const date = dateEl.value;
+      const start_time = startEl.value;
+      const end_time = endEl.value;
+      const reward_type = typeEl.value;
+
+      if (!date || !start_time || !end_time) {
+        showToast('Укажите дату и диапазон времени');
+        return;
+      }
+      if (start_time >= end_time) {
+        showToast('Начало должно быть раньше окончания');
+        return;
+      }
+
+      const payload = { date: date, start_time: start_time, end_time: end_time, reward_type: reward_type };
+      if (reward_type === 'percent') {
+        const pct = Number(discountEl && discountEl.value);
+        if (!Number.isInteger(pct) || pct < 1 || pct > 90) {
+          showToast('Скидка должна быть от 1 до 90 %');
+          return;
+        }
+        payload.discount_percent = pct;
+      } else {
+        const svcId = Number(giftEl && giftEl.value);
+        if (!svcId) {
+          showToast('Выберите зону в подарок');
+          return;
+        }
+        payload.gift_service_id = svcId;
+      }
+
+      await apiMethod('POST', '/hot-windows', payload);
+      if (dateEl) dateEl.value = '';
+      await loadHotWindows();
+      showToast('Горячее окно добавлено');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function deleteHotWindow(hwId) {
+    if (!window.confirm('Удалить горячее окно?')) return;
+    try {
+      await apiMethod('DELETE', '/hot-windows/' + hwId);
+      await loadHotWindows();
+      showToast('Удалено');
     } catch (err) {
       showToast(err.message);
     }
@@ -992,6 +1972,7 @@
   }
 
   async function deleteAvailabilityExclusion(exclusionId) {
+    if (!window.confirm('Удалить выходной день?')) return;
     try {
       await apiMethod('DELETE', '/availability/exclusions/' + exclusionId);
       await loadAvailabilitySettings();
@@ -1044,10 +2025,9 @@
 
   async function connectGCal() {
     try {
-      let res = await fetch('/api/calendar-sync/connect', {
+      let data = await requestRootJson('/calendar-sync/connect', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      let data = await res.json();
       if (data.url) window.location.href = data.url;
     } catch (err) {
       showToast('Ошибка подключения: ' + err.message);
@@ -1118,6 +2098,48 @@
     window.location.href = '/';
   }
 
+  function updateKeyboardOffset() {
+    if (!window.visualViewport) {
+      document.documentElement.style.setProperty('--keyboard-offset', '0px');
+      return;
+    }
+    const vv = window.visualViewport;
+    const rawOffset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    const keyboardOffset = rawOffset > 110 ? rawOffset : 0;
+    document.documentElement.style.setProperty('--keyboard-offset', keyboardOffset + 'px');
+  }
+
+  function setupKeyboardVisibilityHelpers() {
+    const isFocusableFormControl = function (node) {
+      return Boolean(node
+        && node.nodeType === 1
+        && typeof node.matches === 'function'
+        && node.matches('input, textarea, select'));
+    };
+
+    window.addEventListener('focusin', function (event) {
+      const target = event.target;
+      if (!isFocusableFormControl(target)) return;
+      window.setTimeout(function () {
+        if (typeof target.scrollIntoView === 'function') {
+          target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        }
+      }, 180);
+      updateKeyboardOffset();
+    });
+
+    window.addEventListener('focusout', function () {
+      window.setTimeout(updateKeyboardOffset, 120);
+    });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateKeyboardOffset);
+      window.visualViewport.addEventListener('scroll', updateKeyboardOffset);
+    }
+
+    updateKeyboardOffset();
+  }
+
   // === SKELETONS ===
 
   function skeletonBookings(count) {
@@ -1137,6 +2159,7 @@
   if (!token) {
     window.location.href = '/';
   } else {
+    setupKeyboardVisibilityHelpers();
     loadToday();
   }
 
@@ -1150,6 +2173,8 @@
     showAddService: showAddService,
     setServiceMethodFilter: setServiceMethodFilter,
     setServiceCategoryFilter: setServiceCategoryFilter,
+    setOverviewPreset: setOverviewPreset,
+    applyOverviewPeriod: applyOverviewPeriod,
     setLeadsPeriod: setLeadsPeriod,
     setLeadsView: setLeadsView,
     updateLeadsUsersFilters: updateLeadsUsersFilters,
@@ -1159,6 +2184,9 @@
     deleteService: deleteService,
     saveService: saveService,
     bootstrapDefaultServices: bootstrapDefaultServices,
+    loadMasterProfile: loadMasterProfile,
+    saveMasterProfile: saveMasterProfile,
+    openGiftLink: openGiftLink,
     copyLink: copyLink,
     copyAppleLink: copyAppleLink,
     openAppleCalendar: openAppleCalendar,
@@ -1168,10 +2196,18 @@
     disableAppleCalendar: disableAppleCalendar,
     saveReminderSettings: saveReminderSettings,
     savePricingSettings: savePricingSettings,
+    onHwRewardTypeChange: onHwRewardTypeChange,
+    createHotWindow: createHotWindow,
+    deleteHotWindow: deleteHotWindow,
+    onPromoRewardTypeChange: onPromoRewardTypeChange,
+    createPromoCode: createPromoCode,
+    togglePromoCodeActive: togglePromoCodeActive,
+    deletePromoCode: deletePromoCode,
     addAvailabilityRule: addAvailabilityRule,
     deleteAvailabilityRule: deleteAvailabilityRule,
     addAvailabilityExclusion: addAvailabilityExclusion,
     deleteAvailabilityExclusion: deleteAvailabilityExclusion,
+    testNotification: testNotification,
     logout: logout,
     hideToast: hideToast
   };

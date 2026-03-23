@@ -96,6 +96,8 @@ describe('Master API', () => {
 
       expect(res.body.display_name).toBe('Мастер Анна');
       expect(res.body.booking_slug).toBe('abc123test');
+      expect(res.body.profile).toBeDefined();
+      expect(res.body.profile.gift_url).toBe('https://vk.cc/cVmuLI');
     });
 
     it('should return 404 if not a master', async () => {
@@ -121,6 +123,42 @@ describe('Master API', () => {
         .expect(200);
 
       expect(res.body.display_name).toBe('Новое имя');
+    });
+
+    it('should update public profile fields', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({
+          rows: [{
+            ...masterRow,
+            brand_name: 'RoVa Epil',
+            brand_subtitle: 'Epil & Care',
+            profile_name: 'Лера',
+            profile_role: 'Мастер эпиляции',
+            profile_city: 'Новосибирск',
+            gift_text: 'Подарок от меня на первое посещение по ссылке:',
+            gift_url: 'https://vk.cc/cVmuLI'
+          }]
+        });
+
+      const res = await request(app)
+        .put('/api/master/profile')
+        .set('Authorization', authHeader)
+        .send({
+          profile: {
+            brand: 'RoVa Epil',
+            subtitle: 'Epil & Care',
+            name: 'Лера',
+            role: 'Мастер эпиляции',
+            city: 'Новосибирск',
+            gift_text: 'Подарок от меня на первое посещение по ссылке:',
+            gift_url: 'https://vk.cc/cVmuLI'
+          }
+        })
+        .expect(200);
+
+      expect(res.body.profile.brand).toBe('RoVa Epil');
+      expect(res.body.profile.gift_url).toBe('https://vk.cc/cVmuLI');
     });
 
     it('should return 400 if no fields', async () => {
@@ -182,6 +220,26 @@ describe('Master API', () => {
         .send({ name: 'Test', duration_minutes: 3 })
         .expect(400);
     });
+
+    it('should create a service on legacy schema without description/buffer columns', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({ rows: [{ id: 7, master_id: 1, name: 'Воск: Голень', duration_minutes: 30, price: 900 }] });
+
+      const res = await request(app)
+        .post('/api/master/services')
+        .set('Authorization', authHeader)
+        .send({ name: 'Воск: Голень', duration_minutes: 30, price: 900 })
+        .expect(201);
+
+      expect(res.body.name).toBe('Воск: Голень');
+      expect(res.body.description).toBeNull();
+      expect(res.body.buffer_before_minutes).toBe(0);
+      expect(res.body.buffer_after_minutes).toBe(0);
+      expect(res.body.is_active).toBe(true);
+    });
   });
 
   describe('GET /api/master/services', () => {
@@ -196,6 +254,24 @@ describe('Master API', () => {
         .expect(200);
 
       expect(res.body).toHaveLength(2);
+    });
+
+    it('should fallback to legacy service schema when created_at is missing', async () => {
+      const missingColumnError = Object.assign(new Error('column "created_at" does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Маникюр', duration_minutes: 60 }] });
+
+      const res = await request(app)
+        .get('/api/master/services')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].buffer_before_minutes).toBe(0);
+      expect(res.body[0].buffer_after_minutes).toBe(0);
+      expect(res.body[0].is_active).toBe(true);
     });
   });
 
@@ -226,6 +302,26 @@ describe('Master API', () => {
         .send({ name: 'X' })
         .expect(404);
     });
+
+    it('should update service on legacy schema with minimal columns', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Маникюр+', duration_minutes: 80, price: 2500 }] });
+
+      const res = await request(app)
+        .put('/api/master/services/1')
+        .set('Authorization', authHeader)
+        .send({ name: 'Маникюр+', duration_minutes: 80, price: 2500, description: 'Новое описание' })
+        .expect(200);
+
+      expect(res.body.name).toBe('Маникюр+');
+      expect(res.body.buffer_before_minutes).toBe(0);
+      expect(res.body.buffer_after_minutes).toBe(0);
+      expect(res.body.is_active).toBe(true);
+    });
   });
 
   describe('DELETE /api/master/services/:id', () => {
@@ -239,6 +335,22 @@ describe('Master API', () => {
         .set('Authorization', authHeader)
         .expect(200);
 
+      expect(res.body.is_active).toBe(false);
+    });
+
+    it('should hard-delete service on legacy schema without is_active', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({ rows: [{ id: 2, master_id: 1, name: 'Педикюр' }] });
+
+      const res = await request(app)
+        .delete('/api/master/services/2')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body.id).toBe(2);
       expect(res.body.is_active).toBe(false);
     });
   });
@@ -297,6 +409,185 @@ describe('Master API', () => {
       expect(res.body.overwrite).toBe(true);
       expect(res.body.inserted_count).toBeGreaterThan(20);
     });
+
+    it('should seed defaults on legacy schema without is_active/description columns', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+
+      pool.query.mockImplementation(async (sql) => {
+        const query = String(sql || '');
+
+        if (query.includes('SELECT * FROM masters WHERE user_id = $1')) {
+          return { rows: [masterRow] };
+        }
+        if (query.includes('SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1 AND is_active = true')) {
+          throw missingColumnError;
+        }
+        if (query.includes('SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1')) {
+          return { rows: [{ total: 0 }] };
+        }
+        if (query === 'BEGIN' || query === 'COMMIT') {
+          return { rows: [] };
+        }
+        if (query.includes('INSERT INTO services (master_id, name, duration_minutes, price, description')) {
+          throw missingColumnError;
+        }
+        if (query.includes('INSERT INTO services (master_id, name, duration_minutes, price)')) {
+          return {
+            rows: [{
+              id: 101,
+              master_id: 1,
+              name: 'Воск: Ноги полностью',
+              duration_minutes: 60,
+              price: 2000
+            }]
+          };
+        }
+        if (query === 'ROLLBACK') {
+          return { rows: [] };
+        }
+        throw new Error('Unexpected query: ' + query);
+      });
+
+      const res = await request(app)
+        .post('/api/master/services/bootstrap-default')
+        .set('Authorization', authHeader)
+        .send({})
+        .expect(201);
+
+      expect(res.body.inserted_count).toBeGreaterThan(20);
+      expect(res.body.overwrite).toBe(false);
+    });
+  });
+
+  describe('Promo codes', () => {
+    it('should list promo codes', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', reward_type: 'percent', discount_percent: 20, usage_mode: 'always', uses_count: 0, is_active: true }] });
+
+      const res = await request(app)
+        .get('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].code).toBe('SAVE20');
+    });
+
+    it('should list promo codes on legacy schema without usage columns', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({
+          rows: [{ id: 2, code: 'LEGACY10', reward_type: 'percent', discount_percent: 10, is_active: true }]
+        });
+
+      const res = await request(app)
+        .get('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].code).toBe('LEGACY10');
+      expect(res.body[0].usage_mode).toBe('always');
+      expect(res.body[0].uses_count).toBe(0);
+    });
+
+    it('should create percent promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 10, code: 'SAVE15', reward_type: 'percent', discount_percent: 15, usage_mode: 'always', uses_count: 0, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'save15', reward_type: 'percent', discount_percent: 15 })
+        .expect(201);
+
+      expect(res.body.code).toBe('SAVE15');
+      expect(res.body.reward_type).toBe('percent');
+      expect(res.body.discount_percent).toBe(15);
+    });
+
+    it('should create gift-service promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: null, usage_mode: 'always', uses_count: 0, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'giftleg', reward_type: 'gift_service' })
+        .expect(201);
+
+      expect(res.body.code).toBe('GIFTLEG');
+      expect(res.body.reward_type).toBe('gift_service');
+      expect(res.body.gift_service_id).toBeNull();
+    });
+
+    it('should create gift-service promo code on legacy schema without is_active/usage_mode columns', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockResolvedValueOnce({ rows: [{ id: 21, code: 'LEGACYGIFT', reward_type: 'gift_service', gift_service_id: null, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'legacygift', reward_type: 'gift_service' })
+        .expect(201);
+
+      expect(res.body.code).toBe('LEGACYGIFT');
+      expect(res.body.gift_service_id).toBeNull();
+      expect(res.body.usage_mode).toBe('always');
+      expect(res.body.uses_count).toBe(0);
+    });
+
+    it('should create single-use promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 15, code: 'ONCE10', reward_type: 'percent', discount_percent: 10, usage_mode: 'single_use', uses_count: 0, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'once10', reward_type: 'percent', discount_percent: 10, usage_mode: 'single_use' })
+        .expect(201);
+
+      expect(res.body.code).toBe('ONCE10');
+      expect(res.body.usage_mode).toBe('single_use');
+    });
+
+    it('should toggle promo code activity', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, usage_mode: 'always', uses_count: 0 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, code: 'SAVE20', is_active: false }] });
+
+      const res = await request(app)
+        .patch('/api/master/promo-codes/1')
+        .set('Authorization', authHeader)
+        .send({ is_active: false })
+        .expect(200);
+
+      expect(res.body.is_active).toBe(false);
+    });
+
+    it('should not re-enable used single-use promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 22, usage_mode: 'single_use', uses_count: 1 }] });
+
+      const res = await request(app)
+        .patch('/api/master/promo-codes/22')
+        .set('Authorization', authHeader)
+        .send({ is_active: true })
+        .expect(400);
+
+      expect(res.body.error).toContain('Одноразовый');
+    });
   });
 
   // === AVAILABILITY ===
@@ -340,6 +631,19 @@ describe('Master API', () => {
         .expect(200);
 
       expect(res.body).toHaveLength(2);
+    });
+
+    it('should return empty list when availability_rules table is absent', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce({ code: '42P01' });
+
+      const res = await request(app)
+        .get('/api/master/availability')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
     });
   });
 
@@ -464,6 +768,25 @@ describe('Master API', () => {
         .expect(200);
 
       expect(res.body.slots.length).toBeGreaterThan(0);
+    });
+
+    it('should return empty slots when legacy availability_rules table is absent', async () => {
+      const service = { id: 1, duration_minutes: 60, buffer_before_minutes: 0, buffer_after_minutes: 0 };
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [service] }) // service
+        .mockRejectedValueOnce({ code: '42P01' }) // rules table missing
+        .mockResolvedValueOnce({ rows: [] }) // exclusions
+        .mockResolvedValueOnce({ rows: [] }) // bookings
+        .mockResolvedValueOnce({ rows: [] }); // blocks
+
+      const res = await request(app)
+        .get('/api/master/availability/preview?service_id=1&date_from=2026-03-02&date_to=2026-03-02')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(Array.isArray(res.body.slots)).toBe(true);
+      expect(res.body.slots).toHaveLength(0);
     });
   });
 
