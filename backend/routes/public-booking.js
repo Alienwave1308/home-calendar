@@ -604,7 +604,7 @@ router.get('/master/:slug/slots', async (req, res) => {
       const slotStartMs = new Date(slot.start).getTime();
       const slotEndMs = slotStartMs + effectiveDurationMs;
       for (const hw of hotWindows) {
-        const dateStr = String(hw.date).slice(0, 10);
+        const dateStr = hw.date instanceof Date ? hw.date.toISOString().slice(0, 10) : String(hw.date).slice(0, 10);
         const hwStartMs = localDateTimeToUtcMs(dateStr, hw.start_time, timezone);
         const hwEndMs = localDateTimeToUtcMs(dateStr, hw.end_time, timezone);
         const overlap = Math.max(0, Math.min(slotEndMs, hwEndMs) - Math.max(slotStartMs, hwStartMs));
@@ -988,7 +988,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
           [master.id, localDate2]
         );
         for (const hw of hwRes.rows) {
-          const dateStr = String(hw.date).slice(0, 10);
+          const dateStr = hw.date instanceof Date ? hw.date.toISOString().slice(0, 10) : String(hw.date).slice(0, 10);
           const hwStartMs = localDateTimeToUtcMs(dateStr, hw.start_time, timezone);
           const hwEndMs = localDateTimeToUtcMs(dateStr, hw.end_time, timezone);
           const overlap = Math.max(0, Math.min(slotEndMs, hwEndMs) - Math.max(slotStartMs, hwStartMs));
