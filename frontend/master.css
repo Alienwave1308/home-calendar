@@ -485,6 +485,25 @@ button {
   gap: 2px;
 }
 
+.booking-discount-badge {
+  display: inline-block;
+  font-size: 0.82em;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  width: fit-content;
+}
+
+.booking-discount-badge.promo {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.booking-discount-badge.hot {
+  background: #fff3e0;
+  color: #c05600;
+}
+
 .booking-card-actions {
   display: flex;
   gap: 6px;
