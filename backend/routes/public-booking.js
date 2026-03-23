@@ -5,7 +5,7 @@ const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { generateSlotsFromWindows, localDateTimeToUtcMs } = require('../lib/slots');
 const { createReminders } = require('../lib/reminders');
-const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
+const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -1043,6 +1043,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     try {
       await createReminders(created.id, created.master_id, created.start_at);
       await notifyMasterBookingEvent(created.id, 'created');
+      await notifyClientBookingEvent(created.id, 'created');
     } catch (notifyError) {
       console.error('Error handling public booking side-effects:', notifyError);
     }
