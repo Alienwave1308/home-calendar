@@ -45,7 +45,7 @@ async function sendTelegramMessage(chatId, text) {
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       console.error('Telegram sendMessage failed:', response.status, body);
-      return { ok: false, skipped: false, retryable: response.status >= 500 };
+      return { ok: false, skipped: false, retryable: response.status >= 500, status: response.status, tgError: body };
     }
     return { ok: true, skipped: false, retryable: false };
   } catch (error) {

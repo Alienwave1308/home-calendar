@@ -228,6 +228,8 @@
         result.textContent = '❌ Username не в формате tg_XXXXX: ' + (data.username || 'не задан');
       } else if (data.skipped) {
         result.textContent = '❌ Пропущено: нет токена бота или chatId';
+      } else if (data.tgError) {
+        result.textContent = '❌ Telegram HTTP ' + (data.status || '?') + ': ' + data.tgError;
       } else {
         result.textContent = '❌ Ошибка: ' + (data.error || 'неизвестно');
       }
@@ -510,10 +512,10 @@
       });
 
       const revenue = rows.reduce(function (sum, item) {
-        const finalPrice = Number(item.final_price);
-        const fallbackPrice = Number(item.service_price);
-        if (Number.isFinite(finalPrice)) return sum + finalPrice;
-        if (Number.isFinite(fallbackPrice)) return sum + fallbackPrice;
+        const finalPrice = Number(item.pricing_final != null ? item.pricing_final : item.final_price);
+        const fallbackPrice = Number(item.pricing_base != null ? item.pricing_base : item.service_price);
+        if (Number.isFinite(finalPrice) && finalPrice > 0) return sum + finalPrice;
+        if (Number.isFinite(fallbackPrice) && fallbackPrice > 0) return sum + fallbackPrice;
         return sum;
       }, 0);
       const clients = new Set(rows.map(function (item) { return item.client_id || item.client_name || item.client_telegram_id || item.id; }));

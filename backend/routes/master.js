@@ -234,7 +234,7 @@ router.post('/test-notification', loadMaster, async (req, res) => {
       return res.status(400).json({ ok: false, reason: 'username_format', username: username || null });
     }
     const result = await sendTelegramMessage(chatId, '✅ Тестовое уведомление — бот работает корректно.');
-    return res.json({ ok: result.ok, skipped: result.skipped, chatId });
+    return res.json({ ok: result.ok, skipped: result.skipped, chatId, status: result.status, tgError: result.tgError });
   } catch (error) {
     console.error('test-notification error:', error);
     return res.status(500).json({ ok: false, error: String(error.message) });
