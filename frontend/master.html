@@ -315,6 +315,23 @@
         </div>
       </div>
       <div class="settings-card">
+        <h3>🔥 Горячие окна</h3>
+        <p class="settings-hint">Укажите дату и диапазон времени со скидкой. Клиент увидит эти слоты отмеченными 🔥. Скидка применяется автоматически, если более половины записи попадает в горячее окно.</p>
+        <div class="availability-form">
+          <input id="hwDate" type="date">
+          <input id="hwStartTime" type="time" value="10:00">
+          <input id="hwEndTime" type="time" value="12:00">
+          <select id="hwRewardType" onchange="MasterApp.onHwRewardTypeChange()">
+            <option value="percent">Скидка, %</option>
+            <option value="gift_service">Зона в подарок</option>
+          </select>
+          <input id="hwDiscountPercent" type="number" min="1" max="90" value="20" placeholder="Скидка, %">
+          <select id="hwGiftServiceId" style="display:none"></select>
+          <button class="btn-secondary" onclick="MasterApp.createHotWindow()">Добавить окно</button>
+        </div>
+        <div id="hotWindowsList" class="settings-list"></div>
+      </div>
+      <div class="settings-card">
         <h3>Промокоды</h3>
         <p class="settings-hint">Промокод может давать процент скидки или «зону в подарок». Зону и материал выбирает клиент при записи.</p>
         <div class="availability-form">

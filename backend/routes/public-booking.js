@@ -5,7 +5,7 @@ const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { generateSlotsFromWindows, localDateTimeToUtcMs } = require('../lib/slots');
 const { createReminders } = require('../lib/reminders');
-const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
+const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -567,7 +567,7 @@ router.get('/master/:slug/slots', async (req, res) => {
       if (blockError.code !== '42P01') throw blockError;
     }
 
-    const slots = generateSlotsFromWindows({
+    const rawSlots = generateSlotsFromWindows({
       service: effectiveService,
       windows: windows.rows,
       bookings: bookings.rows,
@@ -575,6 +575,53 @@ router.get('/master/:slug/slots', async (req, res) => {
       timezone,
       stepMinutes: 10,
       minLeadMinutes: settings.min_booking_notice_minutes ?? 60
+    });
+
+    // Load hot windows for this date range
+    let hotWindows = [];
+    try {
+      const hwRes = await pool.query(
+        `SELECT hw.id, hw.date, hw.start_time, hw.end_time,
+                hw.reward_type, hw.discount_percent,
+                hw.gift_service_id, s.name AS gift_service_name
+         FROM hot_windows hw
+         LEFT JOIN services s ON s.id = hw.gift_service_id
+         WHERE hw.master_id = $1
+           AND hw.date >= $2 AND hw.date <= $3
+           AND hw.is_active = true`,
+        [master.id, date_from, date_to]
+      );
+      hotWindows = hwRes.rows;
+    } catch (hwError) {
+      if (hwError.code !== '42P01') throw hwError;
+    }
+
+    const effectiveDurationMs = Number(effectiveService.duration_minutes || 0) * 60000;
+
+    // Annotate each slot that overlaps >= 50% with a hot window
+    const slots = rawSlots.map((slot) => {
+      if (!hotWindows.length) return slot;
+      const slotStartMs = new Date(slot.start).getTime();
+      const slotEndMs = slotStartMs + effectiveDurationMs;
+      for (const hw of hotWindows) {
+        const dateStr = String(hw.date).slice(0, 10);
+        const hwStartMs = localDateTimeToUtcMs(dateStr, hw.start_time, timezone);
+        const hwEndMs = localDateTimeToUtcMs(dateStr, hw.end_time, timezone);
+        const overlap = Math.max(0, Math.min(slotEndMs, hwEndMs) - Math.max(slotStartMs, hwStartMs));
+        if (effectiveDurationMs > 0 && overlap / effectiveDurationMs >= 0.5) {
+          return {
+            ...slot,
+            hot_window: {
+              id: hw.id,
+              reward_type: hw.reward_type,
+              discount_percent: hw.discount_percent,
+              gift_service_id: hw.gift_service_id,
+              gift_service_name: hw.gift_service_name
+            }
+          };
+        }
+      }
+      return slot;
     });
 
     return res.json({ slots });
@@ -924,11 +971,51 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     // Calculate totals across all services
     const totalDurationMinutes = effectiveServices.reduce((sum, s) => sum + Number(s.duration_minutes || 0), 0);
     const totalBasePrice = effectiveServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+    // Check for applicable hot window (only if no promo code used)
+    let appliedHotWindow = null;
+    let hotWindowGiftService = null;
+    if (!appliedPromo) {
+      try {
+        const localDate2 = dateInTimezone(startDate, timezone);
+        const slotStartMs = startDate.getTime();
+        const slotEndMs = slotStartMs + totalDurationMinutes * 60000;
+        const hwRes = await pool.query(
+          `SELECT hw.*, s.name AS gift_service_name, s.price AS gift_service_price
+           FROM hot_windows hw
+           LEFT JOIN services s ON s.id = hw.gift_service_id
+           WHERE hw.master_id = $1 AND hw.date = $2 AND hw.is_active = true`,
+          [master.id, localDate2]
+        );
+        for (const hw of hwRes.rows) {
+          const dateStr = String(hw.date).slice(0, 10);
+          const hwStartMs = localDateTimeToUtcMs(dateStr, hw.start_time, timezone);
+          const hwEndMs = localDateTimeToUtcMs(dateStr, hw.end_time, timezone);
+          const overlap = Math.max(0, Math.min(slotEndMs, hwEndMs) - Math.max(slotStartMs, hwStartMs));
+          if (totalDurationMinutes > 0 && overlap / (totalDurationMinutes * 60000) >= 0.5) {
+            appliedHotWindow = hw;
+            if (hw.reward_type === 'gift_service' && hw.gift_service_id) {
+              hotWindowGiftService = { id: hw.gift_service_id, name: hw.gift_service_name, price: Number(hw.gift_service_price || 0) };
+            }
+            break;
+          }
+        }
+      } catch (hwError) {
+        if (hwError.code !== '42P01') throw hwError;
+      }
+    }
+
     let discountAmount = 0;
     if (promoDiscountPercent !== null) {
       discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
     } else if (promoGiftService) {
       discountAmount = Number(promoGiftService.price || 0);
+    } else if (appliedHotWindow) {
+      if (appliedHotWindow.reward_type === 'percent') {
+        discountAmount = Math.round(totalBasePrice * Number(appliedHotWindow.discount_percent || 0)) / 100;
+      } else if (hotWindowGiftService) {
+        discountAmount = hotWindowGiftService.price;
+      }
     }
     discountAmount = Math.min(totalBasePrice, Math.max(0, discountAmount));
     const finalPrice = Math.max(0, Math.round((totalBasePrice - discountAmount) * 100) / 100);
@@ -976,9 +1063,12 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const insertSql = `INSERT INTO bookings
          (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
           promo_code_id, promo_code, promo_reward_type, promo_discount_percent, promo_gift_service_id,
+          hot_window_id, hot_window_reward_type, hot_window_discount_percent, hot_window_gift_service_id,
           pricing_base, pricing_final, pricing_discount_amount)
        VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7,
-               $8, $9, $10, $11, $12, $13, $14, $15)
+               $8, $9, $10, $11, $12,
+               $13, $14, $15, $16,
+               $17, $18, $19)
        RETURNING *`;
     const insertParams = [
       master.id,
@@ -993,6 +1083,10 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       appliedPromo ? String(appliedPromo.reward_type) : null,
       promoDiscountPercent,
       promoGiftService ? Number(promoGiftService.id) : null,
+      appliedHotWindow ? Number(appliedHotWindow.id) : null,
+      appliedHotWindow ? String(appliedHotWindow.reward_type) : null,
+      appliedHotWindow && appliedHotWindow.reward_type === 'percent' ? Number(appliedHotWindow.discount_percent) : null,
+      hotWindowGiftService ? Number(hotWindowGiftService.id) : null,
       totalBasePrice,
       finalPrice,
       discountAmount
@@ -1043,6 +1137,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     try {
       await createReminders(created.id, created.master_id, created.start_at);
       await notifyMasterBookingEvent(created.id, 'created');
+      await notifyClientBookingEvent(created.id, 'created');
     } catch (notifyError) {
       console.error('Error handling public booking side-effects:', notifyError);
     }
@@ -1058,7 +1153,11 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
         promo_discount_percent: promoDiscountPercent,
         promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
-        promo_gift_service_added: false
+        promo_gift_service_added: false,
+        hot_window_id: appliedHotWindow ? Number(appliedHotWindow.id) : null,
+        hot_window_reward_type: appliedHotWindow ? String(appliedHotWindow.reward_type) : null,
+        hot_window_discount_percent: appliedHotWindow && appliedHotWindow.reward_type === 'percent' ? Number(appliedHotWindow.discount_percent) : null,
+        hot_window_gift_service_name: hotWindowGiftService ? hotWindowGiftService.name : null
       }
     });
   } catch (error) {

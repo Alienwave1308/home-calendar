@@ -60,6 +60,11 @@ describe('Master Panel - Promo Codes E2E', () => {
       ]
     }).as('getServices');
 
+    cy.intercept('GET', /\/api\/master\/hot-windows\/?(?:\?.*)?$/, {
+      statusCode: 200,
+      body: []
+    }).as('getHotWindows');
+
     cy.intercept('GET', /\/api\/master\/promo-codes\/?(?:\?.*)?$/, (req) => {
       req.reply({
         statusCode: 200,

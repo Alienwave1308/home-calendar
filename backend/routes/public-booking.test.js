@@ -256,6 +256,8 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({
         rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
       })
+      // hot_windows check (no promo applied)
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{ id: 1 }]
       })
@@ -273,7 +275,7 @@ describe('Public Booking API', () => {
       .expect(201);
 
     expect(res.body.id).toBe(99);
-    expect(pool.query).toHaveBeenCalledTimes(6);
+    expect(pool.query).toHaveBeenCalledTimes(7);
     expect(res.body.pricing.base_price).toBe(1200);
     expect(res.body.pricing.final_price).toBe(1200);
     expect(res.body.pricing.discount_amount).toBe(0);
@@ -291,6 +293,8 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({
         rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
       })
+      // hot_windows check (no promo applied)
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{ id: 1 }]
       })
@@ -418,6 +422,8 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({
         rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
       })
+      // hot_windows check (no promo applied)
+      .mockResolvedValueOnce({ rows: [] })
       // window coverage check (total duration = 75 min)
       .mockResolvedValueOnce({ rows: [{ id: 7 }] })
       // active bookings count
@@ -435,7 +441,7 @@ describe('Public Booking API', () => {
 
     expect(res.body.id).toBe(100);
     // Total duration: 40 + 35 = 75 min → end_at should be 75 min after start
-    const insertCall = pool.query.mock.calls[6];
+    const insertCall = pool.query.mock.calls[7];
     expect(insertCall[0]).toContain('INSERT INTO bookings');
     // end_at = startAt + 75 min
     const expectedEnd = new Date(new Date(startAt).getTime() + 75 * 60000).toISOString();
@@ -495,6 +501,8 @@ describe('Public Booking API', () => {
       .mockResolvedValueOnce({
         rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
       })
+      // hot_windows check (no promo applied)
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [{ active_count: 1 }] })
       .mockResolvedValueOnce({
@@ -690,6 +698,8 @@ describe('Public Booking API', () => {
       // availability_windows, bookings, blocks — all empty (parallel)
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      // hot_windows check
       .mockResolvedValueOnce({ rows: [] });
 
     const res = await request(app)

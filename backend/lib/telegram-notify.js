@@ -137,8 +137,9 @@ async function notifyClientBookingEvent(bookingId, eventType) {
     if (!clientTelegramId) return { ok: false, skipped: true, retryable: false };
 
     const isCanceled = eventType === 'canceled';
+    const isCreated = eventType === 'created';
     const lines = [
-      isCanceled ? '❌ Ваша запись отменена мастером' : '✏️ Ваша запись была изменена мастером',
+      isCanceled ? '❌ Ваша запись отменена мастером' : isCreated ? '✅ Вы записаны!' : '✏️ Ваша запись была изменена мастером',
       `Услуга: ${data.service_name}`,
       `Адрес: ${SALON_ADDRESS}`,
       `Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)} (${data.master_timezone || 'Asia/Novosibirsk'})`,
