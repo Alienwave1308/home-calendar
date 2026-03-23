@@ -156,20 +156,6 @@
         <button class="tab-btn" data-tab="bookings">Мои</button>
       </div>
 
-      <!-- Мои записи -->
-      <section class="step" id="stepMyBookings" style="display:none;">
-        <div class="step-header">
-          <button class="btn-back" onclick="BookingApp.goBack('stepServices')">&larr; Назад к услугам</button>
-          <h2>Мои записи</h2>
-        </div>
-        <div id="myBookingsList" class="bookings-list"></div>
-        <div id="myBookingsEmpty" class="empty-state" style="display:none;">
-          <div class="empty-icon">📅</div>
-          <p>У вас пока нет записей</p>
-          <button class="btn-primary" style="margin-top:12px;" onclick="BookingApp.reset()">Записаться</button>
-        </div>
-      </section>
-
       <div id="toast" class="toast"></div>
       <div id="networkToast" style="display:none;"><span id="networkToastText"></span></div>
       <div id="fullLoader" class="full-loader" style="display:none;"><div class="loader-spinner"></div></div>

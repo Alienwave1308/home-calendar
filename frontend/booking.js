@@ -1,16 +1,7 @@
-/* eslint-disable no-unused-vars */
 /* global URLSearchParams */
-/**
- * Booking Mini App — client-side booking flow.
- * Works only as Telegram Mini App.
- *
- * Flow: Select Service → Pick Date/Slot → Confirm → Done
- */
-
 (function () {
   'use strict';
 
-  // Telegram WebApp integration
   const tg = window.Telegram && window.Telegram.WebApp;
   const isCypress = Boolean(window.Cypress);
   const hasTelegramSession = Boolean(
@@ -20,7 +11,6 @@
     )
   );
 
-  // VK Mini App integration
   const urlParams = new URLSearchParams(window.location.search);
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
 
@@ -38,162 +28,181 @@
   }
 
   if (hasVkSession) {
-    try { window.vkBridge.send('VKWebAppInit'); } catch (e) { /* VKWebAppInit optional */ }
+    try {
+      window.vkBridge.send('VKWebAppInit');
+    } catch (error) {
+      void error;
+    }
   }
 
-  async function initAuth() {
-    if (localStorage.getItem('token')) return true;
-
-    if (hasTelegramSession) {
-      let res = await fetch(API_BASE + '/auth/telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData })
-      });
-      if (res.ok) {
-        let data = await res.json();
-        if (data.token) { localStorage.setItem('token', data.token); return true; }
-      }
-      let errData = await res.json().catch(function () { return {}; });
-      throw new Error(errData.error || 'Ошибка авторизации Telegram (' + res.status + ')');
-    }
-
-    if (hasVkSession) {
-      let res = await fetch(API_BASE + '/auth/vk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ launchParams: window.location.search.slice(1) })
-      });
-      if (res.ok) {
-        let data = await res.json();
-        if (data.token) { localStorage.setItem('token', data.token); return true; }
-      }
-      let errData = await res.json().catch(function () { return {}; });
-      throw new Error(errData.error || 'Ошибка авторизации ВКонтакте (' + res.status + ')');
-    }
-
-    return false;
+  function normalizeOrigin(value) {
+    if (!value) return '';
+    return String(value).trim().replace(/\/+$/, '');
   }
 
-  // Extract booking slug from URL: /book/:slug or ?slug=...
+  function isCanonicalHost(hostname) {
+    return /(^|\.)rova-epil\.ru$/i.test(String(hostname || ''));
+  }
+
+  function buildApiBaseCandidates() {
+    const candidates = [];
+    const pushCandidate = function (base) {
+      if (!base || candidates.includes(base)) return;
+      candidates.push(base);
+    };
+
+    const queryOrigin = normalizeOrigin(urlParams.get('api_origin'));
+    const globalOrigin = normalizeOrigin(window.__HC_API_ORIGIN__);
+    const globalBase = normalizeOrigin(window.__HC_API_BASE__);
+
+    if (globalBase) pushCandidate(globalBase);
+    if (queryOrigin) pushCandidate(queryOrigin + '/api');
+    if (globalOrigin) pushCandidate(globalOrigin + '/api');
+    pushCandidate('/api');
+
+    const shouldFallbackToCanonical = window.location.protocol === 'https:'
+      && !isCanonicalHost(window.location.hostname)
+      && window.location.hostname !== 'localhost'
+      && window.location.hostname !== '127.0.0.1';
+    if (!window.Cypress && shouldFallbackToCanonical) pushCandidate('https://rova-epil.ru/api');
+
+    return candidates;
+  }
+
+  const API_BASE_CANDIDATES = buildApiBaseCandidates();
+  let apiBase = API_BASE_CANDIDATES[0] || '/api';
   const rawSlug = new URLSearchParams(window.location.search).get('slug')
     || window.location.pathname.split('/book/')[1]
     || '';
   const slug = String(rawSlug).split('?')[0].replace(/^\/+|\/+$/g, '');
 
-  const API_BASE = '/api';
-  const exportUtils = window.BookingExportUtils || {
-    buildGoogleCalendarUrl: function () { return '#'; },
-    buildIcsContent: function () { return ''; }
+  const monthNames = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+  const monthNamesGen = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+  const state = {
+    tab: 'services',
+    flowScreen: 'services',
+    method: 'all',
+    category: 'all',
+    currentMonth: null,
+    selectedServiceIds: [],
+    selectedDate: null,
+    selectedSlot: null,
+    selectedSlotLabel: '',
+    promoCode: '',
+    promoPreview: null,
+    promoHint: 'Введите промокод и нажмите «Применить»',
+    note: '',
+    editingBookingId: null,
+    master: null,
+    settings: { min_booking_notice_minutes: 60 },
+    services: [],
+    slotsByDay: new Map(),
+    rangeStart: null,
+    rangeEnd: null,
+    bookings: []
   };
 
-  // State
-  let master = null;
-  let masterSettings = { first_visit_discount_percent: 15, min_booking_notice_minutes: 60 };
-  let services = [];
-  let visibleServices = [];
-  // Multi-select: list of selected services (zones freely combined; complex is solo)
-  let selectedServices = [];
-  // Legacy alias kept for reschedule flow compatibility
-  let selectedService = null;
-  let selectedDate = null;
-  let selectedSlot = null;
-  let selectedPricing = null;
-  let lastCreatedBookingId = null;
-  let isFirstVisitClient = false;
-  let methodFilter = 'all';
-  let categoryFilter = 'all';
-  let rescheduleBookingId = null;
-  let currentDateOffset = 0; // days from today
-  const DAYS_TO_SHOW = 14;
+  let screenStack = ['services'];
 
-  // === HELPERS ===
+  const el = {
+    statusTime: document.getElementById('statusTime'),
+    headerBack: document.getElementById('headerBack'),
+    headerMore: document.getElementById('headerMore'),
+    headerTitle: document.getElementById('headerTitle'),
+    headerSub: document.getElementById('headerSub'),
+    screens: {
+      services: document.getElementById('screen-services'),
+      calendar: document.getElementById('screen-calendar'),
+      confirm: document.getElementById('screen-confirm'),
+      done: document.getElementById('screen-done'),
+      bookings: document.getElementById('screen-bookings')
+    },
+    studioBrand: document.getElementById('studioBrand'),
+    studioSubtitle: document.getElementById('studioSubtitle'),
+    masterName: document.getElementById('masterName'),
+    giftText: document.getElementById('giftText'),
+    giftLink: document.getElementById('giftLink'),
+    methodTabs: document.getElementById('methodTabs'),
+    categoryTabs: document.getElementById('categoryTabs'),
+    servicesList: document.getElementById('servicesList'),
+    calPrev: document.getElementById('calPrev'),
+    calNext: document.getElementById('calNext'),
+    calMonth: document.getElementById('calMonth'),
+    calGrid: document.getElementById('calGrid'),
+    slotsDate: document.getElementById('slotsDate'),
+    slotsBadge: document.getElementById('slotsBadge'),
+    slotsWrap: document.getElementById('slotsWrap'),
+    calendarServiceTitle: document.getElementById('calendarServiceTitle'),
+    calendarServiceMeta: document.getElementById('calendarServiceMeta'),
+    confirmServices: document.getElementById('confirmServices'),
+    confirmPricing: document.getElementById('confirmPricing'),
+    promoInput: document.getElementById('promoInput'),
+    promoApply: document.getElementById('promoApply'),
+    promoHint: document.getElementById('promoHint'),
+    noteInput: document.getElementById('noteInput'),
+    confirmBack: document.getElementById('confirmBack'),
+    confirmSubmit: document.getElementById('confirmSubmit'),
+    doneText: document.getElementById('doneText'),
+    doneNew: document.getElementById('doneNew'),
+    doneBookings: document.getElementById('doneBookings'),
+    bookingsCount: document.getElementById('bookingsCount'),
+    bookingsList: document.getElementById('bookingsList'),
+    dock: document.getElementById('dock'),
+    dockTitle: document.getElementById('dockTitle'),
+    dockInfo: document.getElementById('dockInfo'),
+    dockSelectedList: document.getElementById('dockSelectedList'),
+    dockAction: document.getElementById('dockAction'),
+    tabButtons: Array.prototype.slice.call(document.querySelectorAll('.tab-btn')),
+    toast: document.getElementById('toast'),
+    fullLoader: document.getElementById('fullLoader')
+  };
 
-  function $(id) { return document.getElementById(id); }
-
-  function showStep(stepId) {
-    document.querySelectorAll('.step').forEach(function (s) {
-      if (s.id === stepId) {
-        s.style.display = '';
-        s.classList.remove('step-out');
-      } else {
-        s.style.display = 'none';
-      }
-    });
+  function $(id) {
+    return document.getElementById(id);
   }
 
-  function showToast(message) {
-    let toast = $('networkToast');
-    $('networkToastText').textContent = message;
-    toast.style.display = 'flex';
-    clearTimeout(showToast._timer);
-    showToast._timer = setTimeout(function () {
-      toast.style.display = 'none';
-    }, 5000);
+  function startOfDay(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
 
-  function hideToast() {
-    $('networkToast').style.display = 'none';
+  function addDays(base, days) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + days);
+    return d;
   }
 
-  function showLoader() { $('fullLoader').style.display = 'flex'; }
-  function hideLoader() { $('fullLoader').style.display = 'none'; }
-
-  async function apiFetch(path) {
-    let token = localStorage.getItem('token') || '';
-    let headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = 'Bearer ' + token;
-
-    let res = await fetch(API_BASE + path, { headers: headers });
-    if (!res.ok) {
-      let data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка сервера (' + res.status + ')');
-    }
-    return res.json();
+  function startOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
   }
 
-  async function apiPost(path, body) {
-    let token = localStorage.getItem('token') || '';
-    let headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = 'Bearer ' + token;
-
-    let res = await fetch(API_BASE + path, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      let data = await res.json().catch(function () { return {}; });
-      throw new Error(data.error || 'Ошибка сервера (' + res.status + ')');
-    }
-    return res.json();
+  function dateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
   }
 
-  // Format date helpers
-  let DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-
-  function parseServiceTaxonomy(service) {
-    const name = String(service && service.name ? service.name : '');
-    const description = String(service && service.description ? service.description : '');
-    const source = (name + ' ' + description).toLowerCase();
-    const method = source.includes('воск') || source.includes('wax') ? 'wax' : 'sugar';
-    const category = description.includes('Комплексы') || /комплекс/i.test(name) ? 'Комплексы' : 'Услуги';
-    return { method: method, category: category };
+  function parseDateKey(value) {
+    const [y, m, d] = String(value).split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
   }
 
-  function formatDate(dateStr) {
-    let d = new Date(dateStr);
-    const timezone = (master && master.timezone) || 'Asia/Novosibirsk';
-    return new Intl.DateTimeFormat('ru-RU', {
-      timeZone: timezone,
-      day: '2-digit',
-      month: 'short'
-    }).format(d);
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
-  function formatTime(isoStr) {
-    let d = new Date(isoStr);
-    const timezone = (master && master.timezone) || 'Asia/Novosibirsk';
+  function money(value) {
+    return new Intl.NumberFormat('ru-RU').format(Math.round(Number(value || 0)));
+  }
+
+  function formatTimeIso(iso, timezone) {
+    const d = new Date(iso);
     return new Intl.DateTimeFormat('ru-RU', {
       timeZone: timezone,
       hour: '2-digit',
@@ -202,812 +211,1178 @@
     }).format(d);
   }
 
-  function formatPriceRub(value) {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return '';
-    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(num));
+  function formatDateByKey(isoKey) {
+    const d = parseDateKey(isoKey);
+    return String(d.getDate()).padStart(2, '0') + ' ' + monthNamesGen[d.getMonth()];
   }
 
-  function toDateStr(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
+  function formatDateLongByKey(isoKey) {
+    const d = parseDateKey(isoKey);
+    const week = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+    return week[d.getDay()] + ', ' + String(d.getDate()).padStart(2, '0') + ' ' + monthNamesGen[d.getMonth()];
+  }
+
+  function isoDateInTimezone(date, timezone) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(date);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
     return y + '-' + m + '-' + d;
   }
 
-  // === SKELETONS ===
-
-  function renderServiceSkeletons() {
-    let html = '';
-    for (let i = 0; i < 3; i++) {
-      html += '<div class="skeleton-service">'
-        + '<div class="skeleton-left">'
-        + '<div class="skeleton-line h16 w60"></div>'
-        + '<div class="skeleton-line w40"></div>'
-        + '</div>'
-        + '<div class="skeleton-line h20 w30"></div>'
-        + '</div>';
-    }
-    return html;
+  function inRange(date, from, to) {
+    return date.getTime() >= from.getTime() && date.getTime() <= to.getTime();
   }
 
-  function renderSlotSkeletons() {
-    let html = '';
-    for (let i = 0; i < 6; i++) {
-      html += '<div class="skeleton-slot"><div class="skeleton-line w60 h16"></div></div>';
-    }
-    return html;
+  function monthIntersectsRange(monthDate, rangeStart, rangeEnd) {
+    const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+    return last.getTime() >= rangeStart.getTime() && first.getTime() <= rangeEnd.getTime();
   }
 
-  function renderDateSkeletons() {
-    let html = '';
-    for (let i = 0; i < 7; i++) {
-      html += '<div class="skeleton-date"></div>';
-    }
-    return html;
+  function showToast(message) {
+    if (!el.toast) return;
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function () {
+      el.toast.classList.remove('show');
+    }, 2600);
+
+    const legacyText = $('networkToastText');
+    if (legacyText) legacyText.textContent = message;
   }
 
-  // === STEP 1: SERVICES ===
+  function showLoader() {
+    if (el.fullLoader) {
+      el.fullLoader.style.display = 'flex';
+    }
+  }
 
-  async function loadMaster() {
-    $('servicesList').innerHTML = renderServiceSkeletons();
-    $('servicesEmpty').style.display = 'none';
+  function hideLoader() {
+    if (el.fullLoader) {
+      el.fullLoader.style.display = 'none';
+    }
+  }
 
-    try {
-      let data = await apiFetch('/public/master/' + slug);
-      master = data.master;
-      masterSettings = data.settings || masterSettings;
-      services = data.services || [];
+  function updateStatusTime() {
+    if (!el.statusTime) return;
+    el.statusTime.textContent = new Intl.DateTimeFormat('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(new Date());
+  }
 
-      $('masterName').textContent = 'Лера';
+  function shouldRetryWithNextBase(status) {
+    return status >= 500 || status === 404;
+  }
+
+  async function requestJson(path, options) {
+    const orderedBases = [apiBase].concat(API_BASE_CANDIDATES.filter(function (base) { return base !== apiBase; }));
+    let lastError = null;
+
+    for (let i = 0; i < orderedBases.length; i++) {
+      const base = orderedBases[i];
       try {
-        const bookings = await apiFetch('/client/bookings');
-        isFirstVisitClient = Array.isArray(bookings) && bookings.filter(function (b) {
-          return Number(b.master_id) === Number(master.id);
-        }).length === 0;
-      } catch (_) {
-        isFirstVisitClient = false;
+        const res = await fetch(base + path, options || {});
+        if (!res.ok) {
+          const data = await res.json().catch(function () { return {}; });
+          const message = data.error || 'Ошибка сервера (' + res.status + ')';
+          if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
+            lastError = new Error(message);
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        apiBase = base;
+        return res.json();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error || 'Ошибка сети'));
+        if (i < orderedBases.length - 1) continue;
+        throw lastError;
       }
-
-      if (isFirstVisitClient && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
-        $('firstVisitBanner').style.display = '';
-        $('firstVisitBannerText').textContent = 'Скидка на первый визит: '
-          + Number(masterSettings.first_visit_discount_percent) + '%';
-      } else {
-        $('firstVisitBanner').style.display = 'none';
-      }
-
-      if (services.length === 0) {
-        $('servicesList').innerHTML = '';
-        $('servicesEmpty').style.display = '';
-        return;
-      }
-
-      $('serviceMethodTabs').style.display = '';
-      $('serviceCategoryTabs').style.display = '';
-      setMethodFilter('all', true);
-      setCategoryFilter('all', true);
-      renderServices();
-
-    } catch (err) {
-      $('servicesList').innerHTML = '';
-      showToast('Не удалось загрузить данные: ' + err.message);
     }
+
+    throw (lastError || new Error('Ошибка сети'));
   }
 
-  // Returns true if the current selection contains a complex
+  async function initAuth() {
+    if (localStorage.getItem('token')) return true;
+
+    if (hasTelegramSession) {
+      const data = await requestJson('/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData })
+      });
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        return true;
+      }
+      throw new Error('Ошибка авторизации Telegram');
+    }
+
+    if (hasVkSession) {
+      const data = await requestJson('/auth/vk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ launchParams: window.location.search.slice(1) })
+      });
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        return true;
+      }
+      throw new Error('Ошибка авторизации ВКонтакте');
+    }
+
+    return false;
+  }
+
+  async function apiFetch(path) {
+    const token = localStorage.getItem('token') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+
+    return requestJson(path, { headers: headers });
+  }
+
+  async function apiPost(path, body) {
+    const token = localStorage.getItem('token') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+
+    return requestJson(path, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(body || {})
+    });
+  }
+
+  async function apiPatch(path, body) {
+    const token = localStorage.getItem('token') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+
+    return requestJson(path, {
+      method: 'PATCH',
+      headers: headers,
+      body: body ? JSON.stringify(body) : null
+    });
+  }
+
+  function parseServiceTaxonomy(service) {
+    const name = String(service && service.name ? service.name : '');
+    const description = String(service && service.description ? service.description : '');
+    const source = (name + ' ' + description).toLowerCase();
+    const method = source.includes('воск') || source.includes('wax') ? 'wax' : 'sugar';
+    const category = description.includes('Комплексы') || /комплекс/i.test(name) ? 'complex' : 'zone';
+    return { method: method, category: category };
+  }
+
+  function filteredServices() {
+    return state.services.filter(function (s) {
+      const tax = parseServiceTaxonomy(s);
+      const byMethod = state.method === 'all' || tax.method === state.method;
+      const byCategory = state.category === 'all' || tax.category === state.category;
+      return byMethod && byCategory;
+    });
+  }
+
+  function selectedServices() {
+    return state.services.filter(function (service) {
+      return state.selectedServiceIds.some(function (selectedId) {
+        return String(selectedId) === String(service.id);
+      });
+    });
+  }
+
+  function normalizeServiceIdsForApi(ids) {
+    return ids.map(function (id) {
+      const raw = String(id).trim();
+      const num = Number(raw);
+      if (raw !== '' && Number.isFinite(num)) return num;
+      return id;
+    });
+  }
+
+  function selectedTotals() {
+    return selectedServices().reduce(function (acc, service) {
+      acc.duration += Number(service.duration_minutes || 0);
+      acc.price += Number(service.price || 0);
+      return acc;
+    }, { duration: 0, price: 0 });
+  }
+
   function selectionHasComplex() {
-    return selectedServices.some(function (s) {
-      return parseServiceTaxonomy(s).category === 'Комплексы';
+    return selectedServices().some(function (service) {
+      return parseServiceTaxonomy(service).category === 'complex';
     });
   }
 
-  // Returns true if the current selection contains any zone
   function selectionHasZone() {
-    return selectedServices.some(function (s) {
-      return parseServiceTaxonomy(s).category === 'Услуги';
+    return selectedServices().some(function (service) {
+      return parseServiceTaxonomy(service).category === 'zone';
     });
   }
 
-  // Compute totals from selectedServices
-  function selectionTotals() {
-    const totalMinutes = selectedServices.reduce(function (acc, s) { return acc + Number(s.duration_minutes || 0); }, 0);
-    const totalPrice = selectedServices.reduce(function (acc, s) { return acc + Number(s.price || 0); }, 0);
-    const discountPct = isFirstVisitClient ? Number(masterSettings.first_visit_discount_percent || 0) : 0;
-    const finalPrice = discountPct > 0 ? Math.max(0, Math.round(totalPrice * (1 - discountPct / 100))) : totalPrice;
-    return { totalMinutes: totalMinutes, totalPrice: totalPrice, discountPct: discountPct, finalPrice: finalPrice };
+  function renderMethodTabs() {
+    const items = [
+      { id: 'all', label: 'Все' },
+      { id: 'sugar', label: 'Сахар' },
+      { id: 'wax', label: 'Воск' }
+    ];
+
+    el.methodTabs.innerHTML = items.map(function (item) {
+      return '<button data-method="' + item.id + '" class="' + (state.method === item.id ? 'active' : '') + '">' + item.label + '</button>';
+    }).join('');
+
+    Array.prototype.slice.call(el.methodTabs.querySelectorAll('button')).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.method = btn.getAttribute('data-method');
+        renderMethodTabs();
+        renderServices();
+      });
+    });
   }
 
-  function updateSelectionBar() {
-    const bar = $('selectionBar');
-    if (!selectedServices.length) {
-      bar.style.display = 'none';
-      return;
-    }
-    bar.style.display = 'flex';
+  function renderCategoryTabs() {
+    const items = [
+      { id: 'all', label: 'Все' },
+      { id: 'zone', label: 'Зоны' },
+      { id: 'complex', label: 'Комплексы' }
+    ];
 
-    const count = selectedServices.length;
-    const totals = selectionTotals();
-    $('selectionBarCount').textContent = count + ' ' + (count === 1 ? 'услуга' : count < 5 ? 'услуги' : 'услуг');
+    el.categoryTabs.innerHTML = items.map(function (item) {
+      return '<button data-category="' + item.id + '" class="' + (state.category === item.id ? 'active' : '') + '">' + item.label + '</button>';
+    }).join('');
 
-    let metaParts = [totals.totalMinutes + ' мин'];
-    if (totals.totalPrice > 0) {
-      if (totals.discountPct > 0) {
-        metaParts.push(formatPriceRub(totals.finalPrice) + ' ₽ (−' + totals.discountPct + '%)');
+    Array.prototype.slice.call(el.categoryTabs.querySelectorAll('button')).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.category = btn.getAttribute('data-category');
+        renderCategoryTabs();
+        renderServices();
+      });
+    });
+  }
+
+  function toggleServiceSelection(rawServiceId) {
+    const service = state.services.find(function (item) {
+      return String(item.id) === String(rawServiceId);
+    });
+    if (!service) return false;
+
+    const serviceId = service.id;
+    const alreadySelected = state.selectedServiceIds.some(function (selectedId) {
+      return String(selectedId) === String(serviceId);
+    });
+
+    if (alreadySelected) {
+      state.selectedServiceIds = state.selectedServiceIds.filter(function (selectedId) {
+        return String(selectedId) !== String(serviceId);
+      });
+    } else {
+      const isComplex = parseServiceTaxonomy(service).category === 'complex';
+      if (isComplex) {
+        state.selectedServiceIds = [serviceId];
       } else {
-        metaParts.push(formatPriceRub(totals.totalPrice) + ' ₽');
+        if (selectionHasComplex()) return false;
+        state.selectedServiceIds.push(serviceId);
       }
     }
-    $('selectionBarMeta').textContent = metaParts.join(' · ');
+
+    state.promoPreview = null;
+    state.promoCode = '';
+    state.promoHint = 'Введите промокод и нажмите «Применить»';
+    renderServices();
+    return true;
   }
 
   function renderServices() {
-    visibleServices = services.filter(function (s) {
-      const tax = parseServiceTaxonomy(s);
-      const passMethod = methodFilter === 'all' || tax.method === methodFilter;
-      const passCategory = categoryFilter === 'all' || tax.category === categoryFilter;
-      return passMethod && passCategory;
-    });
-
-    if (!visibleServices.length) {
-      $('servicesList').innerHTML = '';
-      $('servicesEmpty').style.display = '';
-      $('servicesEmpty').querySelector('p').textContent = 'По выбранным фильтрам услуг нет';
-      updateSelectionBar();
+    const list = filteredServices();
+    if (!list.length) {
+      el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Нет услуг по выбранным фильтрам.</p></section>';
+      renderDock();
       return;
     }
 
-    $('servicesEmpty').style.display = 'none';
     const hasComplex = selectionHasComplex();
     const hasZone = selectionHasZone();
 
-    let html = '';
-    visibleServices.forEach(function (s) {
-      const tax = parseServiceTaxonomy(s);
-      const isComplex = tax.category === 'Комплексы';
-      const isSelected = selectedServices.some(function (sel) { return sel.id === s.id; });
-
-      // Disable condition:
-      // - complex disabled if any zone already selected
-      // - zone disabled if any complex already selected
-      // - complex disabled if another complex is selected (and this one isn't it)
-      const isDisabled = (!isSelected) && (
-        (isComplex && hasZone) ||
-        (!isComplex && hasComplex) ||
-        (isComplex && hasComplex)
-      );
-
-      let priceText = s.price ? formatPriceRub(s.price) + ' ₽' : '';
-      let discountedText = '';
-      if (!isDisabled && isFirstVisitClient && s.price && Number(masterSettings.first_visit_discount_percent || 0) > 0) {
-        const fp = Math.max(0, Number(s.price) * (1 - Number(masterSettings.first_visit_discount_percent) / 100));
-        discountedText = '<span class="service-meta service-meta-discount">Первый визит: ' + Math.round(fp) + ' ₽</span>';
-      }
-
-      const cardClass = 'service-card'
-        + (isSelected ? ' service-card--selected' : '')
-        + (isDisabled ? ' service-card--disabled' : '');
-      const onclickAttr = isDisabled ? '' : ' onclick="BookingApp.toggleService(' + s.id + ')"';
-
-      html += '<div class="' + cardClass + '" data-id="' + s.id + '"' + onclickAttr + '>'
-        + (isSelected ? '<span class="service-card-check">✓</span>' : '')
-        + '<div class="service-info">'
-        + '<h3>' + escapeHtml(s.name) + '</h3>'
-        + '<span class="service-meta">' + tax.category + ' · ' + s.duration_minutes + ' мин</span>'
-        + discountedText
-        + '</div>'
-        + (priceText ? '<span class="service-price">' + (isDisabled ? '<span style="opacity:.4">' + priceText + '</span>' : priceText) + '</span>' : '')
-        + '</div>';
-    });
-    $('servicesList').innerHTML = html;
-    updateSelectionBar();
-  }
-
-  // Toggle a service in/out of the selection (multi-select with complex rules)
-  function toggleService(serviceId) {
-    const service = services.find(function (s) { return s.id === serviceId; });
-    if (!service) return;
-
-    const tax = parseServiceTaxonomy(service);
-    const isComplex = tax.category === 'Комплексы';
-    const alreadySelected = selectedServices.some(function (s) { return s.id === serviceId; });
-
-    if (alreadySelected) {
-      // Deselect
-      selectedServices = selectedServices.filter(function (s) { return s.id !== serviceId; });
-    } else if (isComplex) {
-      // Complex: can only be selected alone; clears everything else
-      selectedServices = [service];
-    } else {
-      // Zone: cannot be added if a complex is selected
-      if (selectionHasComplex()) return;
-      selectedServices.push(service);
-    }
-
-    renderServices();
-  }
-
-  function setMethodFilter(next, silent) {
-    methodFilter = next;
-    document.querySelectorAll('#serviceMethodTabs .service-tab').forEach(function (btn) {
-      btn.classList.toggle('active', btn.dataset.method === next);
-    });
-    if (!silent) renderServices();
-  }
-
-  function setCategoryFilter(next, silent) {
-    categoryFilter = next;
-    document.querySelectorAll('#serviceCategoryTabs .service-tab').forEach(function (btn) {
-      btn.classList.toggle('active', btn.dataset.category === next);
-    });
-    if (!silent) renderServices();
-  }
-
-  // Called by "Далее →" in the selection bar — move to slot picking
-  function proceedToSlots() {
-    if (!selectedServices.length) return;
-    // Set legacy alias to the first selected service (used in reschedule + calendar export)
-    selectedService = selectedServices[0];
-
-    // Header in step 2: show service names as chips
-    const totals = selectionTotals();
-    if (selectedServices.length === 1) {
-      $('selectedServiceName').textContent = selectedService.name;
-      $('selectedServicesChips').style.display = 'none';
-    } else {
-      $('selectedServiceName').textContent = selectedServices.length + ' услуги · ' + totals.totalMinutes + ' мин';
-      const chipsEl = $('selectedServicesChips');
-      chipsEl.innerHTML = selectedServices.map(function (s) {
-        return '<span class="service-chip">' + escapeHtml(s.name) + '</span>';
-      }).join('');
-      chipsEl.style.display = 'flex';
-    }
-
-    showStep('stepSlots');
-    currentDateOffset = 0;
-    renderDateStrip();
-    selectDate(toDateStr(new Date()));
-  }
-
-  // Legacy single-service select (used only in reschedule flow)
-  function selectService(serviceId) {
-    selectedService = services.find(function (s) { return s.id === serviceId; });
-    if (!selectedService) return;
-    selectedServices = [selectedService];
-
-    $('selectedServiceName').textContent = selectedService.name;
-    $('selectedServicesChips').style.display = 'none';
-    showStep('stepSlots');
-    currentDateOffset = 0;
-    renderDateStrip();
-    selectDate(toDateStr(new Date()));
-  }
-
-  // === STEP 2: DATE & SLOTS ===
-
-  function renderDateStrip() {
-    let html = '';
-    let today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
-      let d = new Date(today.getTime() + i * 86400000);
-      let ds = toDateStr(d);
-      let isActive = ds === selectedDate;
-      html += '<div class="date-chip' + (isActive ? ' active' : '') + '" data-date="' + ds + '" onclick="BookingApp.selectDate(\'' + ds + '\')">'
-        + '<div class="date-day">' + DAY_NAMES[d.getDay()] + '</div>'
-        + '<div class="date-num">' + d.getDate() + '</div>'
-        + '</div>';
-    }
-    $('dateStrip').innerHTML = html;
-  }
-
-  async function selectDate(dateStr) {
-    selectedDate = dateStr;
-    selectedSlot = null;
-
-    // Update active chip
-    document.querySelectorAll('.date-chip').forEach(function (c) {
-      c.classList.toggle('active', c.dataset.date === dateStr);
-    });
-
-    // Load slots
-    $('slotsList').innerHTML = renderSlotSkeletons();
-    $('slotsEmpty').style.display = 'none';
-
-    try {
-      const totals = selectionTotals();
-      const primaryId = selectedService ? selectedService.id : (selectedServices[0] && selectedServices[0].id);
-      let slotsUrl = '/public/master/' + slug + '/slots?service_id=' + primaryId + '&date_from=' + dateStr + '&date_to=' + dateStr;
-      if (totals.totalMinutes > 0 && selectedServices.length > 1) {
-        slotsUrl += '&duration_minutes=' + totals.totalMinutes;
-      }
-      let data = await apiFetch(slotsUrl);
-      let slots = data.slots || data || [];
-
-      if (slots.length === 0) {
-        $('slotsList').innerHTML = '';
-        $('slotsEmpty').style.display = '';
-        return;
-      }
-
-      let html = '';
-      slots.forEach(function (slot) {
-        let time = formatTime(slot.start);
-        html += '<button class="slot-btn" data-start="' + slot.start + '" data-end="' + slot.end + '" onclick="BookingApp.selectSlot(this)">'
-          + time + '</button>';
+    el.servicesList.innerHTML = list.map(function (service) {
+      const selected = state.selectedServiceIds.some(function (selectedId) {
+        return String(selectedId) === String(service.id);
       });
-      $('slotsList').innerHTML = html;
+      const tax = parseServiceTaxonomy(service);
+      const isComplex = tax.category === 'complex';
+      const isDisabled = !selected && ((isComplex && hasZone) || (!isComplex && hasComplex));
+      const methodLabel = tax.method === 'sugar' ? 'Сахар' : 'Воск';
+      const categoryLabel = isComplex ? 'Комплекс' : 'Зона';
+      const badges = [methodLabel, categoryLabel];
 
-    } catch (err) {
-      $('slotsList').innerHTML = '';
-      showToast('Ошибка загрузки слотов: ' + err.message);
+      return ''
+        + '<article class="service-card ' + (selected ? 'selected ' : '') + (isDisabled ? 'disabled' : '') + '" data-service-id="' + escapeHtml(String(service.id)) + '">' 
+        + '<div class="service-head">'
+        + '<h3 class="service-name">' + escapeHtml(service.name) + '</h3>'
+        + '<span class="price">' + money(service.price || 0) + ' ₽</span>'
+        + '</div>'
+        + '<p class="meta">' + categoryLabel + ' · ' + Number(service.duration_minutes || 0) + ' мин</p>'
+        + (selected ? '<span class="service-selected-tag">Выбрана</span>' : '')
+        + '<div class="badge-row">' + badges.map(function (b) { return '<span class="badge">' + b + '</span>'; }).join('') + '</div>'
+        + '</article>';
+    }).join('');
+
+    Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (card) {
+      let lastActivationAt = 0;
+      let pointerStart = null;
+
+      const isPointerTap = function (event) {
+        if (!pointerStart || !event) return false;
+        if (pointerStart.id !== undefined && event.pointerId !== undefined && pointerStart.id !== event.pointerId) {
+          return false;
+        }
+        const currentX = Number(event.clientX || 0);
+        const currentY = Number(event.clientY || 0);
+        const dx = Math.abs(currentX - pointerStart.x);
+        const dy = Math.abs(currentY - pointerStart.y);
+        return dx <= 10 && dy <= 10;
+      };
+
+      const activateCard = function (event) {
+        if (card.classList.contains('disabled')) return;
+
+        if (event && event.type === 'pointerup') {
+          const isTouchLike = event.pointerType === 'touch' || event.pointerType === 'pen';
+          if (isTouchLike && !isPointerTap(event)) {
+            pointerStart = null;
+            return;
+          }
+        }
+
+        const now = Date.now();
+        const isTouchEvent = event && (
+          event.type === 'touchend'
+          || (event.type === 'pointerup' && event.pointerType === 'touch')
+        );
+        const isSyntheticClick = event && event.type === 'click' && (now - lastActivationAt) < 700;
+
+        if (isTouchEvent && event.cancelable) {
+          event.preventDefault();
+        }
+        if (isSyntheticClick) {
+          return;
+        }
+        if ((now - lastActivationAt) < 220) {
+          return;
+        }
+
+        pointerStart = null;
+        lastActivationAt = now;
+
+        const serviceId = card.getAttribute('data-service-id');
+        if (!serviceId) return;
+        toggleServiceSelection(serviceId);
+      };
+
+      if (window.PointerEvent) {
+        card.addEventListener('pointerdown', function (event) {
+          pointerStart = {
+            id: event.pointerId,
+            x: Number(event.clientX || 0),
+            y: Number(event.clientY || 0)
+          };
+        });
+        card.addEventListener('pointercancel', function () {
+          pointerStart = null;
+        });
+        card.addEventListener('pointerup', activateCard);
+      } else {
+        card.addEventListener('click', activateCard);
+        card.addEventListener('touchend', activateCard, { passive: false });
+      }
+    });
+
+    renderDock();
+  }
+
+  function renderHeader() {
+    let title = 'Запись';
+    let sub = 'RoVa Epil';
+    let canBack = false;
+
+    if (state.tab === 'services') {
+      if (state.flowScreen === 'services') {
+        title = 'Выбор услуги';
+        sub = 'Шаг 1 из 3';
+      } else if (state.flowScreen === 'calendar') {
+        title = 'Календарь';
+        sub = 'Шаг 2 из 3';
+        canBack = true;
+      } else if (state.flowScreen === 'confirm') {
+        title = 'Подтверждение';
+        sub = 'Шаг 3 из 3';
+        canBack = true;
+      } else if (state.flowScreen === 'done') {
+        title = 'Готово';
+        sub = 'Запись создана';
+        canBack = true;
+      }
+    } else if (state.tab === 'bookings') {
+      title = 'Мои записи';
+      sub = 'Управление визитами';
+    }
+
+    el.headerTitle.textContent = title;
+    el.headerSub.textContent = sub;
+    el.headerBack.disabled = !canBack;
+  }
+
+  function renderTabs() {
+    el.tabButtons.forEach(function (btn) {
+      const tab = btn.getAttribute('data-tab');
+      btn.classList.toggle('active', tab === state.tab);
+    });
+  }
+
+  function renderScreens() {
+    Object.keys(el.screens).forEach(function (key) {
+      el.screens[key].classList.remove('active');
+    });
+
+    if (state.tab === 'services') {
+      el.screens[state.flowScreen].classList.add('active');
+    } else {
+      el.screens[state.tab].classList.add('active');
     }
   }
 
-  function selectSlot(btn) {
-    document.querySelectorAll('.slot-btn').forEach(function (b) {
-      b.classList.remove('selected');
-    });
-    btn.classList.add('selected');
-
-    selectedSlot = {
-      start: btn.dataset.start,
-      end: btn.dataset.end
-    };
-    selectedPricing = null;
-
-    if (rescheduleBookingId) {
-      confirmReschedule();
+  function renderDock() {
+    const selected = selectedServices();
+    const visible = state.tab === 'services'
+      && (
+        state.flowScreen === 'calendar'
+        || (state.flowScreen === 'services' && selected.length > 0)
+      );
+    el.dock.classList.toggle('visible', visible);
+    if (!visible) {
+      el.dockSelectedList.classList.remove('visible');
+      el.dockSelectedList.innerHTML = '';
       return;
     }
 
-    // Build service list block for confirm screen
-    const confirmServicesBlock = $('confirmServicesBlock');
-    if (selectedServices.length > 1) {
-      let blockHtml = selectedServices.map(function (s, idx) {
-        return '<div class="confirm-row">'
-          + '<span class="confirm-label">' + (idx === 0 ? 'Услуги' : '') + '</span>'
-          + '<span class="confirm-value">' + escapeHtml(s.name) + '</span>'
-          + '</div>';
+    if (state.flowScreen === 'services') {
+      const totals = selectedTotals();
+      const count = selected.length;
+      const label = count + ' ' + (count === 1 ? 'услуга' : (count < 5 ? 'услуги' : 'услуг'));
+      el.dockTitle.textContent = label;
+      el.dockInfo.textContent = totals.duration + ' мин · ' + money(totals.price) + ' ₽';
+      el.dockSelectedList.innerHTML = selected.map(function (service) {
+        return '<li>' + escapeHtml(service.name) + '</li>';
       }).join('');
-      confirmServicesBlock.innerHTML = blockHtml;
+      el.dockSelectedList.classList.add('visible');
+      el.dockAction.textContent = 'Выбрать дату →';
     } else {
-      confirmServicesBlock.innerHTML = '<div class="confirm-row">'
-        + '<span class="confirm-label">Услуга</span>'
-        + '<span id="confirmService" class="confirm-value">' + escapeHtml(selectedService.name) + '</span>'
-        + '</div>';
+      const selectedDay = state.selectedDate ? formatDateByKey(state.selectedDate) : 'Дата не выбрана';
+      const slotText = state.selectedSlot ? state.selectedSlot.label + ' · ' : '';
+      el.dockTitle.textContent = selectedDay;
+      el.dockInfo.textContent = slotText + (state.selectedSlot ? 'К подтверждению' : 'Выберите слот');
+      el.dockSelectedList.classList.remove('visible');
+      el.dockSelectedList.innerHTML = '';
+      el.dockAction.textContent = 'К подтверждению →';
     }
+  }
 
-    const totals = selectionTotals();
-    $('confirmDate').textContent = formatDate(selectedSlot.start);
-    $('confirmTime').textContent = formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end);
-    $('confirmDuration').textContent = totals.totalMinutes + ' мин';
+  function openTab(tab) {
+    state.tab = tab;
+    if (tab === 'services') {
+      state.flowScreen = screenStack[screenStack.length - 1] || 'services';
+    }
+    renderTabs();
+    renderHeader();
+    renderScreens();
+    renderDock();
 
-    if (totals.totalPrice > 0) {
-      $('confirmPriceRow').style.display = '';
-      $('confirmPrice').textContent = formatPriceRub(totals.totalPrice) + ' ₽';
-      if (totals.discountPct > 0) {
-        $('confirmDiscountRow').style.display = '';
-        $('confirmDiscount').textContent = '−' + totals.discountPct + '%';
-        $('confirmFinalPriceRow').style.display = '';
-        $('confirmFinalPrice').textContent = formatPriceRub(totals.finalPrice) + ' ₽';
+    if (tab === 'bookings') {
+      loadBookings();
+    }
+  }
+
+  function setFlow(screen) {
+    state.tab = 'services';
+    if (screen === 'services') {
+      screenStack = ['services'];
+    } else {
+      const idx = screenStack.indexOf(screen);
+      if (idx !== -1) {
+        screenStack = screenStack.slice(0, idx + 1);
       } else {
-        $('confirmDiscountRow').style.display = 'none';
-        $('confirmFinalPriceRow').style.display = 'none';
+        screenStack.push(screen);
       }
-    } else {
-      $('confirmPriceRow').style.display = 'none';
-      $('confirmDiscountRow').style.display = 'none';
-      $('confirmFinalPriceRow').style.display = 'none';
+    }
+    state.flowScreen = screen;
+
+    if (screen === 'calendar') {
+      renderCalendarInfo();
+      renderCalendar();
+      renderSlots();
+    }
+    if (screen === 'confirm') {
+      renderConfirm();
     }
 
-    $('confirmNote').value = '';
-    showStep('stepConfirm');
+    renderTabs();
+    renderHeader();
+    renderScreens();
+    renderDock();
   }
 
-  async function confirmReschedule() {
-    if (!selectedSlot || !rescheduleBookingId) return;
-    try {
-      const token = localStorage.getItem('token') || '';
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers.Authorization = 'Bearer ' + token;
-      const res = await fetch(API_BASE + '/client/bookings/' + rescheduleBookingId + '/reschedule', {
-        method: 'PATCH',
-        headers: headers,
-        body: JSON.stringify({ new_start_at: selectedSlot.start })
+  function goBack() {
+    if (state.tab !== 'services') {
+      openTab('services');
+      return;
+    }
+
+    if (screenStack.length > 1) {
+      screenStack.pop();
+      state.flowScreen = screenStack[screenStack.length - 1];
+      renderHeader();
+      renderScreens();
+      renderDock();
+    }
+  }
+
+  function renderCalendarInfo() {
+    const totals = selectedTotals();
+    const names = selectedServices().map(function (s) { return s.name; }).join(', ');
+    el.calendarServiceTitle.textContent = names || 'Услуги не выбраны';
+    el.calendarServiceMeta.textContent = totals.duration + ' мин · ' + money(totals.price) + ' ₽';
+  }
+
+  async function loadSlotsRange() {
+    const chosen = selectedServices();
+    state.slotsByDay = new Map();
+    if (!chosen.length || !state.master) return;
+
+    const timezone = state.master.timezone || 'Asia/Novosibirsk';
+    const primaryRawId = chosen[0].id;
+    const primaryId = Number(primaryRawId);
+    const serviceIdParam = Number.isFinite(primaryId) ? String(primaryId) : encodeURIComponent(String(primaryRawId));
+    const totals = selectedTotals();
+    const from = dateKey(state.rangeStart);
+    const to = dateKey(state.rangeEnd);
+
+    let url = '/public/master/' + slug + '/slots?service_id=' + serviceIdParam + '&date_from=' + from + '&date_to=' + to;
+    if (chosen.length > 1 && totals.duration > 0) {
+      url += '&duration_minutes=' + totals.duration;
+    }
+
+    const data = await apiFetch(url);
+    const rows = Array.isArray(data.slots) ? data.slots : (Array.isArray(data) ? data : []);
+
+    rows.forEach(function (slot) {
+      const startIso = String(slot.start || '');
+      const endIso = String(slot.end || '');
+      if (!startIso || !endIso) return;
+      const day = isoDateInTimezone(new Date(startIso), timezone);
+      if (!state.slotsByDay.has(day)) state.slotsByDay.set(day, []);
+      state.slotsByDay.get(day).push({
+        start: startIso,
+        end: endIso,
+        label: formatTimeIso(startIso, timezone)
       });
-      if (!res.ok) {
-        const data = await res.json().catch(function () { return {}; });
-        throw new Error(data.error || 'Не удалось перенести запись');
-      }
-      rescheduleBookingId = null;
-      showToast('Запись перенесена');
-      await showMyBookings();
-    } catch (err) {
-      showToast(err.message);
+    });
+
+    state.slotsByDay.forEach(function (list, day) {
+      list.sort(function (a, b) {
+        if (a.start < b.start) return -1;
+        if (a.start > b.start) return 1;
+        return 0;
+      });
+      state.slotsByDay.set(day, list);
+    });
+
+    if (state.selectedDate && !state.slotsByDay.get(state.selectedDate)) {
+      state.selectedSlot = null;
+      state.selectedSlotLabel = '';
     }
   }
 
-  function nextDate() {
-    if (!selectedDate) return;
-    let d = new Date(selectedDate + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    let next = toDateStr(d);
-    renderDateStrip();
-    selectDate(next);
-    showStep('stepSlots');
+  function renderCalendar() {
+    if (!state.currentMonth) state.currentMonth = startOfMonth(state.rangeStart);
+
+    const monthStart = startOfMonth(state.currentMonth);
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    const leading = (monthStart.getDay() + 6) % 7;
+
+    el.calMonth.textContent = monthNames[monthStart.getMonth()] + ' ' + monthStart.getFullYear();
+
+    const prevMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1);
+    const nextMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+    el.calPrev.disabled = !monthIntersectsRange(prevMonth, state.rangeStart, state.rangeEnd);
+    el.calNext.disabled = !monthIntersectsRange(nextMonth, state.rangeStart, state.rangeEnd);
+
+    let html = '';
+    for (let i = 0; i < leading; i += 1) {
+      html += '<div class="day-empty"></div>';
+    }
+
+    for (let day = 1; day <= monthEnd.getDate(); day += 1) {
+      const date = new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
+      const key = dateKey(date);
+      const enabled = inRange(date, state.rangeStart, state.rangeEnd);
+      const available = enabled && (state.slotsByDay.get(key) || []).length > 0;
+      const selected = state.selectedDate === key;
+      const classes = ['day'];
+      if (available) classes.push('available');
+      if (!enabled) classes.push('disabled');
+      if (selected) classes.push('selected');
+
+      html += '<button type="button" class="' + classes.join(' ') + '" data-day="' + key + '"' + (enabled ? '' : ' disabled') + '>' + day + '</button>';
+    }
+
+    el.calGrid.innerHTML = html;
+
+    Array.prototype.slice.call(el.calGrid.querySelectorAll('[data-day]')).forEach(function (node) {
+      node.addEventListener('click', function () {
+        const key = node.getAttribute('data-day');
+        state.selectedDate = key;
+        state.selectedSlot = null;
+        state.selectedSlotLabel = '';
+        renderCalendar();
+        renderSlots();
+        renderDock();
+      });
+    });
   }
 
-  // === STEP 3: CONFIRM ===
+  function renderSlots() {
+    if (!state.selectedDate) {
+      el.slotsDate.textContent = 'Выберите дату';
+      el.slotsBadge.textContent = '0 слотов';
+      el.slotsWrap.innerHTML = '<p class="slots-empty">Сначала выберите день в календаре.</p>';
+      return;
+    }
 
-  async function confirmBooking() {
-    let btn = $('btnBook');
-    btn.disabled = true;
-    btn.textContent = 'Записываем...';
-    showLoader();
+    const slots = state.slotsByDay.get(state.selectedDate) || [];
+    el.slotsDate.textContent = 'Слоты на ' + formatDateByKey(state.selectedDate);
+    el.slotsBadge.textContent = slots.length + ' слотов';
+
+    if (!slots.length) {
+      el.slotsWrap.innerHTML = '<p class="slots-empty">На эту дату свободных слотов нет. Выберите другой день.</p>';
+      return;
+    }
+
+    el.slotsWrap.innerHTML = slots.map(function (slot) {
+      const active = state.selectedSlot && state.selectedSlot.start === slot.start;
+      return '<button type="button" class="slot-chip ' + (active ? 'active' : '') + '" data-slot-start="' + slot.start + '">' + slot.label + '</button>';
+    }).join('');
+
+    Array.prototype.slice.call(el.slotsWrap.querySelectorAll('[data-slot-start]')).forEach(function (node) {
+      node.addEventListener('click', function () {
+        const start = node.getAttribute('data-slot-start');
+        const found = slots.find(function (s) { return s.start === start; });
+        if (!found) return;
+        state.selectedSlot = found;
+        state.selectedSlotLabel = found.label;
+        renderSlots();
+        renderDock();
+      });
+    });
+  }
+
+  function currentPricing() {
+    const totals = selectedTotals();
+    const base = Number(totals.price || 0);
+
+    if (!state.promoPreview || !state.promoCode) {
+      return {
+        base: base,
+        final: base,
+        discount: 0,
+        promoCode: null,
+        rewardType: null,
+        discountPercent: null,
+        giftServiceName: null,
+        giftAdded: false
+      };
+    }
+
+    return {
+      base: Number(state.promoPreview.base_price ?? base),
+      final: Number(state.promoPreview.final_price ?? base),
+      discount: Number(state.promoPreview.discount_amount || 0),
+      promoCode: state.promoPreview.promo_code || state.promoCode,
+      rewardType: state.promoPreview.promo_reward_type || null,
+      discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
+      giftServiceName: state.promoPreview.promo_gift_service_name || null,
+      giftAdded: Boolean(state.promoPreview.promo_gift_service_added)
+    };
+  }
+
+  function renderConfirm() {
+    const services = selectedServices();
+    if (!services.length) {
+      el.confirmServices.innerHTML = '<p class="meta" style="margin:0;">Услуги не выбраны.</p>';
+      el.confirmPricing.innerHTML = '';
+      return;
+    }
+
+    const pricing = currentPricing();
+    const dateText = state.selectedDate ? formatDateLongByKey(state.selectedDate) : '—';
+    const timeText = state.selectedSlot ? state.selectedSlot.label : '—';
+
+    let serviceLines = services.map(function (service) {
+      return '<div class="row-line"><span>' + escapeHtml(service.name) + '</span><span>' + money(service.price || 0) + ' ₽</span></div>';
+    }).join('');
+
+    if (pricing.rewardType === 'gift_service' && pricing.giftServiceName && pricing.giftAdded) {
+      serviceLines += '<div class="row-line"><span>' + escapeHtml(pricing.giftServiceName) + '</span><span>подарок</span></div>';
+    }
+
+    el.confirmServices.innerHTML = ''
+      + '<div class="row-line"><strong>Дата</strong><span>' + dateText + '</span></div>'
+      + '<div class="row-line"><strong>Время</strong><span>' + timeText + '</span></div>'
+      + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
+      + serviceLines;
+
+    const promoLine = pricing.promoCode
+      ? '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>'
+      : '';
+
+    el.confirmPricing.innerHTML = ''
+      + '<div class="row-line"><span>Стоимость</span><span>' + money(pricing.base) + ' ₽</span></div>'
+      + promoLine
+      + '<div class="row-line total"><span>Итого</span><span>' + money(pricing.final) + ' ₽</span></div>';
+
+    el.promoInput.value = state.promoCode;
+    el.promoHint.textContent = state.promoHint;
+    el.noteInput.value = state.note;
+  }
+
+  async function applyPromo() {
+    const code = String(el.promoInput.value || '').trim().toUpperCase();
+    state.promoCode = code;
+
+    if (!code) {
+      state.promoPreview = null;
+      state.promoHint = 'Промокод очищен';
+      renderConfirm();
+      showToast('Промокод убран');
+      return;
+    }
+
+    if (!state.selectedServiceIds.length) {
+      showToast('Сначала выберите услугу');
+      return;
+    }
 
     try {
-      const note = $('confirmNote').value.trim();
-      let body = {
-        service_ids: selectedServices.map(function (s) { return s.id; }),
-        start_at: selectedSlot.start,
+      const preview = await apiPost('/public/master/' + slug + '/pricing-preview', {
+        service_ids: normalizeServiceIdsForApi(state.selectedServiceIds.slice()),
+        promo_code: code
+      });
+
+      state.promoPreview = preview.pricing || null;
+      if (state.promoPreview && state.promoPreview.promo_reward_type === 'percent') {
+        state.promoHint = 'Применено: скидка ' + Number(state.promoPreview.promo_discount_percent || 0) + '%';
+      } else if (state.promoPreview && state.promoPreview.promo_reward_type === 'gift_service') {
+        state.promoHint = 'Применено: зона в подарок';
+      } else {
+        state.promoHint = 'Промокод применен';
+      }
+
+      renderConfirm();
+      showToast('Промокод применён');
+    } catch (error) {
+      state.promoPreview = null;
+      state.promoHint = 'Промокод неактивен';
+      renderConfirm();
+      showToast(error.message || 'Промокод неактивен');
+    }
+  }
+
+  async function submitBooking() {
+    if (!state.selectedServiceIds.length || !state.selectedSlot) {
+      showToast('Проверьте выбор услуги, даты и времени');
+      return;
+    }
+
+    const note = String(el.noteInput.value || '').trim();
+    state.note = note;
+
+    if (state.editingBookingId) {
+      try {
+        showLoader();
+        await apiPatch('/client/bookings/' + state.editingBookingId + '/reschedule', {
+          new_start_at: state.selectedSlot.start
+        });
+        hideLoader();
+        state.editingBookingId = null;
+        state.promoPreview = null;
+        state.promoCode = '';
+        showToast('Запись перенесена');
+        await loadBookings();
+        openTab('bookings');
+      } catch (error) {
+        hideLoader();
+        showToast(error.message);
+      }
+      return;
+    }
+
+    try {
+      showLoader();
+      const body = {
+        service_ids: normalizeServiceIdsForApi(state.selectedServiceIds.slice()),
+        start_at: state.selectedSlot.start,
         client_note: note || undefined
       };
-
-      const created = await apiPost('/public/master/' + slug + '/book', body);
-      selectedPricing = created.pricing || null;
-
-      hideLoader();
-      const serviceNamesText = selectedServices.length > 1
-        ? selectedServices.map(function (s) { return s.name; }).join(', ')
-        : selectedService.name;
-      $('doneDetails').textContent = serviceNamesText + '\n'
-        + formatDate(selectedSlot.start) + ', ' + formatTime(selectedSlot.start) + ' — ' + formatTime(selectedSlot.end)
-        + '\nАдрес: Мкр Околица д.1, квартира 60'
-        + (selectedPricing && selectedPricing.first_visit_discount_percent
-          ? '\nСкидка: ' + selectedPricing.first_visit_discount_percent + '%, итог: ' + selectedPricing.final_price + ' ₽'
-            + '\nПри отмене первой записи скидка аннулируется.'
-          : '');
-      lastCreatedBookingId = created.id || null;
-      setupCalendarExport(note, lastCreatedBookingId);
-      showStep('stepDone');
-
-      // Notify Telegram
-      if (tg) {
-        const alertText = selectedPricing && selectedPricing.first_visit_discount_percent
-          ? 'Вы успешно записаны! Первая запись со скидкой. При отмене первой записи скидка аннулируется.'
-          : 'Вы успешно записаны!';
-        tg.showAlert(alertText);
+      if (state.promoCode) {
+        body.promo_code = state.promoCode;
       }
 
-    } catch (err) {
+      const created = await apiPost('/public/master/' + slug + '/book', body);
       hideLoader();
-      btn.disabled = false;
-      btn.textContent = 'Записаться';
-      showToast(err.message);
+
+      const pricing = created.pricing || {};
+      const details = [];
+      details.push('Дата: ' + formatDateLongByKey(state.selectedDate) + ', ' + state.selectedSlot.label);
+      details.push('Стоимость: ' + money(pricing.final_price !== undefined ? pricing.final_price : selectedTotals().price) + ' ₽');
+      if (pricing.promo_code) {
+        let promoLine = 'Промокод: ' + pricing.promo_code;
+        if (pricing.promo_reward_type === 'percent' && pricing.promo_discount_percent) {
+          promoLine += ' (скидка ' + pricing.promo_discount_percent + '%)';
+        }
+        if (pricing.promo_reward_type === 'gift_service' && pricing.promo_gift_service_name) {
+          promoLine += ' (подарок: ' + pricing.promo_gift_service_name + ')';
+        }
+        details.push(promoLine);
+      }
+
+      el.doneText.textContent = details.join(' · ');
+      setFlow('done');
+
+      if (tg && typeof tg.showAlert === 'function') {
+        tg.showAlert('Вы успешно записаны!');
+      }
+    } catch (error) {
+      hideLoader();
+      showToast(error.message);
     }
   }
 
-  function setupCalendarExport(note, bookingId) {
-    const googleLink = $('doneGoogleLink');
-    const appleBtn = $('doneAppleBtn');
-    if (!googleLink || !appleBtn || !selectedSlot || !selectedService || !master) return;
-
-    const address = 'Мкр Околица д.1, квартира 60';
-    const calendarName = 'RoVa Epil';
-    const eventTitle = 'Запись на депиляцию: ' + selectedService.name;
-    const descriptionParts = [
-      'Услуга: ' + selectedService.name,
-      'Мастер: ' + (master.display_name || ''),
-      'Адрес: ' + address,
-      note ? ('Комментарий клиента: ' + note) : ''
-    ].filter(Boolean);
-    const description = descriptionParts.join('\n');
-    const timezone = master.timezone || 'UTC';
-
-    const googleUrl = exportUtils.buildGoogleCalendarUrl({
-      title: eventTitle,
-      details: description,
-      location: address,
-      calendarName: calendarName,
-      startIso: selectedSlot.start,
-      endIso: selectedSlot.end,
-      timezone: timezone
-    });
-    googleLink.href = googleUrl;
-    googleLink.onclick = function (e) {
-      if (!tg || typeof tg.openLink !== 'function') return;
-      e.preventDefault();
-      tg.openLink(googleUrl, { try_instant_view: false });
-    };
-
-    appleBtn.onclick = async function () {
-      try {
-        if (!bookingId) {
-          throw new Error('Идентификатор записи не найден');
-        }
-        const linkData = await apiFetch('/client/bookings/' + bookingId + '/calendar-feed');
-        const feedPath = linkData && linkData.feed_path ? String(linkData.feed_path) : '';
-        if (!feedPath) {
-          throw new Error('Ссылка календаря не сформирована');
-        }
-
-        const httpsUrl = new window.URL(feedPath, window.location.origin).toString();
-        const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
-
-        // Telegram Mini App openLink accepts only http/https URLs.
-        if (tg && typeof tg.openLink === 'function') {
-          tg.openLink(httpsUrl, { try_instant_view: false });
-          return;
-        }
-        window.location.href = webcalUrl;
-      } catch (error) {
-        showToast('Не удалось открыть экспорт: ' + error.message);
-      }
-    };
-  }
-
-  // === MY BOOKINGS ===
-
-  let STATUS_LABELS = {
-    pending: 'Ожидает',
-    confirmed: 'Запланировано',
-    completed: 'Выполнено',
-    canceled: 'Отменено'
-  };
-
-  async function showMyBookings() {
-    showStep('stepMyBookings');
-    $('myBookingsList').innerHTML = renderServiceSkeletons();
-    $('myBookingsEmpty').style.display = 'none';
+  async function loadBookings() {
+    el.bookingsList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Загрузка...</p></section>';
 
     try {
       if (!localStorage.getItem('token')) {
         await initAuth();
       }
-      let bookings = await apiFetch('/client/bookings');
 
-      if (!bookings.length) {
-        $('myBookingsList').innerHTML = '';
-        $('myBookingsEmpty').style.display = '';
+      const rows = await apiFetch('/client/bookings');
+      state.bookings = Array.isArray(rows) ? rows : [];
+
+      if (!state.bookings.length) {
+        el.bookingsCount.textContent = '0';
+        el.bookingsList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Записей пока нет.</p></section>';
         return;
       }
 
-      let html = '';
-      bookings.forEach(function (b) {
-        let tz = b.master_timezone || (master && master.timezone) || 'Asia/Novosibirsk';
-        let startDate = new Date(b.start_at);
-        let dateStr = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, day: '2-digit', month: 'short' }).format(startDate);
-        let timeStr = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(startDate);
-        let endTimeStr = b.end_at ? new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(b.end_at)) : '';
+      const ordered = state.bookings.slice().sort(function (a, b) {
+        return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+      });
 
-        let statusClass = b.status || 'pending';
-        let statusLabel = STATUS_LABELS[b.status] || b.status;
+      el.bookingsCount.textContent = ordered.length + ' шт';
+      el.bookingsList.innerHTML = ordered.map(function (booking) {
+        const status = String(booking.status || 'pending');
+        const canceled = status === 'canceled';
+        const tz = booking.master_timezone || (state.master && state.master.timezone) || 'Asia/Novosibirsk';
+        const start = new Date(booking.start_at);
+        const dateStr = formatDateByKey(isoDateInTimezone(start, tz));
+        const timeStr = formatTimeIso(booking.start_at, tz);
+        const endStr = booking.end_at ? formatTimeIso(booking.end_at, tz) : '';
 
-        const canExport = b.status !== 'canceled';
-        const canManage = b.status === 'confirmed' || b.status === 'pending';
-        let actions = '';
-        if (canExport || canManage) {
-          actions = '<div class="my-booking-actions">'
-            + (canExport
-              ? '<button class="btn-secondary" onclick="BookingApp.exportBookingToGoogle(' + b.id + ')">Экспорт в Google Calendar</button>'
-                + '<button class="btn-secondary" onclick="BookingApp.exportBookingToApple(' + b.id + ')">Экспорт в Apple Calendar (.ics)</button>'
-              : '')
-            + (canManage
-              ? '<button class="btn-secondary" onclick="BookingApp.startReschedule(' + b.id + ')">Перенести запись</button>'
-                + '<button class="btn-secondary btn-cancel-booking" onclick="BookingApp.cancelBooking(' + b.id + ')">Отменить запись</button>'
-              : '')
-            + '</div>';
+        const statusLabel = {
+          pending: 'Ожидает',
+          confirmed: 'Запланирована',
+          completed: 'Выполнена',
+          canceled: 'Отменена'
+        }[status] || status;
+
+        let promo = '';
+        if (booking.promo_code) {
+          promo = '<br>Промокод: ' + escapeHtml(booking.promo_code);
         }
 
-        html += '<div class="my-booking-card">'
-          + '<div class="my-booking-header">'
-          + '<strong>' + escapeHtml(b.service_name || 'Услуга') + '</strong>'
-          + '<span class="booking-status-badge ' + statusClass + '">' + statusLabel + '</span>'
+        const note = booking.client_note ? ('<br>Комментарий: ' + escapeHtml(booking.client_note)) : '';
+
+        return ''
+          + '<article class="booking-item ' + (canceled ? 'cancelled' : '') + '" data-booking-id="' + booking.id + '">'
+          + '<div class="booking-head">'
+          + '<h4 class="booking-title">' + escapeHtml(booking.service_name || 'Услуга') + '</h4>'
+          + '<span class="booking-status ' + (canceled ? 'cancelled' : '') + '">' + statusLabel + '</span>'
           + '</div>'
-          + '<div class="my-booking-meta">'
-          + '<span>' + dateStr + ', ' + timeStr + (endTimeStr ? ' — ' + endTimeStr : '') + '</span>'
-          + (b.service_price !== null && b.service_price !== undefined
-            ? '<span class="my-booking-price">Стоимость: '
-              + (b.discount_percent > 0
-                ? '<s>' + formatPriceRub(b.service_price) + ' ₽</s> → ' + formatPriceRub(b.final_price) + ' ₽ (скидка ' + b.discount_percent + '%)'
-                : formatPriceRub(b.final_price) + ' ₽')
-              + '</span>'
-            : '')
-          + '</div>'
-          + actions
-          + '</div>';
+          + '<p class="booking-meta">' + dateStr + ' · ' + timeStr + (endStr ? ' — ' + endStr : '') + ' · ' + money(booking.final_price || booking.service_price || 0) + ' ₽' + promo + note + '</p>'
+          + (canceled || status === 'completed'
+            ? ''
+            : '<div class="booking-actions">'
+              + '<button class="btn" data-action="reschedule">Перенести</button>'
+              + '<button class="btn danger" data-action="cancel">Отменить</button>'
+              + '</div>')
+          + '</article>';
+      }).join('');
+
+      Array.prototype.slice.call(el.bookingsList.querySelectorAll('[data-action]')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const card = btn.closest('[data-booking-id]');
+          const bookingId = Number(card.getAttribute('data-booking-id'));
+          const action = btn.getAttribute('data-action');
+          if (action === 'cancel') cancelBooking(bookingId);
+          if (action === 'reschedule') rescheduleBooking(bookingId);
+        });
       });
-      $('myBookingsList').innerHTML = html;
-    } catch (err) {
-      $('myBookingsList').innerHTML = '';
-      if (err.message && (err.message.includes('No token') || err.message.includes('Access denied') || err.message.includes('авторизации'))) {
-        showToast('Не удалось войти. Закройте и откройте приложение заново.');
-      } else {
-        showToast('Ошибка загрузки записей: ' + err.message);
-      }
+    } catch (error) {
+      el.bookingsList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Не удалось загрузить записи.</p></section>';
+      showToast(error.message);
     }
   }
 
-  async function cancelBooking(bookingId) {
-    if (!window.confirm('Вы уверены, что хотите отменить запись?')) return;
-
+  async function cancelBooking(id) {
     try {
-      let token = localStorage.getItem('token') || '';
-      let headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = 'Bearer ' + token;
-
-      let res = await fetch(API_BASE + '/client/bookings/' + bookingId + '/cancel', {
-        method: 'PATCH',
-        headers: headers
-      });
-      if (!res.ok) {
-        let data = await res.json().catch(function () { return {}; });
-        throw new Error(data.error || 'Ошибка отмены');
-      }
+      await apiPatch('/client/bookings/' + id + '/cancel');
       showToast('Запись отменена');
-      showMyBookings();
-    } catch (err) {
-      showToast(err.message);
+      await loadBookings();
+    } catch (error) {
+      showToast(error.message);
     }
   }
 
-  async function startReschedule(bookingId) {
-    try {
-      const bookings = await apiFetch('/client/bookings');
-      const booking = (bookings || []).find(function (b) { return Number(b.id) === Number(bookingId); });
-      if (!booking) {
-        showToast('Запись не найдена');
-        return;
-      }
-      const service = services.find(function (s) { return Number(s.id) === Number(booking.service_id); });
-      if (!service) {
-        showToast('Услуга записи больше недоступна');
-        return;
-      }
-      rescheduleBookingId = booking.id;
-      selectedService = service;
-      $('selectedServiceName').textContent = service.name;
-      showStep('stepSlots');
-      renderDateStrip();
-      selectDate(toDateStr(new Date()));
-      showToast('Выберите новый слот для переноса');
-    } catch (err) {
-      showToast('Ошибка загрузки записи: ' + err.message);
-    }
-  }
+  async function rescheduleBooking(id) {
+    const booking = state.bookings.find(function (item) { return Number(item.id) === Number(id); });
+    if (!booking) return;
 
-  function buildBookingExportPayload(booking) {
-    const address = 'Мкр Околица д.1, квартира 60';
-    const timezone = booking.master_timezone || (master && master.timezone) || 'Asia/Novosibirsk';
-    const title = 'Запись на депиляцию: ' + (booking.service_name || 'Услуга');
-    const details = [
-      'Услуга: ' + (booking.service_name || 'Услуга'),
-      'Мастер: ' + (booking.master_name || 'Лера'),
-      'Адрес: ' + address,
-      booking.client_note ? ('Комментарий: ' + booking.client_note) : ''
-    ].filter(Boolean).join('\n');
-    return {
-      title: title,
-      details: details,
-      location: address,
-      calendarName: 'RoVa Epil',
-      startIso: booking.start_at,
-      endIso: booking.end_at,
-      timezone: timezone
-    };
-  }
+    const ids = (Array.isArray(booking.extra_service_ids) && booking.extra_service_ids.length)
+      ? [Number(booking.service_id)].concat(booking.extra_service_ids.map(Number))
+      : [Number(booking.service_id)];
 
-  async function exportBookingToGoogle(bookingId) {
-    try {
-      const bookings = await apiFetch('/client/bookings');
-      const booking = (bookings || []).find(function (b) { return Number(b.id) === Number(bookingId); });
-      if (!booking) {
-        showToast('Запись не найдена');
-        return;
-      }
-      const payload = buildBookingExportPayload(booking);
-      const googleUrl = exportUtils.buildGoogleCalendarUrl(payload);
-      if (tg && typeof tg.openLink === 'function') {
-        tg.openLink(googleUrl, { try_instant_view: false });
-        return;
-      }
-      window.open(googleUrl, '_blank', 'noopener');
-    } catch (err) {
-      showToast('Не удалось открыть экспорт: ' + err.message);
-    }
-  }
+    state.selectedServiceIds = ids.filter(function (x) { return Number.isFinite(x) && x > 0; });
+    state.editingBookingId = Number(id);
+    state.promoCode = '';
+    state.promoPreview = null;
+    state.note = booking.client_note || '';
 
-  async function exportBookingToApple(bookingId) {
-    try {
-      const linkData = await apiFetch('/client/bookings/' + bookingId + '/calendar-feed');
-      const feedPath = linkData && linkData.feed_path ? String(linkData.feed_path) : '';
-      if (!feedPath) {
-        throw new Error('Ссылка календаря не сформирована');
-      }
+    const start = new Date(booking.start_at);
+    state.selectedDate = isoDateInTimezone(start, (state.master && state.master.timezone) || 'Asia/Novosibirsk');
+    state.currentMonth = startOfMonth(parseDateKey(state.selectedDate));
+    state.selectedSlot = null;
+    state.selectedSlotLabel = '';
 
-      const httpsUrl = new window.URL(feedPath, window.location.origin).toString();
-      const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
-
-      // Telegram Mini App openLink accepts only http/https URLs.
-      if (tg && typeof tg.openLink === 'function') {
-        tg.openLink(httpsUrl, { try_instant_view: false });
-        return;
-      }
-      window.location.href = webcalUrl;
-    } catch (err) {
-      showToast('Не удалось открыть экспорт: ' + err.message);
-    }
-  }
-
-  // === RESET ===
-
-  function reset() {
-    selectedServices = [];
-    selectedService = null;
-    selectedDate = null;
-    selectedSlot = null;
-    rescheduleBookingId = null;
     renderServices();
-    showStep('stepServices');
+    renderCalendarInfo();
+
+    try {
+      showLoader();
+      await loadSlotsRange();
+      hideLoader();
+      setFlow('calendar');
+      renderCalendar();
+      renderSlots();
+      showToast('Выберите новую дату и время');
+    } catch (error) {
+      hideLoader();
+      showToast(error.message);
+    }
   }
 
-  function goBack(toStepId) {
-    if (toStepId === 'stepServices') {
-      if (rescheduleBookingId) {
-        rescheduleBookingId = null;
-        showMyBookings();
-        return;
+  function resetFlow() {
+    state.flowScreen = 'services';
+    screenStack = ['services'];
+    state.selectedDate = dateKey(state.rangeStart);
+    state.currentMonth = startOfMonth(state.rangeStart);
+    state.selectedSlot = null;
+    state.selectedSlotLabel = '';
+    state.promoCode = '';
+    state.promoPreview = null;
+    state.promoHint = 'Введите промокод и нажмите «Применить»';
+    state.note = '';
+    state.editingBookingId = null;
+    openTab('services');
+    renderCalendar();
+    renderSlots();
+    renderConfirm();
+    renderDock();
+  }
+
+  async function enterCalendar() {
+    if (!state.selectedServiceIds.length) {
+      showToast('Выберите хотя бы одну услугу');
+      return;
+    }
+
+    try {
+      showLoader();
+      await loadSlotsRange();
+      hideLoader();
+
+      if (!state.selectedDate) {
+        state.selectedDate = dateKey(state.rangeStart);
       }
-      rescheduleBookingId = null;
-    }
-    showStep(toStepId);
-    if (toStepId === 'stepSlots' && selectedDate) {
-      renderDateStrip();
-      selectDate(selectedDate);
+
+      setFlow('calendar');
+      renderCalendar();
+      renderSlots();
+    } catch (error) {
+      hideLoader();
+      showToast('Ошибка загрузки слотов: ' + error.message);
     }
   }
 
-  // === UTILS ===
+  function bind() {
+    updateStatusTime();
+    setInterval(updateStatusTime, 60000);
 
-  function escapeHtml(str) {
-    let div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    el.headerBack.addEventListener('click', goBack);
+    el.headerMore.addEventListener('click', function () {
+      showToast('Меню пока не подключено');
+    });
+
+    el.calPrev.addEventListener('click', function () {
+      if (el.calPrev.disabled) return;
+      state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() - 1, 1);
+      renderCalendar();
+    });
+
+    el.calNext.addEventListener('click', function () {
+      if (el.calNext.disabled) return;
+      state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + 1, 1);
+      renderCalendar();
+    });
+
+    el.promoApply.addEventListener('click', applyPromo);
+    el.confirmBack.addEventListener('click', function () { setFlow('calendar'); });
+    el.confirmSubmit.addEventListener('click', submitBooking);
+    el.doneNew.addEventListener('click', resetFlow);
+    el.doneBookings.addEventListener('click', function () { openTab('bookings'); });
+
+    el.promoInput.addEventListener('input', function () {
+      state.promoCode = String(el.promoInput.value || '').trim().toUpperCase();
+      if (!state.promoCode) {
+        state.promoPreview = null;
+        state.promoHint = 'Введите промокод и нажмите «Применить»';
+        renderConfirm();
+      }
+    });
+
+    el.noteInput.addEventListener('input', function () {
+      state.note = String(el.noteInput.value || '').trim();
+    });
+
+    el.dockAction.addEventListener('click', function () {
+      if (state.flowScreen === 'services') {
+        enterCalendar();
+      } else if (state.flowScreen === 'calendar') {
+        if (!state.selectedDate || !state.selectedSlot) {
+          showToast('Выберите дату и время');
+          return;
+        }
+        setFlow('confirm');
+      }
+    });
+
+    el.tabButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openTab(btn.getAttribute('data-tab'));
+      });
+    });
   }
 
-  // === INIT ===
+  async function loadMaster() {
+    if (!slug) {
+      showToast('Некорректная ссылка для записи');
+      return;
+    }
+
+    el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Загрузка...</p></section>';
+
+    try {
+      const data = await apiFetch('/public/master/' + slug);
+      state.master = data.master || {};
+      state.settings = data.settings || state.settings;
+      state.services = (Array.isArray(data.services) ? data.services : []).map(function (service, index) {
+        const safe = service && typeof service === 'object' ? service : {};
+        const candidateId = safe.id ?? safe.service_id ?? safe.serviceId;
+        const normalizedId = candidateId !== undefined && candidateId !== null && String(candidateId).trim() !== ''
+          ? candidateId
+          : ('legacy-' + index);
+        return {
+          ...safe,
+          id: normalizedId
+        };
+      });
+
+      const profile = data.master && data.master.profile ? data.master.profile : {};
+      const brandName = profile.brand || 'Ro Va';
+      const subtitle = profile.subtitle || 'Epil & Care';
+      const displayName = profile.name || state.master.display_name || 'Лера';
+      const giftText = profile.gift_text || 'Подарок от меня на первое посещение по ссылке:';
+      const giftUrl = profile.gift_url || 'https://vk.cc/cVmuLI';
+
+      el.studioBrand.textContent = brandName;
+      el.studioSubtitle.textContent = subtitle;
+      el.masterName.textContent = displayName;
+      if (el.giftText) el.giftText.textContent = giftText;
+      el.giftLink.textContent = giftUrl.replace(/^https?:\/\//, '');
+      el.giftLink.href = giftUrl;
+
+      const today = startOfDay(new Date());
+      state.rangeStart = today;
+      state.rangeEnd = addDays(today, 30);
+      state.currentMonth = startOfMonth(today);
+      state.selectedDate = dateKey(today);
+
+      renderMethodTabs();
+      renderCategoryTabs();
+      renderServices();
+      renderCalendarInfo();
+      renderCalendar();
+      renderSlots();
+      renderConfirm();
+      renderHeader();
+      renderTabs();
+      renderScreens();
+      renderDock();
+    } catch (error) {
+      showToast('Не удалось загрузить данные: ' + error.message);
+      el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Не удалось загрузить услуги.</p></section>';
+    }
+  }
+
+  bind();
 
   if (slug) {
-    initAuth().then(function () { loadMaster(); }).catch(function (err) {
-      showToast('Ошибка авторизации: ' + err.message);
-      loadMaster();
-    });
+    initAuth()
+      .then(function () { return loadMaster(); })
+      .catch(function (error) {
+        showToast('Ошибка авторизации: ' + error.message);
+        loadMaster();
+      });
   } else {
-    $('servicesList').innerHTML = '';
-    $('servicesEmpty').style.display = '';
-    $('servicesEmpty').querySelector('p').textContent = 'Некорректная ссылка. Попросите мастера прислать правильную ссылку для записи.';
+    showToast('Некорректная ссылка для записи');
   }
 
-  // Public API
   window.BookingApp = {
-    toggleService: toggleService,
-    proceedToSlots: proceedToSlots,
-    selectService: selectService, // kept for reschedule flow
-    selectDate: selectDate,
-    selectSlot: selectSlot,
-    nextDate: nextDate,
-    confirmBooking: confirmBooking,
-    showMyBookings: showMyBookings,
-    cancelBooking: cancelBooking,
-    startReschedule: startReschedule,
-    exportBookingToGoogle: exportBookingToGoogle,
-    exportBookingToApple: exportBookingToApple,
-    setMethodFilter: setMethodFilter,
-    setCategoryFilter: setCategoryFilter,
-    reset: reset,
-    goBack: goBack,
-    hideToast: hideToast
+    openTab: openTab,
+    setFlow: setFlow,
+    applyPromo: applyPromo,
+    submitBooking: submitBooking,
+    loadBookings: loadBookings,
+    resetFlow: resetFlow,
+    goBack: goBack
   };
 })();
