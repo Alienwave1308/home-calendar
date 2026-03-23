@@ -41,9 +41,9 @@
     if (!hasVkSession || vkNotificationsEnabled || isCypress) return Promise.resolve();
 
     return new Promise(function (resolve) {
-      var screen = document.getElementById('screen-vk-notify');
-      var btn = document.getElementById('btnVkAllowNotify');
-      var errEl = document.getElementById('vkNotifyError');
+      const screen = document.getElementById('screen-vk-notify');
+      const btn = document.getElementById('btnVkAllowNotify');
+      const errEl = document.getElementById('vkNotifyError');
 
       // Показываем экран-заглушку
       document.getElementById('screen-services').classList.remove('active');
