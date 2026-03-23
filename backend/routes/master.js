@@ -670,10 +670,15 @@ router.get('/promo-codes', loadMaster, async (req, res) => {
       `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
               p.usage_mode, p.uses_count,
               p.is_active, p.created_at, p.updated_at,
-              s.name AS gift_service_name
+              s.name AS gift_service_name,
+              COUNT(b.id)::int AS actual_uses_count
        FROM master_promo_codes p
        LEFT JOIN services s ON s.id = p.gift_service_id
+       LEFT JOIN bookings b ON b.promo_code = p.code
+         AND b.master_id = p.master_id
+         AND b.status != 'canceled'
        WHERE p.master_id = $1
+       GROUP BY p.id, s.name
        ORDER BY p.created_at DESC, p.id DESC`,
       [req.master.id]
     );

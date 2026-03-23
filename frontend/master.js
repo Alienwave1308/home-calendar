@@ -777,6 +777,8 @@
       + (b.pricing_final != null
         ? '<span class="booking-price">'
           + (b.pricing_discount_amount > 0
+            && b.promo_reward_type !== 'gift_service'
+            && b.hot_window_reward_type !== 'gift_service'
             ? '<s>' + b.pricing_base + ' ₽</s> '
             : '')
           + '<strong>' + b.pricing_final + ' ₽</strong>'
@@ -1719,9 +1721,10 @@
         : 'Подарок: ' + escapeHtml(promo.gift_service_name || 'Зона в подарок');
       const usageMode = String(promo.usage_mode || 'always');
       const usageLabel = usageMode === 'single_use' ? 'Одноразовый' : 'Постоянный';
+      const actualUses = Number(promo.actual_uses_count != null ? promo.actual_uses_count : promo.uses_count || 0);
       const usageState = usageMode === 'single_use'
-        ? (Number(promo.uses_count || 0) > 0 ? 'использован' : 'не использован')
-        : ('использований: ' + Number(promo.uses_count || 0));
+        ? (actualUses > 0 ? 'использован' : 'не использован')
+        : ('применён ' + actualUses + ' ' + (actualUses === 1 ? 'раз' : actualUses >= 2 && actualUses <= 4 ? 'раза' : 'раз'));
       const status = promo.is_active ? 'Активен' : 'Выключен';
       const toggleLabel = promo.is_active ? 'Выключить' : 'Включить';
       const nextActive = promo.is_active ? 'false' : 'true';
