@@ -76,4 +76,47 @@ async function runReminderWorkerTick() {
   return { processed };
 }
 
-module.exports = { runReminderWorkerTick, parseVkUserId, notifyVkClientReminder };
+async function notifyVkClientBookingEvent(bookingId, eventType) {
+  const { rows } = await pool.query(
+    `SELECT
+       b.start_at,
+       b.client_note,
+       s.name AS service_name,
+       m.display_name AS master_name,
+       m.timezone AS master_timezone,
+       client_user.username AS client_username
+     FROM bookings b
+     JOIN services s ON s.id = b.service_id
+     JOIN masters m ON m.id = b.master_id
+     JOIN users client_user ON client_user.id = b.client_id
+     WHERE b.id = $1`,
+    [bookingId]
+  );
+  const data = rows[0];
+  if (!data) return { ok: false, skipped: true };
+
+  const vkUserId = parseVkUserId(data.client_username);
+  if (!vkUserId) return { ok: false, skipped: true };
+
+  const isCanceled = eventType === 'canceled';
+  const isCreated = eventType === 'created';
+  const lines = [
+    isCanceled ? '❌ Ваша запись отменена мастером' : isCreated ? '✅ Вы записаны!' : '✏️ Ваша запись была изменена мастером',
+    `Услуга: ${data.service_name}`,
+    `Адрес: ${SALON_ADDRESS}`,
+    `Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)}`,
+    `Мастер: ${data.master_name || 'Лера'}`
+  ];
+  if (data.client_note) lines.push(`Комментарий: ${data.client_note}`);
+  if (isCanceled) lines.push('По вопросам и для подбора нового времени: vk.com/rovvvva');
+
+  try {
+    await sendVkMessage(vkUserId, lines.join('\n'));
+    return { ok: true, skipped: false };
+  } catch (err) {
+    console.error('[reminders-worker] VK booking notify error:', err.message);
+    return { ok: false, skipped: false, retryable: true };
+  }
+}
+
+module.exports = { runReminderWorkerTick, parseVkUserId, notifyVkClientReminder, notifyVkClientBookingEvent };
