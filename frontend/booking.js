@@ -541,7 +541,6 @@
     Array.prototype.slice.call(el.servicesList.querySelectorAll('[data-service-id]')).forEach(function (card) {
       let lastActivationAt = 0;
       let pointerStart = null;
-      let touchStart = null;
 
       const isPointerTap = function (event) {
         if (!pointerStart || !event) return false;
@@ -562,23 +561,6 @@
           const isTouchLike = event.pointerType === 'touch' || event.pointerType === 'pen';
           if (isTouchLike && !isPointerTap(event)) {
             pointerStart = null;
-            return;
-          }
-        }
-        if (event && event.type === 'touchend') {
-          if (!touchStart || !event.changedTouches || !event.changedTouches.length) {
-            touchStart = null;
-            return;
-          }
-          const touch = Array.prototype.slice.call(event.changedTouches).find(function (item) {
-            return touchStart.id === undefined || item.identifier === touchStart.id;
-          }) || event.changedTouches[0];
-          const currentX = Number(touch.clientX || 0);
-          const currentY = Number(touch.clientY || 0);
-          const dx = Math.abs(currentX - touchStart.x);
-          const dy = Math.abs(currentY - touchStart.y);
-          touchStart = null;
-          if (dx > 10 || dy > 10) {
             return;
           }
         }
@@ -621,23 +603,8 @@
         });
         card.addEventListener('pointerup', activateCard);
       } else {
-        card.addEventListener('touchstart', function (event) {
-          if (!event.touches || !event.touches.length) {
-            touchStart = null;
-            return;
-          }
-          const touch = event.touches[0];
-          touchStart = {
-            id: touch.identifier,
-            x: Number(touch.clientX || 0),
-            y: Number(touch.clientY || 0)
-          };
-        }, { passive: true });
         card.addEventListener('click', activateCard);
         card.addEventListener('touchend', activateCard, { passive: false });
-        card.addEventListener('touchcancel', function () {
-          touchStart = null;
-        }, { passive: true });
       }
     });
 
@@ -827,8 +794,7 @@
       state.slotsByDay.get(day).push({
         start: startIso,
         end: endIso,
-        label: formatTimeIso(startIso, timezone),
-        hot_window: slot.hot_window || null
+        label: formatTimeIso(startIso, timezone)
       });
     });
 
@@ -870,17 +836,14 @@
       const date = new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
       const key = dateKey(date);
       const enabled = inRange(date, state.rangeStart, state.rangeEnd);
-      const daySlots = state.slotsByDay.get(key) || [];
-      const available = enabled && daySlots.length > 0;
-      const hasHot = available && daySlots.some(function (s) { return s.hot_window; });
+      const available = enabled && (state.slotsByDay.get(key) || []).length > 0;
       const selected = state.selectedDate === key;
       const classes = ['day'];
       if (available) classes.push('available');
       if (!enabled) classes.push('disabled');
       if (selected) classes.push('selected');
 
-      const dayLabel = hasHot ? day + '<span class="day-fire">🔥</span>' : String(day);
-      html += '<button type="button" class="' + classes.join(' ') + '" data-day="' + key + '"' + (enabled ? '' : ' disabled') + '>' + dayLabel + '</button>';
+      html += '<button type="button" class="' + classes.join(' ') + '" data-day="' + key + '"' + (enabled ? '' : ' disabled') + '>' + day + '</button>';
     }
 
     el.calGrid.innerHTML = html;
@@ -917,8 +880,7 @@
 
     el.slotsWrap.innerHTML = slots.map(function (slot) {
       const active = state.selectedSlot && state.selectedSlot.start === slot.start;
-      const fireLabel = slot.hot_window ? '🔥 ' + slot.label : slot.label;
-      return '<button type="button" class="slot-chip ' + (active ? 'active' : '') + (slot.hot_window ? ' hot' : '') + '" data-slot-start="' + slot.start + '">' + fireLabel + '</button>';
+      return '<button type="button" class="slot-chip ' + (active ? 'active' : '') + '" data-slot-start="' + slot.start + '">' + slot.label + '</button>';
     }).join('');
 
     Array.prototype.slice.call(el.slotsWrap.querySelectorAll('[data-slot-start]')).forEach(function (node) {
@@ -938,54 +900,28 @@
     const totals = selectedTotals();
     const base = Number(totals.price || 0);
 
-    if (state.promoPreview && state.promoCode) {
-      return {
-        base: Number(state.promoPreview.base_price ?? base),
-        final: Number(state.promoPreview.final_price ?? base),
-        discount: Number(state.promoPreview.discount_amount || 0),
-        promoCode: state.promoPreview.promo_code || state.promoCode,
-        rewardType: state.promoPreview.promo_reward_type || null,
-        discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
-        giftServiceName: state.promoPreview.promo_gift_service_name || null,
-        giftAdded: Boolean(state.promoPreview.promo_gift_service_added),
-        hotWindow: null
-      };
-    }
-
-    // Check if selected slot has a hot window discount
-    const hw = state.selectedSlot && state.selectedSlot.hot_window;
-    if (hw) {
-      let hwDiscount = 0;
-      if (hw.reward_type === 'percent') {
-        hwDiscount = Math.round(base * Number(hw.discount_percent || 0)) / 100;
-      } else if (hw.reward_type === 'gift_service') {
-        // gift service price not available on client side — show as "подарок"
-        hwDiscount = 0;
-      }
-      hwDiscount = Math.min(base, Math.max(0, hwDiscount));
+    if (!state.promoPreview || !state.promoCode) {
       return {
         base: base,
-        final: Math.max(0, Math.round((base - hwDiscount) * 100) / 100),
-        discount: hwDiscount,
+        final: base,
+        discount: 0,
         promoCode: null,
         rewardType: null,
         discountPercent: null,
         giftServiceName: null,
-        giftAdded: false,
-        hotWindow: hw
+        giftAdded: false
       };
     }
 
     return {
-      base: base,
-      final: base,
-      discount: 0,
-      promoCode: null,
-      rewardType: null,
-      discountPercent: null,
-      giftServiceName: null,
-      giftAdded: false,
-      hotWindow: null
+      base: Number(state.promoPreview.base_price ?? base),
+      final: Number(state.promoPreview.final_price ?? base),
+      discount: Number(state.promoPreview.discount_amount || 0),
+      promoCode: state.promoPreview.promo_code || state.promoCode,
+      rewardType: state.promoPreview.promo_reward_type || null,
+      discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
+      giftServiceName: state.promoPreview.promo_gift_service_name || null,
+      giftAdded: Boolean(state.promoPreview.promo_gift_service_added)
     };
   }
 
@@ -1015,21 +951,13 @@
       + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
       + serviceLines;
 
-    let discountLine = '';
-    if (pricing.promoCode) {
-      discountLine = '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
-    } else if (pricing.hotWindow) {
-      const hw = pricing.hotWindow;
-      if (hw.reward_type === 'percent') {
-        discountLine = '<div class="row-line hot-discount"><span>🔥 Горячее окно (−' + Number(hw.discount_percent || 0) + '%)</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
-      } else {
-        discountLine = '<div class="row-line hot-discount"><span>🔥 Горячее окно (подарок: ' + escapeHtml(hw.gift_service_name || 'зона') + ')</span><span>в подарок</span></div>';
-      }
-    }
+    const promoLine = pricing.promoCode
+      ? '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>'
+      : '';
 
     el.confirmPricing.innerHTML = ''
       + '<div class="row-line"><span>Стоимость</span><span>' + money(pricing.base) + ' ₽</span></div>'
-      + discountLine
+      + promoLine
       + '<div class="row-line total"><span>Итого</span><span>' + money(pricing.final) + ' ₽</span></div>';
 
     el.promoInput.value = state.promoCode;
@@ -1166,23 +1094,8 @@
         return;
       }
 
-      const statusSortRank = function (status) {
-        const normalized = String(status || '');
-        if (normalized === 'confirmed' || normalized === 'pending') return 0;
-        if (normalized === 'completed') return 1;
-        if (normalized === 'canceled') return 2;
-        return 1;
-      };
-
-      const startTime = function (booking) {
-        const ts = new Date(booking && booking.start_at ? booking.start_at : '').getTime();
-        return Number.isFinite(ts) ? ts : 0;
-      };
-
       const ordered = state.bookings.slice().sort(function (a, b) {
-        const rankDiff = statusSortRank(a.status) - statusSortRank(b.status);
-        if (rankDiff !== 0) return rankDiff;
-        return startTime(b) - startTime(a);
+        return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
       });
 
       el.bookingsCount.textContent = ordered.length + ' шт';

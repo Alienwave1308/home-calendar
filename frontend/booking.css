@@ -552,14 +552,6 @@ body {
   background: #f4f8f6;
 }
 
-.day-fire {
-  font-size: 9px;
-  position: absolute;
-  top: 3px;
-  right: 5px;
-  line-height: 1;
-}
-
 .slots {
   border-radius: var(--radius-lg);
   border: 1px solid #d0e6db;
@@ -615,19 +607,6 @@ body {
   background: linear-gradient(120deg, #2f9f68 0%, #1db093 100%);
   color: #fff;
   box-shadow: 0 8px 14px rgba(27, 113, 74, 0.26);
-}
-
-.slot-chip.hot {
-  border-color: #f97316;
-  background: #fff7ed;
-  color: #c2410c;
-}
-
-.slot-chip.hot.active {
-  background: linear-gradient(120deg, #ea580c 0%, #f97316 100%);
-  border-color: #c2410c;
-  color: #fff;
-  box-shadow: 0 8px 14px rgba(234, 88, 12, 0.28);
 }
 
 .slots-empty {
