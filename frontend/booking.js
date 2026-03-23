@@ -36,6 +36,8 @@
   }
 
   const vkNotificationsEnabled = hasVkSession && urlParams.get('vk_are_notifications_enabled') === '1';
+  const vkPlatform = urlParams.get('vk_platform') || '';
+  const vkIsMobileWeb = vkPlatform === 'mobile_web';
 
   function requireVkNotifications() {
     if (!hasVkSession || vkNotificationsEnabled || isCypress) return Promise.resolve();
@@ -45,9 +47,19 @@
       const btn = document.getElementById('btnVkAllowNotify');
       const errEl = document.getElementById('vkNotifyError');
 
-      // Показываем экран-заглушку
       document.getElementById('screen-services').classList.remove('active');
       screen.classList.add('active');
+
+      if (vkIsMobileWeb) {
+        // В браузере VKWebAppAllowNotifications не работает — просим открыть в приложении
+        btn.textContent = 'Открыть в приложении ВКонтакте';
+        btn.addEventListener('click', function () {
+          window.location.href = 'vkapp://vk.com/app' + (urlParams.get('vk_app_id') || '');
+        });
+        errEl.textContent = 'Уведомления работают только в приложении ВКонтакте';
+        errEl.style.display = '';
+        return; // Promise никогда не резолвится — запись заблокирована
+      }
 
       btn.addEventListener('click', function () {
         btn.disabled = true;
