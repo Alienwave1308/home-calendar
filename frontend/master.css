@@ -485,6 +485,16 @@ button {
   gap: 2px;
 }
 
+.booking-price {
+  color: var(--text);
+  font-size: 0.92em;
+}
+
+.booking-price s {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
 .booking-discount-badge {
   display: inline-block;
   font-size: 0.82em;

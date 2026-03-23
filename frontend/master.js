@@ -751,7 +751,15 @@
       + '</div>'
       + '<div class="booking-card-meta">'
       + '<span>' + formatDateTime(b.start_at) + '</span>'
-      + (discountBadge ? '<span>' + discountBadge + '</span>' : '')
+      + (b.pricing_final != null
+        ? '<span class="booking-price">'
+          + (b.pricing_discount_amount > 0
+            ? '<s>' + b.pricing_base + ' ₽</s> '
+            : '')
+          + '<strong>' + b.pricing_final + ' ₽</strong>'
+          + (discountBadge ? ' ' + discountBadge : '')
+          + '</span>'
+        : (discountBadge ? '<span>' + discountBadge + '</span>' : ''))
       + (b.master_note ? '<span>Комментарий: ' + escapeHtml(b.master_note) + '</span>' : '')
       + '</div>'
       + (actions ? '<div class="booking-card-actions">' + actions + '</div>' : '')
