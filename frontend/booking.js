@@ -35,56 +35,6 @@
     }
   }
 
-  const vkNotificationsEnabled = hasVkSession && urlParams.get('vk_are_notifications_enabled') === '1';
-  const vkPlatform = urlParams.get('vk_platform') || '';
-  const vkIsMobileWeb = vkPlatform === 'mobile_web';
-
-  function requireVkNotifications() {
-    if (!hasVkSession || vkNotificationsEnabled || isCypress) return Promise.resolve();
-
-    return new Promise(function (resolve) {
-      const screen = document.getElementById('screen-vk-notify');
-      const btn = document.getElementById('btnVkAllowNotify');
-      const errEl = document.getElementById('vkNotifyError');
-
-      document.getElementById('screen-services').classList.remove('active');
-      screen.classList.add('active');
-
-      if (vkIsMobileWeb) {
-        // В браузере VKWebAppAllowNotifications не работает — просим открыть в приложении
-        btn.textContent = 'Открыть в приложении ВКонтакте';
-        btn.addEventListener('click', function () {
-          window.location.href = 'vkapp://vk.com/app' + (urlParams.get('vk_app_id') || '');
-        });
-        errEl.textContent = 'Уведомления работают только в приложении ВКонтакте';
-        errEl.style.display = '';
-        return; // Promise никогда не резолвится — запись заблокирована
-      }
-
-      btn.addEventListener('click', function () {
-        btn.disabled = true;
-        btn.textContent = 'Ожидаем...';
-        window.vkBridge.send('VKWebAppAllowNotifications')
-          .then(function (res) {
-            if (res && res.result) {
-              screen.classList.remove('active');
-              document.getElementById('screen-services').classList.add('active');
-              resolve();
-            } else {
-              btn.disabled = false;
-              btn.textContent = 'Разрешить уведомления';
-              errEl.style.display = '';
-            }
-          })
-          .catch(function () {
-            btn.disabled = false;
-            btn.textContent = 'Разрешить уведомления';
-            errEl.style.display = '';
-          });
-      });
-    });
-  }
-
   function normalizeOrigin(value) {
     if (!value) return '';
     return String(value).trim().replace(/\/+$/, '');
@@ -162,7 +112,6 @@
     headerTitle: document.getElementById('headerTitle'),
     headerSub: document.getElementById('headerSub'),
     screens: {
-      vkNotify: document.getElementById('screen-vk-notify'),
       services: document.getElementById('screen-services'),
       calendar: document.getElementById('screen-calendar'),
       confirm: document.getElementById('screen-confirm'),
@@ -1417,8 +1366,7 @@
   bind();
 
   if (slug) {
-    requireVkNotifications()
-      .then(function () { return initAuth(); })
+    initAuth()
       .then(function () { return loadMaster(); })
       .catch(function (error) {
         showToast('Ошибка авторизации: ' + error.message);
