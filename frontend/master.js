@@ -215,6 +215,29 @@
     $('networkToast').style.display = 'none';
   }
 
+  async function testNotification() {
+    const btn = $('btnTestNotification');
+    const result = $('testNotificationResult');
+    btn.disabled = true;
+    result.textContent = 'Отправляем...';
+    try {
+      const data = await apiMethod('POST', '/test-notification');
+      if (data.ok) {
+        result.textContent = '✅ Сообщение отправлено! Проверь Telegram.';
+      } else if (data.reason === 'username_format') {
+        result.textContent = '❌ Username не в формате tg_XXXXX: ' + (data.username || 'не задан');
+      } else if (data.skipped) {
+        result.textContent = '❌ Пропущено: нет токена бота или chatId';
+      } else {
+        result.textContent = '❌ Ошибка: ' + (data.error || 'неизвестно');
+      }
+    } catch (e) {
+      result.textContent = '❌ Запрос не выполнен: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function localizeApiErrorMessage(rawMessage) {
     const message = String(rawMessage || '').trim();
     if (!message) return 'Произошла ошибка';
@@ -754,6 +777,8 @@
       + (b.pricing_final != null
         ? '<span class="booking-price">'
           + (b.pricing_discount_amount > 0
+            && b.promo_reward_type !== 'gift_service'
+            && b.hot_window_reward_type !== 'gift_service'
             ? '<s>' + b.pricing_base + ' ₽</s> '
             : '')
           + '<strong>' + b.pricing_final + ' ₽</strong>'
@@ -1696,9 +1721,10 @@
         : 'Подарок: ' + escapeHtml(promo.gift_service_name || 'Зона в подарок');
       const usageMode = String(promo.usage_mode || 'always');
       const usageLabel = usageMode === 'single_use' ? 'Одноразовый' : 'Постоянный';
+      const actualUses = Number(promo.actual_uses_count != null ? promo.actual_uses_count : promo.uses_count || 0);
       const usageState = usageMode === 'single_use'
-        ? (Number(promo.uses_count || 0) > 0 ? 'использован' : 'не использован')
-        : ('использований: ' + Number(promo.uses_count || 0));
+        ? (actualUses > 0 ? 'использован' : 'не использован')
+        : ('применён ' + actualUses + ' ' + (actualUses === 1 ? 'раз' : actualUses >= 2 && actualUses <= 4 ? 'раза' : 'раз'));
       const status = promo.is_active ? 'Активен' : 'Выключен';
       const toggleLabel = promo.is_active ? 'Выключить' : 'Включить';
       const nextActive = promo.is_active ? 'false' : 'true';
@@ -2175,6 +2201,7 @@
     deleteAvailabilityRule: deleteAvailabilityRule,
     addAvailabilityExclusion: addAvailabilityExclusion,
     deleteAvailabilityExclusion: deleteAvailabilityExclusion,
+    testNotification: testNotification,
     logout: logout,
     hideToast: hideToast
   };
