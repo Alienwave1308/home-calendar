@@ -215,6 +215,29 @@
     $('networkToast').style.display = 'none';
   }
 
+  async function testNotification() {
+    const btn = $('btnTestNotification');
+    const result = $('testNotificationResult');
+    btn.disabled = true;
+    result.textContent = 'Отправляем...';
+    try {
+      const data = await apiMethod('POST', '/test-notification');
+      if (data.ok) {
+        result.textContent = '✅ Сообщение отправлено! Проверь Telegram.';
+      } else if (data.reason === 'username_format') {
+        result.textContent = '❌ Username не в формате tg_XXXXX: ' + (data.username || 'не задан');
+      } else if (data.skipped) {
+        result.textContent = '❌ Пропущено: нет токена бота или chatId';
+      } else {
+        result.textContent = '❌ Ошибка: ' + (data.error || 'неизвестно');
+      }
+    } catch (e) {
+      result.textContent = '❌ Запрос не выполнен: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function localizeApiErrorMessage(rawMessage) {
     const message = String(rawMessage || '').trim();
     if (!message) return 'Произошла ошибка';
@@ -2175,6 +2198,7 @@
     deleteAvailabilityRule: deleteAvailabilityRule,
     addAvailabilityExclusion: addAvailabilityExclusion,
     deleteAvailabilityExclusion: deleteAvailabilityExclusion,
+    testNotification: testNotification,
     logout: logout,
     hideToast: hideToast
   };

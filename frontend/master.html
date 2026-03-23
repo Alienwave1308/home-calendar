@@ -275,6 +275,11 @@
     <!-- Tab: Settings -->
     <section class="tab-panel" id="tabSettings" style="display:none;">
       <div class="settings-card">
+        <h3>Уведомления</h3>
+        <button class="btn-secondary" onclick="MasterApp.testNotification()" id="btnTestNotification">Отправить тест в Telegram</button>
+        <p id="testNotificationResult" class="settings-hint" style="margin-top:6px;"></p>
+      </div>
+      <div class="settings-card">
         <h3>Ссылка для записи</h3>
         <div class="link-copy-row">
           <input type="text" id="bookingLink" readonly class="link-input">
