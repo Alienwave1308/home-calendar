@@ -1178,6 +1178,12 @@ router.get('/bookings', loadMaster, async (req, res) => {
 
       let query = `
         SELECT b.*, s.name AS service_name, s.duration_minutes,
+               ARRAY(
+                 SELECT es.name FROM services es
+                 WHERE es.id::text IN (
+                   SELECT jsonb_array_elements_text(COALESCE(b.extra_service_ids, '[]'::jsonb))
+                 )
+               ) AS extra_service_names,
                ${clientFields}
         FROM bookings b
         JOIN services s ON b.service_id = s.id
@@ -1233,6 +1239,12 @@ router.get('/calendar', loadMaster, async (req, res) => {
     try {
       bookingsRes = await pool.query(
         `SELECT b.*, s.name AS service_name, s.duration_minutes,
+                ARRAY(
+                  SELECT es.name FROM services es
+                  WHERE es.id::text IN (
+                    SELECT jsonb_array_elements_text(COALESCE(b.extra_service_ids, '[]'::jsonb))
+                  )
+                ) AS extra_service_names,
                 u.username AS client_name
          FROM bookings b
          JOIN services s ON b.service_id = s.id

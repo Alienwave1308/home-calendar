@@ -761,9 +761,13 @@
       }
     }
 
+    const extraNames = Array.isArray(b.extra_service_names) ? b.extra_service_names.filter(Boolean) : [];
+    const allNames = [b.service_name].concat(extraNames).filter(Boolean);
+    const serviceTitle = allNames.map(escapeHtml).join(' + ');
+
     return '<div class="booking-card">'
       + '<div class="booking-card-header">'
-      + '<h4>' + escapeHtml(b.service_name || 'Услуга') + '</h4>'
+      + '<h4>' + serviceTitle + '</h4>'
       + '<span class="booking-status ' + b.status + '">' + (STATUS_LABELS[b.status] || b.status) + '</span>'
       + '</div>'
       + '<div class="booking-client-row">'
