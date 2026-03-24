@@ -34,7 +34,7 @@ services:
       - VK_SECRET=${VK_SECRET}
       - VK_CONFIRMATION_STRING=${VK_CONFIRMATION_STRING}
       - MASTER_BOOKING_SLUG=${MASTER_BOOKING_SLUG}
-      - TELEGRAM_API_BASE=${TELEGRAM_API_BASE}
+      - TELEGRAM_API_BASE=https://home-calendar.niggest137.workers.dev
     depends_on:
       - db
 
