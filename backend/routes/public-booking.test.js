@@ -556,6 +556,40 @@ describe('Public Booking API', () => {
     expect(res.body.pricing.promo_usage_mode).toBe('always');
   });
 
+  it('should apply 100% promo code and make booking free', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Сахар: Бёдра', duration_minutes: 40, price: 1000, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 550, master_id: 3, code: 'FREE100', reward_type: 'percent', discount_percent: 100, gift_service_id: null, usage_mode: 'always', uses_count: 0 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 112, master_id: 3, client_id: 42, service_id: 11, extra_service_ids: '[]', start_at: startAt, status: 'confirmed' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, promo_code: 'free100' })
+      .expect(201);
+
+    expect(res.body.pricing.base_price).toBe(1000);
+    expect(res.body.pricing.final_price).toBe(0);
+    expect(res.body.pricing.discount_amount).toBe(1000);
+    expect(res.body.pricing.promo_code).toBe('FREE100');
+    expect(res.body.pricing.promo_reward_type).toBe('percent');
+  });
+
   it('should allow single-use promo code exactly once', async () => {
     const startAt = futureDate();
     pool.query

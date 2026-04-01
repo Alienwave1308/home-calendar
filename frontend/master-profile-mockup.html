@@ -1611,7 +1611,7 @@
               + '<div class="form-grid">'
                 + '<div class="field"><label>Код</label><input id="promoCode" placeholder="SPRING20"></div>'
                 + '<div class="field"><label>Тип бонуса</label><select id="promoType"><option value="percent">Скидка %</option><option value="gift">Зона в подарок</option></select></div>'
-                + '<div class="field" id="promoPercentWrap"><label>Процент скидки</label><input id="promoPercent" type="number" min="1" max="90" value="20"></div>'
+                + '<div class="field" id="promoPercentWrap"><label>Процент скидки</label><input id="promoPercent" type="number" min="1" max="100" value="20"></div>'
                 + '<div class="field" id="promoGiftWrap" style="display:none;"><label>Зона в подарок</label><select id="promoGift"><option value="Подмышки">Подмышки</option><option value="Голень">Голень</option><option value="Бикини классика">Бикини классика</option></select></div>'
               + '</div>'
               + '<div class="row"><button class="btn primary" id="addPromoBtn">Создать промокод</button></div>'
@@ -1940,8 +1940,8 @@
 
             if (promoType === 'percent') {
               var percent = Number(document.getElementById('promoPercent').value || 0);
-              if (percent < 1 || percent > 90) {
-                showToast('Скидка должна быть от 1 до 90%');
+              if (percent < 1 || percent > 100) {
+                showToast('Скидка должна быть от 1 до 100%');
                 return;
               }
               item.percent = percent;
