@@ -742,8 +742,8 @@ router.post('/promo-codes', loadMaster, async (req, res) => {
 
     if (rewardType === 'percent') {
       discountPercent = Number(req.body.discount_percent);
-      if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 90) {
-        return res.status(400).json({ error: 'discount_percent must be integer between 1 and 90' });
+      if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 100) {
+        return res.status(400).json({ error: 'discount_percent must be integer between 1 and 100' });
       }
     }
 

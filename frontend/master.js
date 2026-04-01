@@ -249,7 +249,8 @@
       'code may contain only A-Z, 0-9, _ and -': 'Промокод может содержать только латинские буквы A-Z, цифры, "_" и "-"',
       'reward_type must be percent or gift_service': 'Выберите корректный тип промокода',
       'usage_mode must be always or single_use': 'Выберите корректный режим использования промокода',
-      'discount_percent must be integer between 1 and 90': 'Скидка должна быть целым числом от 1 до 90',
+      'discount_percent must be integer between 1 and 90': 'Скидка должна быть целым числом от 1 до 100',
+      'discount_percent must be integer between 1 and 100': 'Скидка должна быть целым числом от 1 до 100',
       'gift_service_id must be a positive integer': 'Выберите подарочную зону',
       'gift service is not available': 'Подарочная зона недоступна',
       'gift service must be an epilation zone, not a complex': 'Подарком может быть только зона эпиляции, а не комплекс',
@@ -1785,8 +1786,8 @@
       const payload = { code: code, reward_type: rewardType, usage_mode: usageMode };
       if (rewardType === 'percent') {
         const discount = Number(discountEl.value);
-        if (!Number.isInteger(discount) || discount < 1 || discount > 90) {
-          showToast('Скидка должна быть целым числом от 1 до 90');
+        if (!Number.isInteger(discount) || discount < 1 || discount > 100) {
+          showToast('Скидка должна быть целым числом от 1 до 100');
           return;
         }
         payload.discount_percent = discount;

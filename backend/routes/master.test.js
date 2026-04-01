@@ -510,6 +510,34 @@ describe('Master API', () => {
       expect(res.body.discount_percent).toBe(15);
     });
 
+    it('should create percent promo code with 100% discount', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 12, code: 'FREE100', reward_type: 'percent', discount_percent: 100, usage_mode: 'always', uses_count: 0, is_active: true }] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'free100', reward_type: 'percent', discount_percent: 100 })
+        .expect(201);
+
+      expect(res.body.code).toBe('FREE100');
+      expect(res.body.discount_percent).toBe(100);
+    });
+
+    it('should reject percent promo code above 100% discount', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'save101', reward_type: 'percent', discount_percent: 101 })
+        .expect(400);
+
+      expect(res.body.error).toBe('discount_percent must be integer between 1 and 100');
+    });
+
     it('should create gift-service promo code', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
