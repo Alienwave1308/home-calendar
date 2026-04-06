@@ -914,17 +914,49 @@
   function currentPricing() {
     const totals = selectedTotals();
     const base = Number(totals.price || 0);
+    const hotWindow = state.selectedSlot && state.selectedSlot.hotWindow && typeof state.selectedSlot.hotWindow === 'object'
+      ? state.selectedSlot.hotWindow
+      : null;
 
     if (!state.promoPreview || !state.promoCode) {
+      let hotRewardType = null;
+      let hotDiscountPercent = null;
+      let hotGiftServiceName = null;
+      let hotDiscount = 0;
+
+      if (hotWindow && hotWindow.reward_type === 'percent') {
+        hotRewardType = 'percent';
+        hotDiscountPercent = Number(hotWindow.discount_percent || 0) || null;
+        if (hotDiscountPercent) {
+          hotDiscount = Math.round(base * hotDiscountPercent) / 100;
+        }
+      } else if (hotWindow && hotWindow.reward_type === 'gift_service') {
+        hotRewardType = 'gift_service';
+        hotGiftServiceName = hotWindow.gift_service_name || null;
+        const giftServiceId = Number(hotWindow.gift_service_id || 0);
+        if (giftServiceId > 0) {
+          const giftService = state.services.find(function (service) {
+            return Number(service.id) === giftServiceId;
+          });
+          if (giftService) {
+            hotDiscount = Number(giftService.price || 0);
+          }
+        }
+      }
+
+      hotDiscount = Math.min(base, Math.max(0, hotDiscount));
+      const hotFinal = Math.max(0, Math.round((base - hotDiscount) * 100) / 100);
+
       return {
         base: base,
-        final: base,
-        discount: 0,
+        final: hotFinal,
+        discount: hotDiscount,
         promoCode: null,
-        rewardType: null,
-        discountPercent: null,
-        giftServiceName: null,
-        giftAdded: false
+        rewardType: hotRewardType,
+        discountPercent: hotDiscountPercent,
+        giftServiceName: hotGiftServiceName,
+        giftAdded: false,
+        source: hotRewardType ? 'hot_window' : null
       };
     }
 
@@ -936,7 +968,8 @@
       rewardType: state.promoPreview.promo_reward_type || null,
       discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
       giftServiceName: state.promoPreview.promo_gift_service_name || null,
-      giftAdded: Boolean(state.promoPreview.promo_gift_service_added)
+      giftAdded: Boolean(state.promoPreview.promo_gift_service_added),
+      source: 'promo'
     };
   }
 
@@ -966,13 +999,20 @@
       + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
       + serviceLines;
 
-    const promoLine = pricing.promoCode
-      ? '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>'
-      : '';
+    let discountLine = '';
+    if (pricing.source === 'promo' && pricing.promoCode) {
+      discountLine = '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
+    } else if (pricing.source === 'hot_window') {
+      if (pricing.rewardType === 'percent' && pricing.discountPercent) {
+        discountLine = '<div class="row-line"><span>Горячее окно (−' + pricing.discountPercent + '%)</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
+      } else if (pricing.rewardType === 'gift_service' && pricing.giftServiceName) {
+        discountLine = '<div class="row-line"><span>Горячее окно (подарок)</span><span>' + escapeHtml(pricing.giftServiceName) + '</span></div>';
+      }
+    }
 
     el.confirmPricing.innerHTML = ''
       + '<div class="row-line"><span>Стоимость</span><span>' + money(pricing.base) + ' ₽</span></div>'
-      + promoLine
+      + discountLine
       + '<div class="row-line total"><span>Итого</span><span>' + money(pricing.final) + ' ₽</span></div>';
 
     el.promoInput.value = state.promoCode;
@@ -1078,6 +1118,15 @@
           promoLine += ' (подарок: ' + pricing.promo_gift_service_name + ')';
         }
         details.push(promoLine);
+      } else if (pricing.hot_window_reward_type) {
+        let hotLine = 'Горячее окно';
+        if (pricing.hot_window_reward_type === 'percent' && pricing.hot_window_discount_percent) {
+          hotLine += ' (скидка ' + pricing.hot_window_discount_percent + '%)';
+        }
+        if (pricing.hot_window_reward_type === 'gift_service' && pricing.hot_window_gift_service_name) {
+          hotLine += ' (подарок: ' + pricing.hot_window_gift_service_name + ')';
+        }
+        details.push(hotLine);
       }
 
       el.doneText.textContent = details.join(' · ');
