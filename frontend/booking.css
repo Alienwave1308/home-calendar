@@ -534,6 +534,20 @@ body {
   box-shadow: 0 0 0 5px rgba(23, 184, 145, 0.15);
 }
 
+.day.hot::before {
+  content: '🔥';
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.day.hot::after {
+  background: #ff8b1a;
+  box-shadow: 0 0 0 5px rgba(255, 139, 26, 0.22);
+}
+
 .day.selected {
   background: linear-gradient(130deg, #2f9f68 0%, #1db093 100%);
   border-color: rgba(22, 115, 72, 0.55);
@@ -542,6 +556,11 @@ body {
 }
 
 .day.selected::after {
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+.day.hot.selected::after {
   background: #fff;
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3);
 }
@@ -591,6 +610,9 @@ body {
 }
 
 .slot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border-radius: 999px;
   border: 1px solid #bddfcf;
   background: #eaf8f1;
@@ -602,11 +624,26 @@ body {
   cursor: pointer;
 }
 
+.slot-chip.hot {
+  border-color: #f2cb98;
+  background: #fff4e8;
+  color: #8f501f;
+}
+
 .slot-chip.active {
   border-color: rgba(22, 118, 75, 0.5);
   background: linear-gradient(120deg, #2f9f68 0%, #1db093 100%);
   color: #fff;
   box-shadow: 0 8px 14px rgba(27, 113, 74, 0.26);
+}
+
+.slot-hot-emoji {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.slot-chip.hot.active .slot-hot-emoji {
+  filter: saturate(0) brightness(2);
 }
 
 .slots-empty {

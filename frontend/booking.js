@@ -790,11 +790,13 @@
       const endIso = String(slot.end || '');
       if (!startIso || !endIso) return;
       const day = isoDateInTimezone(new Date(startIso), timezone);
+      const hotWindow = slot && typeof slot.hot_window === 'object' ? slot.hot_window : null;
       if (!state.slotsByDay.has(day)) state.slotsByDay.set(day, []);
       state.slotsByDay.get(day).push({
         start: startIso,
         end: endIso,
-        label: formatTimeIso(startIso, timezone)
+        label: formatTimeIso(startIso, timezone),
+        hotWindow: hotWindow
       });
     });
 
@@ -835,11 +837,16 @@
     for (let day = 1; day <= monthEnd.getDate(); day += 1) {
       const date = new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
       const key = dateKey(date);
+      const daySlots = state.slotsByDay.get(key) || [];
       const enabled = inRange(date, state.rangeStart, state.rangeEnd);
-      const available = enabled && (state.slotsByDay.get(key) || []).length > 0;
+      const available = enabled && daySlots.length > 0;
+      const hot = available && daySlots.some(function (slot) {
+        return Boolean(slot.hotWindow);
+      });
       const selected = state.selectedDate === key;
       const classes = ['day'];
       if (available) classes.push('available');
+      if (hot) classes.push('hot');
       if (!enabled) classes.push('disabled');
       if (selected) classes.push('selected');
 
@@ -880,7 +887,15 @@
 
     el.slotsWrap.innerHTML = slots.map(function (slot) {
       const active = state.selectedSlot && state.selectedSlot.start === slot.start;
-      return '<button type="button" class="slot-chip ' + (active ? 'active' : '') + '" data-slot-start="' + slot.start + '">' + slot.label + '</button>';
+      const hot = Boolean(slot.hotWindow);
+      const classes = ['slot-chip'];
+      if (hot) classes.push('hot');
+      if (active) classes.push('active');
+      return ''
+        + '<button type="button" class="' + classes.join(' ') + '" data-slot-start="' + slot.start + '">'
+        + (hot ? '<span class="slot-hot-emoji" aria-hidden="true">🔥</span>' : '')
+        + slot.label
+        + '</button>';
     }).join('');
 
     Array.prototype.slice.call(el.slotsWrap.querySelectorAll('[data-slot-start]')).forEach(function (node) {
