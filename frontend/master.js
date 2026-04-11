@@ -1350,13 +1350,21 @@
       return;
     }
 
-    if (webApp && typeof webApp.openTelegramLink === 'function') {
-      webApp.openTelegramLink(targetLink);
-      return;
+    if (userLink && webApp && typeof webApp.openTelegramLink === 'function') {
+      try {
+        webApp.openTelegramLink(userLink);
+        return;
+      } catch (_) {
+        // Fall through to the browser navigation fallback.
+      }
     }
-    if (webApp && typeof webApp.openLink === 'function') {
-      webApp.openLink(targetLink, { try_instant_view: false });
-      return;
+    if (userLink && webApp && typeof webApp.openLink === 'function') {
+      try {
+        webApp.openLink(userLink, { try_instant_view: false });
+        return;
+      } catch (_) {
+        // Fall through to the browser navigation fallback.
+      }
     }
     window.location.href = targetLink;
   }
