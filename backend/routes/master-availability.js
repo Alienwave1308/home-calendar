@@ -7,11 +7,17 @@ const { loadMaster } = require('./master-shared');
 
 // GET /api/master/availability
 router.get('/availability', loadMaster, asyncRoute(async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT * FROM availability_rules WHERE master_id = $1 ORDER BY day_of_week, start_time',
-    [req.master.id]
-  );
-  res.json(rows);
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM availability_rules WHERE master_id = $1 ORDER BY day_of_week, start_time',
+      [req.master.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    if (error.code !== '42P01') throw error;
+    // Legacy: table doesn't exist yet
+    res.json([]);
+  }
 }));
 
 // POST /api/master/availability
@@ -206,21 +212,28 @@ router.get('/availability/preview', loadMaster, asyncRoute(async (req, res) => {
     return res.status(404).json({ error: 'Service not found' });
   }
 
-  const [rules, exclusions, bookings, blocks] = await Promise.all([
-    pool.query('SELECT * FROM availability_rules WHERE master_id = $1', [req.master.id]),
-    pool.query('SELECT date FROM availability_exclusions WHERE master_id = $1', [req.master.id]),
-    pool.query(
-      `SELECT start_at, end_at FROM bookings
-       WHERE master_id = $1 AND status NOT IN ('canceled')
-         AND start_at < $3 AND end_at > $2`,
-      [req.master.id, date_from, date_to]
-    ),
-    pool.query(
-      `SELECT start_at, end_at FROM master_blocks
-       WHERE master_id = $1 AND start_at < $3 AND end_at > $2`,
-      [req.master.id, date_from, date_to]
-    )
-  ]);
+  let rules, exclusions, bookings, blocks;
+  try {
+    [rules, exclusions, bookings, blocks] = await Promise.all([
+      pool.query('SELECT * FROM availability_rules WHERE master_id = $1', [req.master.id]),
+      pool.query('SELECT date FROM availability_exclusions WHERE master_id = $1', [req.master.id]),
+      pool.query(
+        `SELECT start_at, end_at FROM bookings
+         WHERE master_id = $1 AND status NOT IN ('canceled')
+           AND start_at < $3 AND end_at > $2`,
+        [req.master.id, date_from, date_to]
+      ),
+      pool.query(
+        `SELECT start_at, end_at FROM master_blocks
+         WHERE master_id = $1 AND start_at < $3 AND end_at > $2`,
+        [req.master.id, date_from, date_to]
+      )
+    ]);
+  } catch (error) {
+    if (error.code !== '42P01') throw error;
+    // Legacy: availability tables don't exist yet
+    return res.json({ slots: [] });
+  }
 
   const slots = generateSlots({
     service: svc.rows[0],
