@@ -24,40 +24,75 @@ const telegramMiniApp = window.TelegramMiniApp || {
   getStartParam: () => null
 };
 
-// Auth state
-let authToken = localStorage.getItem('authToken');
-let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-let currentRole = localStorage.getItem('currentRole') || '';
-let currentBookingSlug = localStorage.getItem('currentBookingSlug') || '';
-
-// Clients state
-let currentClients = [];
-let selectedClientId = null;
-let selectedClientName = '';
-let currentTasksView = 'my'; // 'my' or 'clients'
-let pendingTaskFocusId = null;
-let selectedTaskIds = new Set();
-let tasksPage = 1;
-let tasksPages = 1;
-let tasksTotal = 0;
-const tasksQuery = {
-  status: '',
-  assignee: '',
-  tag: '',
-  list: '',
-  sort: 'due_at',
-  order: 'asc',
-  page: 1,
-  limit: 20
+// ─── Centralised application state ───────────────────────────────────────────
+// All mutable globals live here. Access via appState.xxx so state is traceable.
+const appState = {
+  // Auth
+  authToken: localStorage.getItem('authToken'),
+  currentUser: JSON.parse(localStorage.getItem('currentUser') || 'null'),
+  currentRole: localStorage.getItem('currentRole') || '',
+  currentBookingSlug: localStorage.getItem('currentBookingSlug') || '',
+  // Clients / tasks view
+  currentClients: [],
+  selectedClientId: null,
+  selectedClientName: '',
+  currentTasksView: 'my',
+  pendingTaskFocusId: null,
+  selectedTaskIds: new Set(),
+  tasksPage: 1,
+  tasksPages: 1,
+  tasksTotal: 0,
+  tasksQuery: {
+    status: '', assignee: '', tag: '', list: '',
+    sort: 'due_at', order: 'asc', page: 1, limit: 20
+  },
+  // Calendar
+  calendarMonth: new Date().getMonth(),
+  calendarYear: new Date().getFullYear(),
+  allTasks: [],
+  modalDate: null,
+  calendarViewMode: localStorage.getItem('calendarViewMode') || 'month',
+  calendarSelectedDate: new Date(),
+  // Activity
+  activityEvents: [],
+  activityTotal: 0,
+  activityOffset: 0,
+  // Task detail
+  taskDetailId: null,
+  taskDetailData: null,
+  taskDetailChecklist: [],
+  taskDetailComments: [],
+  taskDetailTags: [],
+  taskDetailAllTags: [],
+  taskDetailAssignees: [],
+  taskDetailMembers: [],
+  taskDetailHistory: []
 };
 
-// Calendar state
-let calendarMonth = new Date().getMonth();
-let calendarYear = new Date().getFullYear();
-let allTasks = []; // cached tasks for calendar rendering
-let modalDate = null; // currently open day in modal
-let calendarViewMode = localStorage.getItem('calendarViewMode') || 'month';
-let calendarSelectedDate = new Date();
+// Legacy variable aliases — point to appState so existing code keeps working.
+// New code should read/write appState directly.
+let authToken = appState.authToken;
+let currentUser = appState.currentUser;
+let currentRole = appState.currentRole;
+let currentBookingSlug = appState.currentBookingSlug;
+let currentClients = appState.currentClients;
+let selectedClientId = appState.selectedClientId;
+let selectedClientName = appState.selectedClientName;
+let currentTasksView = appState.currentTasksView;
+let pendingTaskFocusId = appState.pendingTaskFocusId;
+let selectedTaskIds = appState.selectedTaskIds;
+let tasksPage = appState.tasksPage;
+let tasksPages = appState.tasksPages;
+let tasksTotal = appState.tasksTotal;
+const tasksQuery = appState.tasksQuery;
+let calendarMonth = appState.calendarMonth;
+let calendarYear = appState.calendarYear;
+let allTasks = appState.allTasks;
+let modalDate = appState.modalDate;
+let calendarViewMode = appState.calendarViewMode;
+let calendarSelectedDate = appState.calendarSelectedDate;
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const calendarUtils = window.CalendarViews || {
   toIsoDate: (date) => (
@@ -90,22 +125,22 @@ const calendarUtils = window.CalendarViews || {
   }
 };
 
-// Activity state
-let activityEvents = [];
-let activityTotal = 0;
-let activityOffset = 0;
+// Activity state (legacy aliases — backed by appState)
+let activityEvents = appState.activityEvents;
+let activityTotal = appState.activityTotal;
+let activityOffset = appState.activityOffset;
 const ACTIVITY_LIMIT = 20;
 
-// Task detail modal state
-let taskDetailId = null;
-let taskDetailData = null;
-let taskDetailChecklist = [];
-let taskDetailComments = [];
-let taskDetailTags = [];
-let taskDetailAllTags = [];
-let taskDetailAssignees = [];
-let taskDetailMembers = [];
-let taskDetailHistory = [];
+// Task detail modal state (legacy aliases — backed by appState)
+let taskDetailId = appState.taskDetailId;
+let taskDetailData = appState.taskDetailData;
+let taskDetailChecklist = appState.taskDetailChecklist;
+let taskDetailComments = appState.taskDetailComments;
+let taskDetailTags = appState.taskDetailTags;
+let taskDetailAllTags = appState.taskDetailAllTags;
+let taskDetailAssignees = appState.taskDetailAssignees;
+let taskDetailMembers = appState.taskDetailMembers;
+let taskDetailHistory = appState.taskDetailHistory;
 const loadedRoutes = new Set();
 const tgState = {
   enabled: false

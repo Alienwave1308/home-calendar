@@ -1,5 +1,5 @@
 const { pool } = require('../db');
-const SALON_ADDRESS = 'Мкр Околица д.1, квартира 60';
+const SALON_ADDRESS = process.env.SALON_ADDRESS || 'Мкр Околица д.1, квартира 60';
 
 function parseTelegramUserId(username) {
   if (!username || typeof username !== 'string') return null;
@@ -32,6 +32,8 @@ async function sendTelegramMessage(chatId, text) {
     return { ok: false, skipped: true, retryable: false };
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const apiBase = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
     const response = await fetch(`${apiBase}/bot${botToken}/sendMessage`, {
@@ -41,7 +43,8 @@ async function sendTelegramMessage(chatId, text) {
         chat_id: chatId,
         text,
         disable_web_page_preview: true
-      })
+      }),
+      signal: controller.signal
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
@@ -52,6 +55,8 @@ async function sendTelegramMessage(chatId, text) {
   } catch (error) {
     console.error('Telegram sendMessage error:', error);
     return { ok: false, skipped: false, retryable: true, tgError: 'network: ' + String(error.message) };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

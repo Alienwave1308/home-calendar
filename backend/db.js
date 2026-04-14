@@ -3,7 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  max: 20
 });
 
 function quoteIdent(identifier) {

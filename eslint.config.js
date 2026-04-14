@@ -19,6 +19,7 @@ module.exports = [
         clearInterval: "readonly",
         Buffer: "readonly",
         fetch: "readonly",
+        AbortController: "readonly",
         document: "readonly",
         window: "readonly",
         alert: "readonly",
