@@ -5,8 +5,9 @@ const { createReminders, deleteReminders } = require('../lib/reminders');
 const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
 const asyncRoute = require('../lib/asyncRoute');
 const { loadMaster } = require('./master-shared');
+const { BOOKING_STATUSES } = require('../lib/constants');
 
-const VALID_STATUSES = ['pending', 'confirmed', 'canceled', 'completed', 'no_show'];
+const VALID_STATUSES = BOOKING_STATUSES;
 
 // GET /api/master/bookings
 router.get('/bookings', loadMaster, asyncRoute(async (req, res) => {

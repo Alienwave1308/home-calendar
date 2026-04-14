@@ -7,11 +7,14 @@ const { loadMaster, LEAD_PERIODS, normalizeLeadPeriod, buildLeadConversion } = r
 async function telegramApiCall(method, payload) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken || typeof fetch !== 'function') return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload || {})
+      body: JSON.stringify(payload || {}),
+      signal: controller.signal
     });
     if (!response.ok) return null;
     const data = await response.json().catch(() => null);
@@ -19,6 +22,8 @@ async function telegramApiCall(method, payload) {
   } catch (error) {
     console.error(`Error calling Telegram API ${method}:`, error);
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

@@ -3,8 +3,9 @@ const router = express.Router();
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserWorkspaceId } = require('../lib/workspace');
+const { TASK_STATUSES } = require('../lib/constants');
 
-const VALID_STATUSES = ['backlog', 'planned', 'in_progress', 'done', 'canceled', 'archived'];
+const VALID_STATUSES = TASK_STATUSES;
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
 // All task routes require authentication
@@ -575,13 +576,13 @@ router.put('/:id/checklist-reorder', async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    // Update positions
-    for (let i = 0; i < order.length; i++) {
-      await pool.query(
-        'UPDATE checklist_items SET position = $1 WHERE id = $2 AND task_id = $3',
-        [i, order[i], taskId]
-      );
-    }
+    // Update positions in a single query using CASE
+    const caseExpr = order.map((id, i) => `WHEN id = ${parseInt(id)} THEN ${i}`).join(' ');
+    const ids = order.map((id) => parseInt(id));
+    await pool.query(
+      `UPDATE checklist_items SET position = CASE ${caseExpr} END WHERE task_id = $1 AND id = ANY($2)`,
+      [taskId, ids]
+    );
 
     const result = await pool.query(
       'SELECT * FROM checklist_items WHERE task_id = $1 ORDER BY position, id',

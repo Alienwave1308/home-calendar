@@ -3,7 +3,7 @@ const { processPendingReminders } = require('./reminders');
 const { notifyClientReminder } = require('./telegram-notify');
 const { sendVkMessage } = require('./vk-api');
 
-const SALON_ADDRESS = 'Мкр Околица д.1, квартира 60';
+const SALON_ADDRESS = process.env.SALON_ADDRESS || 'Мкр Околица д.1, квартира 60';
 
 function parseVkUserId(username) {
   if (!username || typeof username !== 'string') return null;
