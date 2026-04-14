@@ -757,16 +757,14 @@ describe('Tasks API', () => {
     it('should reorder checklist items', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // task exists
-        .mockResolvedValueOnce({ rows: [] }) // update pos 0
-        .mockResolvedValueOnce({ rows: [] }) // update pos 1
-        .mockResolvedValueOnce({ rows: [] }) // update pos 2
+        .mockResolvedValueOnce({ rows: [] }) // batch UPDATE positions
         .mockResolvedValueOnce({
           rows: [
             { id: 3, position: 0 },
             { id: 1, position: 1 },
             { id: 2, position: 2 }
           ]
-        });
+        }); // SELECT ordered items
 
       const res = await request(app)
         .put('/api/tasks/1/checklist-reorder')

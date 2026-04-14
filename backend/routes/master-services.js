@@ -7,49 +7,92 @@ const { loadMaster } = require('./master-shared');
 
 // GET /api/master/services
 router.get('/services', loadMaster, asyncRoute(async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT * FROM services WHERE master_id = $1 ORDER BY created_at',
-    [req.master.id]
-  );
-  res.json(rows);
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM services WHERE master_id = $1 ORDER BY created_at',
+      [req.master.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    // Legacy schema: created_at may not exist — fall back to ORDER BY id
+    const { rows } = await pool.query(
+      'SELECT * FROM services WHERE master_id = $1 ORDER BY id',
+      [req.master.id]
+    );
+    res.json(rows.map((row) => ({
+      buffer_before_minutes: 0,
+      buffer_after_minutes: 0,
+      is_active: true,
+      ...row
+    })));
+  }
 }));
 
-// POST /api/master/services/bootstrap-default — must come before POST /services/:id to avoid route collision
+// POST /api/master/services/bootstrap-default — must come before POST /services/:id
 router.post('/services/bootstrap-default', loadMaster, asyncRoute(async (req, res) => {
   const overwrite = Boolean(req.body && req.body.overwrite);
 
+  let activeCount;
   try {
     const existing = await pool.query(
       'SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1 AND is_active = true',
       [req.master.id]
     );
-    const activeCount = Number(existing.rows[0]?.total || 0);
+    activeCount = Number(existing.rows[0]?.total || 0);
+  } catch (countError) {
+    if (countError.code !== '42703') throw countError;
+    // Legacy schema: is_active may not exist
+    const existing = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM services WHERE master_id = $1',
+      [req.master.id]
+    );
+    activeCount = Number(existing.rows[0]?.total || 0);
+  }
 
-    if (activeCount > 0 && !overwrite) {
-      return res.status(409).json({
-        error: 'Services already exist. Pass { overwrite: true } to replace them.',
-        active_services: activeCount
-      });
-    }
+  if (activeCount > 0 && !overwrite) {
+    return res.status(409).json({
+      error: 'Services already exist. Pass { overwrite: true } to replace them.',
+      active_services: activeCount
+    });
+  }
 
+  try {
     await pool.query('BEGIN');
 
     if (overwrite) {
-      await pool.query(
-        'UPDATE services SET is_active = false WHERE master_id = $1 AND is_active = true',
-        [req.master.id]
-      );
+      try {
+        await pool.query(
+          'UPDATE services SET is_active = false WHERE master_id = $1 AND is_active = true',
+          [req.master.id]
+        );
+      } catch (deactivateError) {
+        if (deactivateError.code !== '42703') throw deactivateError;
+        // is_active column doesn't exist — skip deactivation
+      }
     }
 
     const inserted = [];
     for (const item of DEFAULT_SERVICES) {
-      const result = await pool.query(
-        `INSERT INTO services (master_id, name, duration_minutes, price, description,
-                               buffer_before_minutes, buffer_after_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [req.master.id, item.name, item.duration_minutes, item.price, toDescription(item), 0, 0]
-      );
+      let result;
+      try {
+        result = await pool.query(
+          `INSERT INTO services (master_id, name, duration_minutes, price, description,
+                                 buffer_before_minutes, buffer_after_minutes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [req.master.id, item.name, item.duration_minutes, item.price, toDescription(item), 0, 0]
+        );
+      } catch (insertError) {
+        if (insertError.code !== '42703') throw insertError;
+        // Legacy schema: description/buffer columns may not exist
+        result = await pool.query(
+          `INSERT INTO services (master_id, name, duration_minutes, price)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [req.master.id, item.name, item.duration_minutes, item.price]
+        );
+      }
       inserted.push(result.rows[0]);
     }
 
@@ -77,14 +120,32 @@ router.post('/services', loadMaster, asyncRoute(async (req, res) => {
     return res.status(400).json({ error: 'duration_minutes is required (min 5)' });
   }
 
-  const result = await pool.query(
-    `INSERT INTO services (master_id, name, duration_minutes, price, description,
-                           buffer_before_minutes, buffer_after_minutes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
-    [req.master.id, name, duration, price || null, description || null,
-     buffer_before_minutes || 0, buffer_after_minutes || 0]
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `INSERT INTO services (master_id, name, duration_minutes, price, description,
+                             buffer_before_minutes, buffer_after_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [req.master.id, name, duration, price || null, description || null,
+       buffer_before_minutes || 0, buffer_after_minutes || 0]
+    );
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    // Legacy schema: description/buffer columns may not exist
+    result = await pool.query(
+      `INSERT INTO services (master_id, name, duration_minutes, price)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [req.master.id, name, duration, price || null]
+    );
+    if (result.rows[0]) {
+      result.rows[0].description = null;
+      result.rows[0].buffer_before_minutes = 0;
+      result.rows[0].buffer_after_minutes = 0;
+      result.rows[0].is_active = true;
+    }
+  }
 
   res.status(201).json(result.rows[0]);
 }));
@@ -118,20 +179,55 @@ router.put('/services/:id', loadMaster, asyncRoute(async (req, res) => {
   }
 
   values.push(req.params.id);
-  const result = await pool.query(
-    `UPDATE services SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
-    values
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `UPDATE services SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    // Legacy schema: some columns may not exist — fallback to minimal update
+    const safeUpdates = [];
+    const safeValues = [];
+    let safeIdx = 1;
+    if (name !== undefined) { safeUpdates.push(`name = $${safeIdx++}`); safeValues.push(name); }
+    if (duration_minutes !== undefined) { safeUpdates.push(`duration_minutes = $${safeIdx++}`); safeValues.push(Number(duration_minutes)); }
+    if (price !== undefined) { safeUpdates.push(`price = $${safeIdx++}`); safeValues.push(price); }
+    safeValues.push(req.params.id);
+    result = await pool.query(
+      `UPDATE services SET ${safeUpdates.join(', ')} WHERE id = $${safeIdx} RETURNING *`,
+      safeValues
+    );
+    if (result.rows[0]) {
+      result.rows[0].buffer_before_minutes = result.rows[0].buffer_before_minutes ?? 0;
+      result.rows[0].buffer_after_minutes = result.rows[0].buffer_after_minutes ?? 0;
+      result.rows[0].is_active = result.rows[0].is_active ?? true;
+    }
+  }
 
   res.json(result.rows[0]);
 }));
 
 // DELETE /api/master/services/:id
 router.delete('/services/:id', loadMaster, asyncRoute(async (req, res) => {
-  const result = await pool.query(
-    'UPDATE services SET is_active = false WHERE id = $1 AND master_id = $2 RETURNING *',
-    [req.params.id, req.master.id]
-  );
+  let result;
+  try {
+    result = await pool.query(
+      'UPDATE services SET is_active = false WHERE id = $1 AND master_id = $2 RETURNING *',
+      [req.params.id, req.master.id]
+    );
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    // Legacy schema: is_active column may not exist — hard delete
+    result = await pool.query(
+      'DELETE FROM services WHERE id = $1 AND master_id = $2 RETURNING *',
+      [req.params.id, req.master.id]
+    );
+    if (result.rows[0]) {
+      result.rows[0].is_active = false;
+    }
+  }
   if (result.rows.length === 0) {
     return res.status(404).json({ error: 'Service not found' });
   }
