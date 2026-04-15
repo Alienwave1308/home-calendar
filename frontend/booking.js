@@ -1196,8 +1196,12 @@
       el.doneText.textContent = details.join(' · ');
       setFlow('done');
 
-      if (tg && typeof tg.showAlert === 'function') {
-        tg.showAlert('Вы успешно записаны!');
+      if (hasTelegramSession && tg && typeof tg.showAlert === 'function') {
+        try {
+          tg.showAlert('Вы успешно записаны!');
+        } catch (error) {
+          void error;
+        }
       }
     } catch (error) {
       hideLoader();
