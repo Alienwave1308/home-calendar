@@ -283,6 +283,47 @@
     return status >= 500 || status === 404;
   }
 
+  function getTelegramSessionUserId() {
+    const unsafeId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
+    if (unsafeId) return String(unsafeId);
+
+    try {
+      const rawUser = new URLSearchParams(tg && tg.initData ? tg.initData : '').get('user');
+      if (!rawUser) return '';
+      const parsed = JSON.parse(rawUser);
+      return parsed && parsed.id ? String(parsed.id) : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function getCurrentAuthSessionKey() {
+    if (hasTelegramSession) {
+      const telegramId = getTelegramSessionUserId();
+      return telegramId ? ('tg:' + telegramId) : 'tg';
+    }
+    if (hasVkSession) {
+      const vkUserId = urlParams.get('vk_user_id');
+      return vkUserId ? ('vk:' + vkUserId) : 'vk';
+    }
+    return '';
+  }
+
+  function hasCurrentAuthToken() {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+
+    const currentSessionKey = getCurrentAuthSessionKey();
+    if (!currentSessionKey) return true;
+    return localStorage.getItem('bookingAuthSession') === currentSessionKey;
+  }
+
+  function saveAuthToken(token) {
+    localStorage.setItem('token', token);
+    const currentSessionKey = getCurrentAuthSessionKey();
+    if (currentSessionKey) localStorage.setItem('bookingAuthSession', currentSessionKey);
+  }
+
   async function requestJson(path, options) {
     const orderedBases = [apiBase].concat(API_BASE_CANDIDATES.filter(function (base) { return base !== apiBase; }));
     let lastError = null;
@@ -313,36 +354,55 @@
     throw (lastError || new Error('Ошибка сети'));
   }
 
-  async function initAuth() {
-    if (localStorage.getItem('token')) return true;
-
-    if (hasTelegramSession) {
-      const data = await requestJson('/auth/telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData })
-      });
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        return true;
-      }
-      throw new Error('Ошибка авторизации Telegram');
+  async function initAuth(options) {
+    const force = Boolean(options && options.force);
+    if (!force && hasCurrentAuthToken()) {
+      return true;
     }
 
-    if (hasVkSession) {
-      const data = await requestJson('/auth/vk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ launchParams: window.location.search.slice(1) })
-      });
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        return true;
+    try {
+      if (hasTelegramSession) {
+        const data = await requestJson('/auth/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: tg.initData })
+        });
+        if (data.token) {
+          saveAuthToken(data.token);
+          return true;
+        }
+        throw new Error('Ошибка авторизации Telegram');
       }
-      throw new Error('Ошибка авторизации ВКонтакте');
-    }
 
-    return false;
+      if (hasVkSession) {
+        const data = await requestJson('/auth/vk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ launchParams: window.location.search.slice(1) })
+        });
+        if (data.token) {
+          saveAuthToken(data.token);
+          return true;
+        }
+        throw new Error('Ошибка авторизации ВКонтакте');
+      }
+
+      throw new Error('Откройте форму внутри Telegram или ВКонтакте');
+    } catch (error) {
+      throw (error instanceof Error ? error : new Error(String(error || 'Ошибка авторизации')));
+    }
+  }
+
+  async function ensureAuth() {
+    if (hasCurrentAuthToken()) return true;
+    try {
+      await initAuth({ force: true });
+      return true;
+    } catch (error) {
+      const message = error && error.message ? error.message : 'Не удалось авторизоваться';
+      showToast('Ошибка авторизации: ' + message);
+      return false;
+    }
   }
 
   async function apiFetch(path) {
@@ -1071,6 +1131,10 @@
     const note = String(el.noteInput.value || '').trim();
     state.note = note;
 
+    if (!await ensureAuth()) {
+      return;
+    }
+
     if (state.editingBookingId) {
       try {
         showLoader();
@@ -1145,7 +1209,7 @@
     el.bookingsList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Загрузка...</p></section>';
 
     try {
-      if (!localStorage.getItem('token')) {
+      if (!hasCurrentAuthToken()) {
         await initAuth();
       }
 

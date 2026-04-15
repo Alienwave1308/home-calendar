@@ -14,7 +14,18 @@ router.get('/bookings', loadMaster, asyncRoute(async (req, res) => {
   const { status, date_from, date_to } = req.query;
   let query = `
     SELECT b.*, s.name AS service_name, s.duration_minutes,
-           u.username AS client_name
+           u.username AS client_name,
+           u.display_name AS client_display_name,
+           u.avatar_url AS client_avatar_url,
+           CASE
+             WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
+             ELSE NULL
+           END AS client_telegram_id,
+           CASE
+             WHEN u.telegram_username ~ '^tg_[0-9]+$' THEN NULL
+             ELSE u.telegram_username
+           END AS client_telegram_username,
+           u.vk_user_id AS client_vk_user_id
     FROM bookings b
     JOIN services s ON b.service_id = s.id
     JOIN users u ON b.client_id = u.id
@@ -43,7 +54,18 @@ router.get('/calendar', loadMaster, asyncRoute(async (req, res) => {
   const [bookingsRes, blocksRes] = await Promise.all([
     pool.query(
       `SELECT b.*, s.name AS service_name, s.duration_minutes,
-              u.username AS client_name
+              u.username AS client_name,
+              u.display_name AS client_display_name,
+              u.avatar_url AS client_avatar_url,
+              CASE
+                WHEN u.username ~ '^tg_[0-9]+$' THEN substring(u.username from 4)::bigint
+                ELSE NULL
+              END AS client_telegram_id,
+              CASE
+                WHEN u.telegram_username ~ '^tg_[0-9]+$' THEN NULL
+                ELSE u.telegram_username
+              END AS client_telegram_username,
+              u.vk_user_id AS client_vk_user_id
        FROM bookings b
        JOIN services s ON b.service_id = s.id
        JOIN users u ON b.client_id = u.id
