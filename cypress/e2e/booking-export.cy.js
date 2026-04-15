@@ -60,6 +60,8 @@ describe('Booking Mini App - Calendar Export E2E', () => {
             openLink() {}
           }
         };
+        win.localStorage.setItem('token', 'test-client-token');
+        win.localStorage.setItem('bookingAuthSession', 'tg:1');
       }
     });
     cy.wait('@getMaster', { timeout: 10000 });
