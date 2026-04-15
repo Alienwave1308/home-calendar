@@ -54,6 +54,36 @@ async function ensureColumn(tableName, columnName, definitionSql) {
 
 async function ensureRuntimeSchemaCompatibility() {
   for (const [columnName, definition] of [
+    ['display_name', 'VARCHAR(100)'],
+    ['avatar_url', 'TEXT'],
+    ['timezone', "VARCHAR(50) DEFAULT 'UTC'"],
+    ['quiet_hours_start', 'TIME'],
+    ['quiet_hours_end', 'TIME'],
+    ['telegram_username', 'VARCHAR(64)'],
+    ['vk_user_id', 'BIGINT']
+  ]) {
+    try {
+      await ensureColumn('users', columnName, definition);
+    } catch (error) {
+      console.error(`Schema compatibility: failed to ensure users.${columnName}:`, error);
+    }
+  }
+
+  try {
+    if (await tableExists('users')) {
+      await pool.query('ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_users_telegram_username ON users(telegram_username)');
+      await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_vk_user_id
+          ON users(vk_user_id)
+          WHERE vk_user_id IS NOT NULL
+      `);
+    }
+  } catch (error) {
+    console.error('Schema compatibility: failed to ensure users auth/profile indexes:', error);
+  }
+
+  for (const [columnName, definition] of [
     ['display_name', `VARCHAR(100) NOT NULL DEFAULT 'Мастер'`],
     ['timezone', `VARCHAR(50) NOT NULL DEFAULT 'Asia/Novosibirsk'`],
     ['cancel_policy_hours', 'INTEGER NOT NULL DEFAULT 24'],

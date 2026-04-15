@@ -1331,7 +1331,7 @@
 
   function openLeadChat(telegramUserId, telegramUsername) {
     const tgId = Number(telegramUserId || 0);
-    const username = String(telegramUsername || '').trim();
+    const username = String(telegramUsername || '').trim().replace(/^@/, '');
     const webApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
     const cleanUsername = /^tg_[0-9]+$/i.test(username) ? '' : username;
     const userLink = cleanUsername ? ('https://t.me/' + encodeURIComponent(cleanUsername)) : '';
@@ -1350,13 +1350,37 @@
       return;
     }
 
-    if (webApp && typeof webApp.openTelegramLink === 'function') {
-      webApp.openTelegramLink(targetLink);
-      return;
+    if (userLink && webApp && typeof webApp.openTelegramLink === 'function') {
+      try {
+        webApp.openTelegramLink(userLink);
+        return;
+      } catch (_) {
+        // Fall through to the browser navigation fallback.
+      }
     }
-    if (webApp && typeof webApp.openLink === 'function') {
-      webApp.openLink(targetLink, { try_instant_view: false });
-      return;
+    if (userLink && webApp && typeof webApp.openLink === 'function') {
+      try {
+        webApp.openLink(userLink, { try_instant_view: false });
+        return;
+      } catch (_) {
+        // Fall through to the browser navigation fallback.
+      }
+    }
+    if (idLink && webApp && typeof webApp.openLink === 'function') {
+      try {
+        webApp.openLink(idLink, { try_instant_view: false });
+        return;
+      } catch (_) {
+        // Fall through to the browser navigation fallback.
+      }
+    }
+    if (idLink && typeof window.open === 'function') {
+      try {
+        const opened = window.open(idLink, '_blank');
+        if (opened !== null) return;
+      } catch (_) {
+        // Fall through to location navigation.
+      }
     }
     window.location.href = targetLink;
   }
