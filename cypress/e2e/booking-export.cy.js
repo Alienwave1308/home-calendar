@@ -29,6 +29,11 @@ describe('Booking Mini App - Calendar Export E2E', () => {
       }
     }).as('getSlots');
 
+    cy.intercept('POST', /\/api\/auth\/telegram\/?$/, {
+      statusCode: 200,
+      body: { token: 'test-client-token' }
+    }).as('authTelegram');
+
     cy.intercept('POST', /\/api\/public\/master\/test-master\/book\/?$/, (req) => {
       req.reply({
         statusCode: 201,
