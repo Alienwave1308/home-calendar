@@ -334,7 +334,7 @@
     const key = 'guest_id';
     let id = localStorage.getItem(key);
     if (!id || id.length < 16) {
-      id = Array.from(crypto.getRandomValues(new Uint8Array(18)))
+      id = Array.from(window.crypto.getRandomValues(new Uint8Array(18)))
         .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
       localStorage.setItem(key, id);
     }
