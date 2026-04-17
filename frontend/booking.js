@@ -13,13 +13,11 @@
 
   const urlParams = new URLSearchParams(window.location.search);
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
+  const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
 
-  if (!isCypress && !hasTelegramSession && !hasVkSession) {
-    document.body.innerHTML = '<main style="max-width:480px;margin:64px auto;padding:24px;text-align:center;font-family:system-ui,-apple-system,sans-serif;">'
-      + '<h1 style="margin-bottom:12px;">Откройте через Telegram или ВКонтакте</h1>'
-      + '<p style="margin:0;color:#5b6575;">Форма записи доступна только в Telegram Mini App или VK Mini App.</p>'
-      + '</main>';
-    return;
+  // Применяем мобильную верстку для веб-браузера (убираем "телефон" обёртку)
+  if (isWebBrowser) {
+    document.documentElement.classList.add('is-web-browser');
   }
 
   if (tg && hasTelegramSession) {
@@ -34,6 +32,22 @@
       void error;
     }
   }
+
+  // Обрабатываем возврат с VK OAuth (токен в hash)
+  (function handleVkOauthReturn() {
+    const hash = window.location.hash;
+    if (!hash || !hash.includes('vk_token=')) return;
+    const hashParams = new URLSearchParams(hash.slice(1));
+    const token = hashParams.get('vk_token');
+    if (!token) return;
+    try {
+      localStorage.setItem('authToken', token);
+      // Убираем hash из URL не перезагружая страницу
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (e) {
+      void e;
+    }
+  }());
 
   function normalizeOrigin(value) {
     if (!value) return '';
@@ -115,6 +129,7 @@
       services: document.getElementById('screen-services'),
       calendar: document.getElementById('screen-calendar'),
       confirm: document.getElementById('screen-confirm'),
+      contact: document.getElementById('screen-contact'),
       done: document.getElementById('screen-done'),
       bookings: document.getElementById('screen-bookings')
     },
@@ -143,6 +158,9 @@
     noteInput: document.getElementById('noteInput'),
     confirmBack: document.getElementById('confirmBack'),
     confirmSubmit: document.getElementById('confirmSubmit'),
+    contactBack: document.getElementById('contactBack'),
+    contactVk: document.getElementById('contactVk'),
+    contactTg: document.getElementById('contactTg'),
     doneText: document.getElementById('doneText'),
     doneNew: document.getElementById('doneNew'),
     doneBookings: document.getElementById('doneBookings'),
@@ -1332,6 +1350,55 @@
     }
   }
 
+  async function submitBookingWeb(channel) {
+    if (!state.selectedServiceIds.length || !state.selectedSlot) {
+      showToast('Проверьте выбор услуги, даты и времени');
+      return;
+    }
+
+    if (!await initAuth()) return;
+
+    try {
+      showLoader();
+      const note = String(el.noteInput ? el.noteInput.value || '' : '').trim();
+      const body = {
+        service_ids: normalizeServiceIdsForApi(state.selectedServiceIds.slice()),
+        start_at: state.selectedSlot.start,
+        client_note: note || undefined,
+        web_contact_channel: channel
+      };
+      if (state.promoCode) body.promo_code = state.promoCode;
+
+      const created = await apiPost('/public/master/' + slug + '/book', body);
+      hideLoader();
+
+      const token = created.web_confirm_token;
+      const tgBotUsername = 'Rova_Epil_Bot';
+
+      if (channel === 'tg' && token) {
+        // Открываем Telegram бота с deep link
+        const deepLink = 'https://t.me/' + tgBotUsername + '?start=booking_' + token;
+        // Показываем экран done с инструкцией
+        if (el.doneText) {
+          el.doneText.textContent = 'Откройте Telegram-бота и подтвердите запись 👆';
+        }
+        setFlow('done');
+        // Открываем Telegram в новой вкладке
+        setTimeout(function () { window.open(deepLink, '_blank'); }, 300);
+      } else {
+        // VK — запись создана, пользователь уже авторизован через OAuth
+        // Бот напишет ему когда он напишет сообществу
+        if (el.doneText) {
+          el.doneText.textContent = 'Запись оформлена! Напишите любое сообщение боту ВКонтакте для подтверждения.';
+        }
+        setFlow('done');
+      }
+    } catch (error) {
+      hideLoader();
+      showToast(error.message);
+    }
+  }
+
   function resetFlow() {
     state.flowScreen = 'services';
     screenStack = ['services'];
@@ -1398,7 +1465,30 @@
 
     el.promoApply.addEventListener('click', applyPromo);
     el.confirmBack.addEventListener('click', function () { setFlow('calendar'); });
-    el.confirmSubmit.addEventListener('click', submitBooking);
+    el.confirmSubmit.addEventListener('click', function () {
+      // Для веб-браузера показываем экран выбора мессенджера перед созданием записи
+      if (isWebBrowser) {
+        setFlow('contact');
+      } else {
+        submitBooking();
+      }
+    });
+
+    if (el.contactBack) {
+      el.contactBack.addEventListener('click', function () { setFlow('confirm'); });
+    }
+    if (el.contactVk) {
+      el.contactVk.addEventListener('click', function () {
+        // VK OAuth — редирект, после которого возвращаемся с токеном
+        const currentSlug = slug || 'lera';
+        window.location.href = '/api/auth/vk/oauth?slug=' + currentSlug;
+      });
+    }
+    if (el.contactTg) {
+      el.contactTg.addEventListener('click', function () {
+        submitBookingWeb('tg');
+      });
+    }
     el.doneNew.addEventListener('click', resetFlow);
     el.doneBookings.addEventListener('click', function () { openTab('bookings'); });
 
