@@ -5,12 +5,13 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Деплоим только если CI прошёл успешно
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Деплоим только если CI прошёл успешно (или запущен вручную)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
     - name: Deploy to VPS
       env:
@@ -43,6 +44,7 @@ jobs:
           set -euo pipefail
 
           cd ~/home-calendar
+          git checkout -- . 2>/dev/null || true
           git pull --ff-only origin main
 
           printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\nVK_GROUP_TOKEN=%s\nVK_GROUP_ID=%s\nVK_SECRET=%s\nVK_CONFIRMATION_STRING=%s\nVK_APP_SECRET=%s\nMASTER_BOOKING_SLUG=%s\n" \
