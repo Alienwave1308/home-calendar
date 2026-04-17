@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const crypto = require('crypto');
 const { URL: NodeURL } = require('url');
 const { pool } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
@@ -894,10 +893,6 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
   try {
     const { start_at } = req.body;
     const client_note = req.body.client_note ? String(req.body.client_note).slice(0, 500) : null;
-    const webContactChannel = req.body.web_contact_channel
-      ? String(req.body.web_contact_channel)
-      : null;
-    const isWebBooking = webContactChannel === 'vk' || webContactChannel === 'tg';
 
     // Normalize to array of IDs
     let rawIds = req.body.service_ids;
@@ -1065,21 +1060,15 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const extraServiceIds = normalizedServiceIds.slice(1);
     const endDate = new Date(startDate.getTime() + totalDurationMinutes * 60000);
 
-    const bookingStatus = isWebBooking ? 'pending_confirmation' : 'confirmed';
-    const bookingSource = isWebBooking ? 'web' : 'telegram_link';
-    const webConfirmToken = isWebBooking ? crypto.randomBytes(32).toString('hex') : null;
-
     const insertSql = `INSERT INTO bookings
          (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
           promo_code_id, promo_code, promo_reward_type, promo_discount_percent, promo_gift_service_id,
           hot_window_id, hot_window_reward_type, hot_window_discount_percent, hot_window_gift_service_id,
-          pricing_base, pricing_final, pricing_discount_amount,
-          web_confirm_token, web_contact_channel)
-       VALUES ($1, $2, $3, $4, $5, $6, $20, $21, $7,
+          pricing_base, pricing_final, pricing_discount_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', 'telegram_link', $7,
                $8, $9, $10, $11, $12,
                $13, $14, $15, $16,
-               $17, $18, $19,
-               $22, $23)
+               $17, $18, $19)
        RETURNING *`;
     const insertParams = [
       master.id,
@@ -1100,11 +1089,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       hotWindowGiftService ? Number(hotWindowGiftService.id) : null,
       totalBasePrice,
       finalPrice,
-      discountAmount,
-      bookingStatus,
-      bookingSource,
-      webConfirmToken,
-      webContactChannel
+      discountAmount
     ];
 
     let created = null;
@@ -1150,29 +1135,15 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     }
 
     try {
-      if (isWebBooking) {
-        // Для web-записи не создаём напоминания до подтверждения.
-        // Если выбран Telegram — отправляем deep link сообщение через бота.
-        if (webContactChannel === 'tg') {
-          const tgBotUsername = process.env.TELEGRAM_BOT_USERNAME || 'Rova_Epil_Bot';
-          // Уведомление будет отправлено когда пользователь откроет deep link и нажмёт /start
-          // Ничего дополнительно не делаем на сервере.
-          void tgBotUsername;
-        }
-        // Для VK: пользователь уже авторизован через OAuth, бот напишет ему
-        // когда он напишет сообщество (стандартный vk-bot-handler flow).
-      } else {
-        await createReminders(created.id, created.master_id, created.start_at);
-        await notifyMasterBookingEvent(created.id, 'created');
-        await notifyClientBookingEvent(created.id, 'created');
-      }
+      await createReminders(created.id, created.master_id, created.start_at);
+      await notifyMasterBookingEvent(created.id, 'created');
+      await notifyClientBookingEvent(created.id, 'created');
     } catch (notifyError) {
       console.error('Error handling public booking side-effects:', notifyError);
     }
 
     return res.status(201).json({
       ...created,
-      web_confirm_token: webConfirmToken,
       pricing: {
         base_price: totalBasePrice,
         final_price: finalPrice,

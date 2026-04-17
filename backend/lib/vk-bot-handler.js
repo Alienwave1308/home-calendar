@@ -359,52 +359,6 @@ async function handleVkMessage(msg, info = {}) {
     return;
   }
 
-  // Подтверждение web-записи через VK-бот
-  if (cmd === 'web_confirm' && payload && payload.id) {
-    const { rows } = await pool.query(
-      `UPDATE bookings SET status = 'confirmed', updated_at = NOW()
-       WHERE id = $1 AND status = 'pending_confirmation'
-       RETURNING *, (SELECT name FROM services WHERE id = bookings.service_id) AS service_name`,
-      [payload.id]
-    );
-    if (rows.length > 0) {
-      const b = rows[0];
-      const tz = 'Asia/Novosibirsk';
-      try {
-        await createReminders(b.id, b.master_id, b.start_at);
-        await notifyMasterBookingEvent(b.id, 'created');
-      } catch (e) {
-        console.error('[vk-bot] web_confirm side-effects:', e.message);
-      }
-      const appId = process.env.VK_APP_ID;
-      const groupId = process.env.VK_GROUP_ID;
-      let okText = `✅ Запись подтверждена!\n\n`
-        + `Услуга: ${b.service_name}\n`
-        + `Дата: ${formatLocalDate(b.start_at, tz)}, ${formatLocalTime(b.start_at, tz)}\n`
-        + `Адрес: Мкр Околица д.1, кв. 60`;
-      if (appId && groupId) {
-        okText += `\n\nЧтобы я мог напоминать о записи:\nhttps://vk.com/app${appId}?ref=booking_notify`;
-      } else {
-        okText += `\n\nНапомню за 24 ч и за 2 ч ⏰`;
-      }
-      await sendVkMessage(vkUserId, okText, emptyKeyboard());
-    } else {
-      await sendVkMessage(vkUserId, 'Запись уже обработана или не найдена.', emptyKeyboard());
-    }
-    return;
-  }
-
-  // Отмена web-записи через VK-бот
-  if (cmd === 'web_cancel' && payload && payload.id) {
-    await pool.query(
-      `UPDATE bookings SET status = 'canceled', updated_at = NOW()
-       WHERE id = $1 AND status = 'pending_confirmation'`,
-      [payload.id]
-    );
-    await sendVkMessage(vkUserId, '❌ Запись отменена.', emptyKeyboard());
-    return;
-  }
-
   const session = getSession(vkUserId);
   const master = await loadMaster();
   if (!master) {
@@ -416,46 +370,8 @@ async function handleVkMessage(msg, info = {}) {
   // Создаём/получаем пользователя в БД
   const dbUser = await getOrCreateVkUser(vkUserId, info.first_name, info.last_name);
 
-  // ── IDLE / проверка pending web-записи ───────────────────────────────────
+  // ── IDLE ──────────────────────────────────────────────────────────────────
   if (session.state === 'IDLE' || !session.state) {
-    // Проверяем есть ли pending_confirmation web-запись для этого vk_user_id
-    const { rows: pendingRows } = await pool.query(
-      `SELECT b.id, b.start_at, b.web_confirm_token, s.name AS service_name, m.timezone
-       FROM bookings b
-       JOIN users u ON u.id = b.client_id
-       JOIN services s ON s.id = b.service_id
-       JOIN masters m ON m.id = b.master_id
-       WHERE u.vk_user_id = $1
-         AND b.status = 'pending_confirmation'
-         AND b.web_contact_channel = 'vk'
-         AND b.start_at > NOW()
-       ORDER BY b.created_at DESC
-       LIMIT 1`,
-      [vkUserId]
-    );
-
-    if (pendingRows.length > 0) {
-      const pending = pendingRows[0];
-      const tz = pending.timezone || 'Asia/Novosibirsk';
-      const dateStr = formatLocalDate(pending.start_at, tz);
-      const timeStr = formatLocalTime(pending.start_at, tz);
-
-      const confirmText = `👋 Привет! Вижу твою запись:\n\n`
-        + `Услуга: ${pending.service_name}\n`
-        + `Дата: ${dateStr}, ${timeStr}\n\n`
-        + `Подтвердить запись?`;
-
-      await sendVkMessage(
-        vkUserId,
-        confirmText,
-        buildKeyboard([[
-          makeButton('✅ Подтвердить', { c: 'web_confirm', id: pending.id }, 'positive'),
-          makeButton('❌ Отмена', { c: 'web_cancel', id: pending.id }, 'negative')
-        ]])
-      );
-      return;
-    }
-
     await sendServiceList(vkUserId, master);
     return;
   }
@@ -549,17 +465,7 @@ async function handleVkMessage(msg, info = {}) {
         + `Время: ${formatLocalTime(session.startAt, tz)}\n`
         + `Адрес: Мкр Околица д.1, кв. 60\n`;
 
-      // Предлагаем разрешить уведомления от сообщества
-      const appId = process.env.VK_APP_ID;
-      const groupId = process.env.VK_GROUP_ID;
-      if (appId && groupId) {
-        successText += `\n\nЧтобы я мог напоминать о записи, разреши уведомления:`
-          + `\nhttps://vk.com/app${appId}?ref=booking_notify`;
-      } else {
-        successText += `\n\nНапомню за 24 ч и за 2 ч до записи ⏰`;
-      }
-
-      successText += `\n\nЧтобы записаться снова — напиши «Записаться».`;
+      successText += `\n\nНапомню за 24 ч и за 2 ч до записи ⏰\n\nЧтобы записаться снова — напиши «Записаться».`;
 
       await sendVkMessage(vkUserId, successText, emptyKeyboard());
       clearSession(vkUserId);
