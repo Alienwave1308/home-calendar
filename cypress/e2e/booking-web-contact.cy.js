@@ -23,7 +23,7 @@ describe('Web booking contact screen', () => {
       statusCode: 200,
       body: {
         slots: [
-          { start: new Date(Date.now() + 86400000).toISOString(), end: new Date(Date.now() + 90000000).toISOString(), label: '10:00' }
+          { start: new Date(Date.now() + 3600000).toISOString(), end: new Date(Date.now() + 7200000).toISOString(), label: '14:00' }
         ]
       }
     }).as('slots');
