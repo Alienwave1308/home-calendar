@@ -5,7 +5,7 @@
 
 describe('Web booking contact screen', () => {
   beforeEach(() => {
-    cy.intercept('GET', '/api/public/master/*', {
+    cy.intercept('GET', /\/api\/public\/master\/[^/]+$/, {
       statusCode: 200,
       body: {
         display_name: 'Лера',
