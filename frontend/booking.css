@@ -999,12 +999,24 @@ html.is-web-browser .phone {
   border-radius: 0;
   border: none;
   box-shadow: none;
+  height: 100dvh;
   min-height: 100dvh;
-  height: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 html.is-web-browser .statusbar {
   display: none;
+}
+
+html.is-web-browser .dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  margin: 0 10px;
+  z-index: 100;
 }
 
 html.is-web-browser .noise,

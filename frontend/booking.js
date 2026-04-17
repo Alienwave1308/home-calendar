@@ -41,8 +41,7 @@
     const token = hashParams.get('vk_token');
     if (!token) return;
     try {
-      localStorage.setItem('authToken', token);
-      // Убираем hash из URL не перезагружая страницу
+      localStorage.setItem('token', token);
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     } catch (e) {
       void e;
@@ -331,6 +330,17 @@
     throw (lastError || new Error('Ошибка сети'));
   }
 
+  function getOrCreateGuestId() {
+    const key = 'guest_id';
+    let id = localStorage.getItem(key);
+    if (!id || id.length < 16) {
+      id = Array.from(crypto.getRandomValues(new Uint8Array(18)))
+        .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      localStorage.setItem(key, id);
+    }
+    return id;
+  }
+
   async function initAuth() {
     if (localStorage.getItem('token')) return true;
 
@@ -358,6 +368,19 @@
         return true;
       }
       throw new Error('Ошибка авторизации ВКонтакте');
+    }
+
+    if (isWebBrowser) {
+      const data = await requestJson('/auth/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guest_id: getOrCreateGuestId() })
+      });
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        return true;
+      }
+      throw new Error('Ошибка создания гостевого аккаунта');
     }
 
     return false;
@@ -1362,7 +1385,17 @@
     }
     if (el.contactVk) {
       el.contactVk.addEventListener('click', function () {
-        // VK OAuth — редирект, после которого возвращаемся с токеном
+        // Сохраняем состояние записи перед редиректом на VK OAuth
+        try {
+          sessionStorage.setItem('vk_pending_booking', JSON.stringify({
+            serviceIds: state.selectedServiceIds.slice(),
+            slotStart: state.selectedSlot ? state.selectedSlot.start : null,
+            slotEnd: state.selectedSlot ? state.selectedSlot.end : null,
+            slotLabel: state.selectedSlotLabel || '',
+            note: el.noteInput ? String(el.noteInput.value || '') : '',
+            promoCode: state.promoCode || ''
+          }));
+        } catch (e) { void e; }
         const currentSlug = slug || 'lera';
         window.location.href = '/api/auth/vk/oauth?slug=' + currentSlug;
       });
@@ -1462,10 +1495,38 @@
       renderTabs();
       renderScreens();
       renderDock();
+
+      // После загрузки мастера проверяем, вернулись ли мы с VK OAuth с сохранённой записью
+      tryRestoreVkPendingBooking();
     } catch (error) {
       showToast('Не удалось загрузить данные: ' + error.message);
       el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Не удалось загрузить услуги.</p></section>';
     }
+  }
+
+  async function tryRestoreVkPendingBooking() {
+    if (!localStorage.getItem('token')) return;
+    let saved;
+    try {
+      const raw = sessionStorage.getItem('vk_pending_booking');
+      if (!raw) return;
+      saved = JSON.parse(raw);
+      sessionStorage.removeItem('vk_pending_booking');
+    } catch (e) { return; }
+
+    if (!saved || !saved.serviceIds || !saved.slotStart) return;
+
+    state.selectedServiceIds = saved.serviceIds;
+    if (saved.slotStart) {
+      state.selectedSlot = { start: saved.slotStart, end: saved.slotEnd, label: saved.slotLabel };
+      state.selectedSlotLabel = saved.slotLabel || '';
+    }
+    if (el.noteInput && saved.note) el.noteInput.value = saved.note;
+    state.promoCode = saved.promoCode || '';
+
+    renderServices();
+    renderDock();
+    await submitBookingWeb('vk');
   }
 
   bind();
