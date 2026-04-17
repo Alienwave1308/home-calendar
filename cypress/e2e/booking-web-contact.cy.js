@@ -5,8 +5,7 @@
 
 describe('Web booking contact screen', () => {
   beforeEach(() => {
-    // Intercept profile and services
-    cy.intercept('GET', '/api/public/master/*/profile', {
+    cy.intercept('GET', '/api/public/master/*', {
       statusCode: 200,
       body: {
         display_name: 'Лера',
@@ -31,18 +30,15 @@ describe('Web booking contact screen', () => {
 
     cy.visit('/book/lera', {
       onBeforeLoad(win) {
-        // Симулируем веб-браузер (без Telegram и VK)
         delete win.Telegram;
         delete win.vkBridge;
       }
     });
 
-    cy.wait('@profile');
+    cy.get('#servicesList').should('be.visible');
   });
 
   it('показывает экран выбора мессенджера после нажатия "Подтвердить"', () => {
-    // Выбираем услугу
-    cy.get('#servicesList').should('be.visible');
     cy.get('.service-card, .service-item, [data-service-id]').first().click();
 
     // Ждём кнопку перехода к календарю
@@ -62,7 +58,6 @@ describe('Web booking contact screen', () => {
   });
 
   it('кнопка ВКонтакте ведёт на VK OAuth', () => {
-    cy.get('#servicesList').should('be.visible');
     cy.get('.service-card, .service-item, [data-service-id]').first().click();
     cy.get('#dockAction').should('be.visible').click();
     cy.get('.slot-btn, [data-slot]').first().click({ force: true });
@@ -75,7 +70,6 @@ describe('Web booking contact screen', () => {
   });
 
   it('кнопка "Назад" возвращает на экран подтверждения', () => {
-    cy.get('#servicesList').should('be.visible');
     cy.get('.service-card, .service-item, [data-service-id]').first().click();
     cy.get('#dockAction').should('be.visible').click();
     cy.get('.slot-btn, [data-slot]').first().click({ force: true });
