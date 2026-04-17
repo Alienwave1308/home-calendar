@@ -32,6 +32,9 @@ describe('Web booking contact screen', () => {
       onBeforeLoad(win) {
         delete win.Telegram;
         delete win.vkBridge;
+        // booking.js checks window.Cypress to detect mini-app context;
+        // unset it so isWebBrowser=true and the contact screen is shown
+        delete win.Cypress;
       }
     });
 
