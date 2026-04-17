@@ -38,41 +38,33 @@ describe('Web booking contact screen', () => {
     cy.get('#servicesList').should('be.visible');
   });
 
-  it('показывает экран выбора мессенджера после нажатия "Подтвердить"', () => {
+  function selectServiceAndSlot() {
     cy.get('.service-card, .service-item, [data-service-id]').first().click();
-
-    // Ждём кнопку перехода к календарю
     cy.get('#dockAction').should('be.visible').click();
+    cy.get('#screen-calendar').should('have.class', 'active');
+    cy.get('#calGrid button[data-day]:not([disabled])').first().click();
+    cy.get('[data-slot-start]').first().click({ force: true });
+  }
 
-    // Выбираем слот
-    cy.get('.slot-btn, [data-slot]').first().click({ force: true });
-
-    // Переходим к подтверждению
+  it('показывает экран выбора мессенджера после нажатия "Подтвердить"', () => {
+    selectServiceAndSlot();
     cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
-
-    // Должен появиться экран выбора мессенджера
     cy.get('#screen-contact').should('have.class', 'active');
     cy.get('#contactVk').should('be.visible');
     cy.get('#contactTg').should('be.visible');
   });
 
   it('кнопка ВКонтакте ведёт на VK OAuth', () => {
-    cy.get('.service-card, .service-item, [data-service-id]').first().click();
-    cy.get('#dockAction').should('be.visible').click();
-    cy.get('.slot-btn, [data-slot]').first().click({ force: true });
+    selectServiceAndSlot();
     cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
     cy.get('#screen-contact').should('have.class', 'active');
-
-    // Проверяем что кнопка VK ведёт на OAuth
     cy.get('#contactVk').should('be.visible').should('not.be.disabled');
   });
 
   it('кнопка "Назад" возвращает на экран подтверждения', () => {
-    cy.get('.service-card, .service-item, [data-service-id]').first().click();
-    cy.get('#dockAction').should('be.visible').click();
-    cy.get('.slot-btn, [data-slot]').first().click({ force: true });
+    selectServiceAndSlot();
     cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
     cy.get('#screen-contact').should('have.class', 'active');
