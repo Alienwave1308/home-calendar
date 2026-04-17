@@ -1,0 +1,2693 @@
+{
+  "name": "Sprint – Delivery",
+  "nodes": [
+    {
+      "id": "505:202287",
+      "name": "Reward Coin Card States",
+      "type": "SECTION",
+      "layout": "layout_8LM3K6",
+      "fills": "fill_W4A6ZO",
+      "strokes": "stroke_X4WQI8",
+      "children": [
+        {
+          "id": "505:202288",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_P0SE39",
+          "componentId": "484:35455",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 usdt",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247724",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Large",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202288;453:65531",
+              "name": "REWARD_BG_GRAY",
+              "type": "INSTANCE",
+              "layout": "layout_LVN1OV",
+              "fills": "fill_PQ6I6V",
+              "componentId": "407:247724",
+              "children": [
+                {
+                  "id": "I505:202288;453:65531;2305:181",
+                  "name": "REWARD_BG_GRAY",
+                  "type": "RECTANGLE",
+                  "layout": "layout_512POV",
+                  "fills": "fill_UAN045"
+                }
+              ]
+            },
+            {
+              "id": "I505:202288;453:65358",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 usdt",
+              "textStyle": "Title/Unbounded/XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202288;453:65695",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_8Z0HW3",
+              "children": [
+                {
+                  "id": "I505:202288;453:65539",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_2RYSV3",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202288;453:65539;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_IL3XRV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202288;453:65518",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202288;453:65518;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202288;453:65518;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202288;453:65518;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202289",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_U90SGE",
+          "componentId": "484:35456",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 usdt",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247724",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Medium",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202289;453:65680",
+              "name": "REWARD_BG_GRAY",
+              "type": "INSTANCE",
+              "layout": "layout_CM9W1G",
+              "componentId": "407:247724",
+              "children": [
+                {
+                  "id": "I505:202289;453:65680;2305:181",
+                  "name": "REWARD_BG_GRAY",
+                  "type": "RECTANGLE",
+                  "layout": "layout_O39AGE",
+                  "fills": "fill_UAN045"
+                }
+              ]
+            },
+            {
+              "id": "I505:202289;453:65681",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 usdt",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202289;453:65696",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202289;453:65683",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202289;453:65683;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202289;453:65684",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202289;453:65684;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202289;453:65684;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202289;453:65684;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202290",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_N9PM8Z",
+          "componentId": "484:35457",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 usdt",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247724",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Small",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202290;456:69276",
+              "name": "REWARD_BG_GRAY",
+              "type": "INSTANCE",
+              "layout": "layout_WWNCPT",
+              "componentId": "407:247724",
+              "children": [
+                {
+                  "id": "I505:202290;456:69276;2305:181",
+                  "name": "REWARD_BG_GRAY",
+                  "type": "RECTANGLE",
+                  "layout": "layout_2H3MRD",
+                  "fills": "fill_UAN045"
+                }
+              ]
+            },
+            {
+              "id": "I505:202290;456:69277",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 usdt",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202290;456:69278",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202290;456:69279",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202290;456:69279;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202290;456:69280",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202290;456:69280;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202290;456:69280;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202290;456:69280;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202291",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_P0SE39",
+          "componentId": "484:35455",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247726",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Large",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202291;453:65531",
+              "name": "REWARD_BG_BLUE",
+              "type": "INSTANCE",
+              "layout": "layout_LVN1OV",
+              "componentId": "407:247726",
+              "children": [
+                {
+                  "id": "I505:202291;453:65531;2305:190",
+                  "name": "REWARD_BG_BLUE",
+                  "type": "RECTANGLE",
+                  "layout": "layout_512POV",
+                  "fills": "fill_Z4N7CN"
+                }
+              ]
+            },
+            {
+              "id": "I505:202291;453:65358",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202291;453:65695",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_8Z0HW3",
+              "children": [
+                {
+                  "id": "I505:202291;453:65539",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_2RYSV3",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202291;453:65539;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_IL3XRV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202291;453:65518",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202291;453:65518;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202291;453:65518;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202291;453:65518;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202292",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_U90SGE",
+          "componentId": "484:35456",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247726",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Medium",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202292;453:65680",
+              "name": "REWARD_BG_BLUE",
+              "type": "INSTANCE",
+              "layout": "layout_CM9W1G",
+              "componentId": "407:247726",
+              "children": [
+                {
+                  "id": "I505:202292;453:65680;2305:190",
+                  "name": "REWARD_BG_BLUE",
+                  "type": "RECTANGLE",
+                  "layout": "layout_O39AGE",
+                  "fills": "fill_Z4N7CN"
+                }
+              ]
+            },
+            {
+              "id": "I505:202292;453:65681",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202292;453:65696",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202292;453:65683",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202292;453:65683;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202292;453:65684",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202292;453:65684;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202292;453:65684;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202292;453:65684;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202293",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_N9PM8Z",
+          "componentId": "484:35457",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247726",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Small",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202293;456:69276",
+              "name": "REWARD_BG_BLUE",
+              "type": "INSTANCE",
+              "layout": "layout_WWNCPT",
+              "componentId": "407:247726",
+              "children": [
+                {
+                  "id": "I505:202293;456:69276;2305:190",
+                  "name": "REWARD_BG_BLUE",
+                  "type": "RECTANGLE",
+                  "layout": "layout_2H3MRD",
+                  "fills": "fill_Z4N7CN"
+                }
+              ]
+            },
+            {
+              "id": "I505:202293;456:69277",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202293;456:69278",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202293;456:69279",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202293;456:69279;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202293;456:69280",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202293;456:69280;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202293;456:69280;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202293;456:69280;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202294",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_P0SE39",
+          "componentId": "484:35455",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247728",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Large",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202294;453:65531",
+              "name": "REWARD_BG_PURPLE",
+              "type": "INSTANCE",
+              "layout": "layout_LVN1OV",
+              "componentId": "407:247728",
+              "children": [
+                {
+                  "id": "I505:202294;453:65531;2305:188",
+                  "name": "REWARD_BG_PURPLE",
+                  "type": "RECTANGLE",
+                  "layout": "layout_512POV",
+                  "fills": "fill_LFQ7ZM"
+                }
+              ]
+            },
+            {
+              "id": "I505:202294;453:65358",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202294;453:65695",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_8Z0HW3",
+              "children": [
+                {
+                  "id": "I505:202294;453:65539",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_2RYSV3",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202294;453:65539;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_IL3XRV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202294;453:65518",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202294;453:65518;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202294;453:65518;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202294;453:65518;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202295",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_U90SGE",
+          "componentId": "484:35456",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247728",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Medium",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202295;453:65680",
+              "name": "REWARD_BG_PURPLE",
+              "type": "INSTANCE",
+              "layout": "layout_CM9W1G",
+              "componentId": "407:247728",
+              "children": [
+                {
+                  "id": "I505:202295;453:65680;2305:188",
+                  "name": "REWARD_BG_PURPLE",
+                  "type": "RECTANGLE",
+                  "layout": "layout_O39AGE",
+                  "fills": "fill_LFQ7ZM"
+                }
+              ]
+            },
+            {
+              "id": "I505:202295;453:65681",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202295;453:65696",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202295;453:65683",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202295;453:65683;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202295;453:65684",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202295;453:65684;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202295;453:65684;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202295;453:65684;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202296",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_N9PM8Z",
+          "componentId": "484:35457",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "407:247728",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Small",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202296;456:69276",
+              "name": "REWARD_BG_PURPLE",
+              "type": "INSTANCE",
+              "layout": "layout_WWNCPT",
+              "componentId": "407:247728",
+              "children": [
+                {
+                  "id": "I505:202296;456:69276;2305:188",
+                  "name": "REWARD_BG_PURPLE",
+                  "type": "RECTANGLE",
+                  "layout": "layout_2H3MRD",
+                  "fills": "fill_LFQ7ZM"
+                }
+              ]
+            },
+            {
+              "id": "I505:202296;456:69277",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202296;456:69278",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202296;456:69279",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202296;456:69279;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202296;456:69280",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202296;456:69280;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202296;456:69280;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202296;456:69280;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202297",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_P0SE39",
+          "componentId": "484:35455",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "393:161377",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Large",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202297;453:65531",
+              "name": "REWARD_BG_GOLD",
+              "type": "INSTANCE",
+              "layout": "layout_LVN1OV",
+              "componentId": "393:161377",
+              "children": [
+                {
+                  "id": "I505:202297;453:65531;2305:184",
+                  "name": "REWARD_BG_GOLD",
+                  "type": "RECTANGLE",
+                  "layout": "layout_512POV",
+                  "fills": "fill_G61OIW"
+                }
+              ]
+            },
+            {
+              "id": "I505:202297;453:65358",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202297;453:65695",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_8Z0HW3",
+              "children": [
+                {
+                  "id": "I505:202297;453:65539",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_2RYSV3",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202297;453:65539;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_IL3XRV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202297;453:65518",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202297;453:65518;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202297;453:65518;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202297;453:65518;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202298",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_U90SGE",
+          "componentId": "484:35456",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "393:161377",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Medium",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202298;453:65680",
+              "name": "REWARD_BG_GOLD",
+              "type": "INSTANCE",
+              "layout": "layout_CM9W1G",
+              "componentId": "393:161377",
+              "children": [
+                {
+                  "id": "I505:202298;453:65680;2305:184",
+                  "name": "REWARD_BG_GOLD",
+                  "type": "RECTANGLE",
+                  "layout": "layout_O39AGE",
+                  "fills": "fill_G61OIW"
+                }
+              ]
+            },
+            {
+              "id": "I505:202298;453:65681",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202298;453:65696",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202298;453:65683",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202298;453:65683;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202298;453:65684",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202298;453:65684;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202298;453:65684;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202298;453:65684;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:202299",
+          "name": "Reward",
+          "type": "INSTANCE",
+          "layout": "layout_N9PM8Z",
+          "componentId": "484:35457",
+          "componentProperties": [
+            {
+              "name": "Coin Swap#453:16",
+              "value": "149:12189",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Title#454:3",
+              "value": "1 BTC",
+              "type": "TEXT"
+            },
+            {
+              "name": "BG Rarity Swap#454:0",
+              "value": "393:161377",
+              "type": "INSTANCE_SWAP"
+            },
+            {
+              "name": "Size",
+              "value": "Small",
+              "type": "VARIANT"
+            },
+            {
+              "name": "State",
+              "value": "Default",
+              "type": "VARIANT"
+            }
+          ],
+          "children": [
+            {
+              "id": "I505:202299;456:69276",
+              "name": "REWARD_BG_GOLD",
+              "type": "INSTANCE",
+              "layout": "layout_WWNCPT",
+              "componentId": "393:161377",
+              "children": [
+                {
+                  "id": "I505:202299;456:69276;2305:184",
+                  "name": "REWARD_BG_GOLD",
+                  "type": "RECTANGLE",
+                  "layout": "layout_2H3MRD",
+                  "fills": "fill_G61OIW"
+                }
+              ]
+            },
+            {
+              "id": "I505:202299;456:69277",
+              "name": "Reward Amount",
+              "type": "TEXT",
+              "layout": "layout_SCS1ED",
+              "text": "1 BTC",
+              "textStyle": "Title/Unbounded/3XSmall",
+              "fills": "fill_PQ6I6V",
+              "effects": "Shadow"
+            },
+            {
+              "id": "I505:202299;456:69278",
+              "name": "Coin Container",
+              "type": "FRAME",
+              "layout": "layout_GZOGTZ",
+              "children": [
+                {
+                  "id": "I505:202299;456:69279",
+                  "name": "BTC",
+                  "type": "INSTANCE",
+                  "layout": "layout_57J7W4",
+                  "componentId": "149:12189",
+                  "children": [
+                    {
+                      "id": "I505:202299;456:69279;2058:7",
+                      "name": "BTC",
+                      "type": "RECTANGLE",
+                      "layout": "layout_38SKMV",
+                      "fills": "fill_BJG1WB"
+                    }
+                  ]
+                },
+                {
+                  "id": "I505:202299;456:69280",
+                  "name": "Button",
+                  "type": "INSTANCE",
+                  "layout": "layout_A4CE5E",
+                  "fills": "fill_BPYO0Q",
+                  "effects": "Button/Blur",
+                  "borderRadius": "999px",
+                  "componentId": "393:149796",
+                  "componentProperties": [
+                    {
+                      "name": "⚙️ Right Icon#185:30",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "⚙️ Left Icon#185:0",
+                      "value": "7:24",
+                      "type": "INSTANCE_SWAP"
+                    },
+                    {
+                      "name": "Second Label#181:30",
+                      "value": "2.5",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Second Container#181:24",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Label#181:0",
+                      "value": "109,571",
+                      "type": "TEXT"
+                    },
+                    {
+                      "name": "Show Left Token#189:60",
+                      "value": "true",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Left Icon#181:6",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Show Right Icon#181:18",
+                      "value": "false",
+                      "type": "BOOLEAN"
+                    },
+                    {
+                      "name": "Type",
+                      "value": "Secondary",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small",
+                      "type": "VARIANT"
+                    },
+                    {
+                      "name": "State",
+                      "value": "Default",
+                      "type": "VARIANT"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "I505:202299;456:69280;181:5593",
+                      "name": "Label Container",
+                      "type": "FRAME",
+                      "layout": "layout_1ZFNU3",
+                      "children": [
+                        {
+                          "id": "I505:202299;456:69280;181:5594",
+                          "name": "Label",
+                          "type": "TEXT",
+                          "layout": "layout_SCS1ED",
+                          "text": "109,571",
+                          "textStyle": "Label/Small",
+                          "fills": "fill_PQ6I6V"
+                        },
+                        {
+                          "id": "I505:202299;456:69280;194:4155",
+                          "name": "Token",
+                          "type": "IMAGE-SVG",
+                          "layout": "layout_6OP9UA",
+                          "componentId": "7:66"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "505:222350",
+          "name": "Group 1000003200",
+          "type": "GROUP",
+          "layout": "layout_H1LJIN",
+          "borderRadius": "16px",
+          "children": [
+            {
+              "id": "505:222351",
+              "name": "Button",
+              "type": "FRAME",
+              "layout": "layout_UPL57U",
+              "fills": "fill_6O66OB",
+              "borderRadius": "16px",
+              "children": [
+                {
+                  "id": "505:222352",
+                  "name": "List Item Base",
+                  "type": "FRAME",
+                  "layout": "layout_NATOM9",
+                  "children": [
+                    {
+                      "id": "505:222353",
+                      "name": "Title",
+                      "type": "TEXT",
+                      "layout": "layout_SCS1ED",
+                      "text": "❖ Компонент карточки монеты на странице награды",
+                      "textStyle": "Title/Inter/Small",
+                      "fills": "fill_PQ6I6V"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "components": {
+    "484:35455": {
+      "id": "484:35455",
+      "key": "08618c44f28d0346c2b9543deb1bb04f49b6a695",
+      "name": "Size=Large, State=Default",
+      "componentSetId": "484:35454"
+    },
+    "407:247724": {
+      "id": "407:247724",
+      "key": "a5bba726dce9899d0973ce89cb7b9f858eae00ed",
+      "name": "REWARD_BG_GRAY"
+    },
+    "149:12189": {
+      "id": "149:12189",
+      "key": "700a74efb4c286b8f1e98c6d871e4bd6faa87467",
+      "name": "BTC"
+    },
+    "393:149796": {
+      "id": "393:149796",
+      "key": "21c5aa33482ebac4dfcc5955a9fd50138be59ac8",
+      "name": "Type=Secondary, Size=Small, State=Default",
+      "componentSetId": "393:149720"
+    },
+    "7:24": {
+      "id": "7:24",
+      "key": "30ad5a68bb2420ed9cf04e3e5e78876ba3fbf1d2",
+      "name": "icon/coin"
+    },
+    "7:66": {
+      "id": "7:66",
+      "key": "b3a08bf5b1ba1fd88d4614cbdb8f05185fd58de8",
+      "name": "Token"
+    },
+    "484:35456": {
+      "id": "484:35456",
+      "key": "643ab6a1e38919c1ef8d9d50fc6c47997cfe8917",
+      "name": "Size=Medium, State=Default",
+      "componentSetId": "484:35454"
+    },
+    "484:35457": {
+      "id": "484:35457",
+      "key": "9eab0d61ac84569d00eee71edcf795ac11be8bad",
+      "name": "Size=Small, State=Default",
+      "componentSetId": "484:35454"
+    },
+    "407:247726": {
+      "id": "407:247726",
+      "key": "8b63c8a4b59a1ef2fab45ef6d98914b2dee1e2a6",
+      "name": "REWARD_BG_BLUE"
+    },
+    "407:247728": {
+      "id": "407:247728",
+      "key": "41c666b98aa0d85ebda4b7d129de14d9a8dd7f1b",
+      "name": "REWARD_BG_PURPLE"
+    },
+    "393:161377": {
+      "id": "393:161377",
+      "key": "a8c56f128ce1559a034911882cbeb9e0a4777427",
+      "name": "REWARD_BG_GOLD"
+    }
+  },
+  "componentSets": {
+    "484:35454": {
+      "id": "484:35454",
+      "key": "a106ab2deebffd8626eb94f9f0fa84815f707021",
+      "name": "Reward",
+      "description": ""
+    },
+    "393:149720": {
+      "id": "393:149720",
+      "key": "3afe72b9e0da076cf7a4cddc1b75109c0d601573",
+      "name": "Button",
+      "description": ""
+    }
+  },
+  "globalVars": {
+    "styles": {
+      "layout_8LM3K6": {
+        "mode": "none",
+        "sizing": {},
+        "dimensions": {
+          "width": 1112,
+          "height": 1624
+        }
+      },
+      "fill_W4A6ZO": [
+        "#09090B"
+      ],
+      "stroke_X4WQI8": {
+        "colors": [
+          "rgba(0, 0, 0, 0.1)"
+        ],
+        "strokeWeight": "1px"
+      },
+      "layout_P0SE39": {
+        "mode": "column",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "gap": "20px",
+        "padding": "6px 0px 0px",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "dimensions": {
+          "width": 300,
+          "height": 254
+        }
+      },
+      "layout_LVN1OV": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "position": "absolute",
+        "locationRelativeToParent": {
+          "x": 23,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 254,
+          "height": 254
+        }
+      },
+      "fill_PQ6I6V": [
+        "#FFFFFF"
+      ],
+      "layout_512POV": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 254,
+          "height": 254
+        }
+      },
+      "fill_UAN045": [
+        {
+          "type": "IMAGE",
+          "imageRef": "a1e8947d998e267944e7ec4052bdfdccaa670b01",
+          "scaleMode": "FILL",
+          "objectFit": "cover",
+          "isBackground": false,
+          "imageDownloadArguments": {
+            "needsCropping": false,
+            "requiresImageDimensions": false
+          }
+        }
+      ],
+      "layout_SCS1ED": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "hug",
+          "vertical": "hug"
+        }
+      },
+      "Title/Unbounded/XSmall": {
+        "fontFamily": "Unbounded",
+        "fontWeight": 600,
+        "fontSize": 24,
+        "lineHeight": "1.0833333333333333em",
+        "textCase": "UPPER",
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "TOP"
+      },
+      "Shadow": {
+        "textShadow": "0px 1px 10px 0px rgba(0, 0, 0, 1)"
+      },
+      "layout_8Z0HW3": {
+        "mode": "column",
+        "alignItems": "center",
+        "gap": "12px",
+        "sizing": {
+          "horizontal": "hug",
+          "vertical": "hug"
+        }
+      },
+      "layout_2RYSV3": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "dimensions": {
+          "width": 128,
+          "height": 128
+        }
+      },
+      "layout_IL3XRV": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 128,
+          "height": 128
+        }
+      },
+      "fill_BJG1WB": [
+        {
+          "type": "IMAGE",
+          "imageRef": "6c9ff45c95a41181f6e95afc8c860cddd2a7b134",
+          "scaleMode": "FILL",
+          "objectFit": "cover",
+          "isBackground": false,
+          "imageDownloadArguments": {
+            "needsCropping": false,
+            "requiresImageDimensions": false
+          }
+        }
+      ],
+      "layout_A4CE5E": {
+        "mode": "row",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "gap": "6px",
+        "padding": "10px 16px",
+        "sizing": {
+          "horizontal": "hug",
+          "vertical": "hug"
+        }
+      },
+      "fill_BPYO0Q": [
+        "rgba(209, 209, 234, 0.07)"
+      ],
+      "Button/Blur": {
+        "boxShadow": "inset 0px 0.5px 0px 0px rgba(255, 255, 255, 0.25)",
+        "backdropFilter": "blur(50px)"
+      },
+      "layout_1ZFNU3": {
+        "mode": "row",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "gap": "1.5px",
+        "sizing": {
+          "horizontal": "hug",
+          "vertical": "hug"
+        }
+      },
+      "Label/Small": {
+        "fontFamily": "Inter",
+        "fontWeight": 600,
+        "fontSize": 14,
+        "lineHeight": "1.4285714285714286em",
+        "textAlignHorizontal": "LEFT",
+        "textAlignVertical": "TOP"
+      },
+      "layout_6OP9UA": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "dimensions": {
+          "width": 12,
+          "height": 12
+        }
+      },
+      "layout_FVD7N9": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 1.33,
+          "y": 1
+        },
+        "dimensions": {
+          "width": 9.33,
+          "height": 10
+        }
+      },
+      "layout_U90SGE": {
+        "mode": "column",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "gap": "16px",
+        "padding": "8px 0px 0px",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "dimensions": {
+          "width": 172,
+          "height": 195
+        }
+      },
+      "layout_CM9W1G": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "position": "absolute",
+        "locationRelativeToParent": {
+          "x": 0.5,
+          "y": 12
+        },
+        "dimensions": {
+          "width": 171,
+          "height": 171
+        }
+      },
+      "layout_O39AGE": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 171,
+          "height": 171
+        }
+      },
+      "Title/Unbounded/3XSmall": {
+        "fontFamily": "Unbounded",
+        "fontWeight": 600,
+        "fontSize": 16,
+        "lineHeight": "1.5em",
+        "textCase": "UPPER",
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "TOP"
+      },
+      "layout_GZOGTZ": {
+        "mode": "column",
+        "alignItems": "center",
+        "gap": "8px",
+        "sizing": {
+          "horizontal": "hug",
+          "vertical": "hug"
+        }
+      },
+      "layout_57J7W4": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "dimensions": {
+          "width": 96,
+          "height": 96
+        }
+      },
+      "layout_38SKMV": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 96,
+          "height": 96
+        }
+      },
+      "layout_N9PM8Z": {
+        "mode": "column",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "gap": "16px",
+        "padding": "8px 0px 0px",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "dimensions": {
+          "width": 144,
+          "height": 195
+        }
+      },
+      "layout_WWNCPT": {
+        "mode": "none",
+        "sizing": {
+          "horizontal": "fixed",
+          "vertical": "fixed"
+        },
+        "position": "absolute",
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 26
+        },
+        "dimensions": {
+          "width": 144,
+          "height": 144
+        }
+      },
+      "layout_2H3MRD": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 144,
+          "height": 144
+        }
+      },
+      "fill_Z4N7CN": [
+        {
+          "type": "IMAGE",
+          "imageRef": "65b053f8e690c115162ffcbc172294d9da1b508b",
+          "scaleMode": "FILL",
+          "objectFit": "cover",
+          "isBackground": false,
+          "imageDownloadArguments": {
+            "needsCropping": false,
+            "requiresImageDimensions": false
+          }
+        }
+      ],
+      "fill_LFQ7ZM": [
+        {
+          "type": "IMAGE",
+          "imageRef": "59ce4f1b77e46743e18442b460110c90f96e37c0",
+          "scaleMode": "FILL",
+          "objectFit": "cover",
+          "isBackground": false,
+          "imageDownloadArguments": {
+            "needsCropping": false,
+            "requiresImageDimensions": false
+          }
+        }
+      ],
+      "fill_G61OIW": [
+        {
+          "type": "IMAGE",
+          "imageRef": "33285dff46c46d13bf6e5af25261af7964183445",
+          "scaleMode": "FILL",
+          "objectFit": "cover",
+          "isBackground": false,
+          "imageDownloadArguments": {
+            "needsCropping": false,
+            "requiresImageDimensions": false
+          }
+        }
+      ],
+      "layout_H1LJIN": {
+        "mode": "none",
+        "sizing": {},
+        "dimensions": {
+          "width": 555,
+          "height": 56
+        }
+      },
+      "layout_UPL57U": {
+        "mode": "none",
+        "sizing": {},
+        "locationRelativeToParent": {
+          "x": 0,
+          "y": 0
+        },
+        "dimensions": {
+          "width": 555,
+          "height": 56
+        }
+      },
+      "fill_6O66OB": [
+        "#3F3F46"
+      ],
+      "layout_NATOM9": {
+        "mode": "row",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "gap": "8px",
+        "sizing": {
+          "horizontal": "hug",
+          "vertical": "fixed"
+        },
+        "locationRelativeToParent": {
+          "x": 19,
+          "y": 8
+        },
+        "dimensions": {
+          "height": 40
+        }
+      },
+      "Title/Inter/Small": {
+        "fontFamily": "Inter",
+        "fontWeight": 600,
+        "fontSize": 20,
+        "lineHeight": "1.4em",
+        "letterSpacing": "-2.0000000298023224%",
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "CENTER"
+      }
+    }
+  }
+}

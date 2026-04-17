@@ -117,9 +117,6 @@ app.use('/api/public', publicBookingRouter);
 const vkWebhookRouter = require('./routes/vk-webhook');
 app.use('/api/vk', vkWebhookRouter);
 
-// VK OAuth для web-версии записи
-const vkOauthRouter = require('./routes/vk-oauth');
-app.use('/api/auth/vk', vkOauthRouter);
 
 // Telegram Bot webhook (подтверждение web-записей по deep link)
 const telegramWebhookRouter = require('./routes/telegram-webhook');

@@ -416,6 +416,41 @@ async function handleVkMessage(msg, info = {}) {
   // Создаём/получаем пользователя в БД
   const dbUser = await getOrCreateVkUser(vkUserId, info.first_name, info.last_name);
 
+  // ── Подтверждение web-записи по коду (ПОДТВЕРЖДЕНИЕ XXXXXXXX) ───────────
+  const codeMatch = text.match(/^ПОДТВЕРЖДЕНИЕ\s+([A-F0-9]{8})$/i);
+  if (codeMatch) {
+    const shortCode = codeMatch[1].toLowerCase();
+    const { rows: codeRows } = await pool.query(
+      `UPDATE bookings SET status = 'confirmed', updated_at = NOW()
+       WHERE LEFT(web_confirm_token, 8) = $1
+         AND status = 'pending_confirmation'
+         AND web_contact_channel = 'vk'
+         AND start_at > NOW()
+       RETURNING *, (SELECT name FROM services WHERE id = bookings.service_id) AS service_name,
+                    (SELECT timezone FROM masters WHERE id = bookings.master_id) AS tz`,
+      [shortCode]
+    );
+    if (codeRows.length > 0) {
+      const b = codeRows[0];
+      const tz = b.tz || 'Asia/Novosibirsk';
+      // Привязываем VK пользователя к клиентскому аккаунту
+      await pool.query('UPDATE users SET vk_user_id = $1 WHERE id = $2 AND vk_user_id IS NULL', [vkUserId, b.client_id]);
+      try {
+        await createReminders(b.id, b.master_id, b.start_at);
+        await notifyMasterBookingEvent(b.id, 'created');
+      } catch (e) {
+        console.error('[vk-bot] code_confirm side-effects:', e.message);
+      }
+      await sendVkMessage(vkUserId,
+        `✅ Запись подтверждена!\n\nУслуга: ${b.service_name}\nДата: ${formatLocalDate(b.start_at, tz)}, ${formatLocalTime(b.start_at, tz)}\nАдрес: Мкр Околица д.1, кв. 60`,
+        emptyKeyboard()
+      );
+      return;
+    }
+    await sendVkMessage(vkUserId, 'Код не найден или запись уже подтверждена. Проверь код и попробуй снова.', emptyKeyboard());
+    return;
+  }
+
   // ── IDLE / проверка pending web-записи ───────────────────────────────────
   if (session.state === 'IDLE' || !session.state) {
     // Проверяем есть ли pending_confirmation web-запись для этого vk_user_id

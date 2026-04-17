@@ -33,20 +33,6 @@
     }
   }
 
-  // Обрабатываем возврат с VK OAuth (токен в hash)
-  (function handleVkOauthReturn() {
-    const hash = window.location.hash;
-    if (!hash || !hash.includes('vk_token=')) return;
-    const hashParams = new URLSearchParams(hash.slice(1));
-    const token = hashParams.get('vk_token');
-    if (!token) return;
-    try {
-      localStorage.setItem('token', token);
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    } catch (e) {
-      void e;
-    }
-  }());
 
   function normalizeOrigin(value) {
     if (!value) return '';
@@ -1292,12 +1278,17 @@
         // Открываем Telegram в новой вкладке
         setTimeout(function () { window.open(deepLink, '_blank'); }, 300);
       } else {
-        // VK — запись создана, пользователь уже авторизован через OAuth
-        // Бот напишет ему когда он напишет сообществу
+        // VK — показываем код подтверждения, который нужно отправить боту
+        const shortCode = token ? token.slice(0, 8).toUpperCase() : '';
         if (el.doneText) {
-          el.doneText.textContent = 'Запись оформлена! Напишите любое сообщение боту ВКонтакте для подтверждения.';
+          el.doneText.textContent = shortCode
+            ? 'Отправьте боту ВКонтакте сообщение:\n\nПОДТВЕРЖДЕНИЕ ' + shortCode
+            : 'Запись создана. Напишите в сообщество ВКонтакте для подтверждения.';
         }
         setFlow('done');
+        if (shortCode) {
+          window.open('https://vk.com/im?sel=-' + (window.__VK_GROUP_ID__ || '236570980'), '_blank');
+        }
       }
     } catch (error) {
       hideLoader();
@@ -1385,19 +1376,7 @@
     }
     if (el.contactVk) {
       el.contactVk.addEventListener('click', function () {
-        // Сохраняем состояние записи перед редиректом на VK OAuth
-        try {
-          sessionStorage.setItem('vk_pending_booking', JSON.stringify({
-            serviceIds: state.selectedServiceIds.slice(),
-            slotStart: state.selectedSlot ? state.selectedSlot.start : null,
-            slotEnd: state.selectedSlot ? state.selectedSlot.end : null,
-            slotLabel: state.selectedSlotLabel || '',
-            note: el.noteInput ? String(el.noteInput.value || '') : '',
-            promoCode: state.promoCode || ''
-          }));
-        } catch (e) { void e; }
-        const currentSlug = slug || 'lera';
-        window.location.href = '/api/auth/vk/oauth?slug=' + currentSlug;
+        submitBookingWeb('vk');
       });
     }
     if (el.contactTg) {
@@ -1496,37 +1475,10 @@
       renderScreens();
       renderDock();
 
-      // После загрузки мастера проверяем, вернулись ли мы с VK OAuth с сохранённой записью
-      tryRestoreVkPendingBooking();
     } catch (error) {
       showToast('Не удалось загрузить данные: ' + error.message);
       el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Не удалось загрузить услуги.</p></section>';
     }
-  }
-
-  async function tryRestoreVkPendingBooking() {
-    if (!localStorage.getItem('token')) return;
-    let saved;
-    try {
-      const raw = sessionStorage.getItem('vk_pending_booking');
-      if (!raw) return;
-      saved = JSON.parse(raw);
-      sessionStorage.removeItem('vk_pending_booking');
-    } catch (_) { return; }
-
-    if (!saved || !saved.serviceIds || !saved.slotStart) return;
-
-    state.selectedServiceIds = saved.serviceIds;
-    if (saved.slotStart) {
-      state.selectedSlot = { start: saved.slotStart, end: saved.slotEnd, label: saved.slotLabel };
-      state.selectedSlotLabel = saved.slotLabel || '';
-    }
-    if (el.noteInput && saved.note) el.noteInput.value = saved.note;
-    state.promoCode = saved.promoCode || '';
-
-    renderServices();
-    renderDock();
-    await submitBookingWeb('vk');
   }
 
   bind();

@@ -1,0 +1,620 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="rrl7rz-26pqqw742t-15ymaduoz8--7hlydu-29x06d4kbf-ztlofaerf.cdn.prod.atlassian-dev.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.5.2">
+  <diagram id="cd1HgEG9DYaxplOQoJZc" name="Страница-1">
+    <mxGraphModel dx="3306" dy="597" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2300" pageHeight="2100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="s1" parent="1" style="text;html=1;strokeColor=#555;fillColor=#e8e8e8;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=13;" value="▶ 1. ВХОДНЫЕ ТОЧКИ — 4 СЦЕНАРИЯ ПАРАЛЛЕЛЬНО" vertex="1">
+          <mxGeometry height="28" width="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="a_hdr" parent="1" style="text;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=10;align=center;" value="A: TG-юзер" vertex="1">
+          <mxGeometry height="22" width="180" x="20" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="a0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" value="📣 Пост в TG-канале CyberBox" vertex="1">
+          <mxGeometry height="45" width="180" x="20" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="Кнопка «Открыть» в посте" vertex="1">
+          <mxGeometry height="45" width="180" x="20" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="TG Mini App открывается" vertex="1">
+          <mxGeometry height="45" width="180" x="20" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="✅ /api/auth/telegram — авто-авторизация" vertex="1">
+          <mxGeometry height="50" width="180" x="20" y="265" as="geometry" />
+        </mxCell>
+        <mxCell id="b_hdr" parent="1" style="text;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=10;align=center;" value="B: Новый Web-юзер" vertex="1">
+          <mxGeometry height="22" width="180" x="240" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=11;" value="🌐 Открытие cc.zxcv.app" vertex="1">
+          <mxGeometry height="45" width="180" x="240" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="Регистрация: Email / Google / Telegram" vertex="1">
+          <mxGeometry height="45" width="180" x="240" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="b2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="✅ CAPTCHA Cloudflare Turnstile" vertex="1">
+          <mxGeometry height="45" width="180" x="240" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="onb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="✅ Онбординг 3 шага:&#10;Real vs Bonus · Вейджер · KYC" vertex="1">
+          <mxGeometry height="55" width="180" x="240" y="265" as="geometry" />
+        </mxCell>
+        <mxCell id="c_hdr" parent="1" style="text;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;align=center;" value="C: Возвращающийся" vertex="1">
+          <mxGeometry height="22" width="180" x="460" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="🔄 Возвращающийся пользователь" vertex="1">
+          <mxGeometry height="45" width="180" x="460" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="Вход: Email / Google / TG OAuth" vertex="1">
+          <mxGeometry height="45" width="180" x="460" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Без онбординга — сразу в Dashboard" vertex="1">
+          <mxGeometry height="50" width="180" x="460" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="d_hdr" parent="1" style="text;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=10;align=center;" value="D: Рефер-хантер" vertex="1">
+          <mxGeometry height="22" width="180" x="680" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=11;" value="🔗 Реферальная ссылка" vertex="1">
+          <mxGeometry height="45" width="180" x="680" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="d1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Лендинг → Регистрация + CAPTCHA" vertex="1">
+          <mxGeometry height="45" width="180" x="680" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="d2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Атрибуция реферала зафиксирована" vertex="1">
+          <mxGeometry height="45" width="180" x="680" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="dash" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=14;" value="🏠 Dashboard" vertex="1">
+          <mxGeometry height="55" width="200" x="380" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" parent="1" style="text;html=1;strokeColor=#555;fillColor=#e8e8e8;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=13;" value="⚡ 2. ПАРАЛЛЕЛЬНЫЕ АКТИВНОСТИ (происходят одновременно)" vertex="1">
+          <mxGeometry height="28" width="2200" y="465" as="geometry" />
+        </mxCell>
+        <mxCell id="th_w" parent="1" style="text;html=1;strokeColor=#82b366;fillColor=#d5e8d4;fontStyle=1;fontSize=10;align=center;" value="📊 ВЕЙДЖЕР (фон)" vertex="1">
+          <mxGeometry height="22" width="175" x="10" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="th_g" parent="1" style="text;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;fontStyle=1;fontSize=10;align=center;" value="🎰 ИГРОВОЙ ЦИКЛ" vertex="1">
+          <mxGeometry height="22" width="330" x="210" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="th_r" parent="1" style="text;html=1;strokeColor=#d79b00;fillColor=#ffe6cc;fontStyle=1;fontSize=10;align=center;" value="👥 РЕФЕРАЛЬНЫЙ ТРЕК" vertex="1">
+          <mxGeometry height="22" width="210" x="620" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="th_n" parent="1" style="text;html=1;strokeColor=#82b366;fillColor=#d5e8d4;fontStyle=1;fontSize=10;align=center;" value="🔔 НОТИФИКАЦИИ (система)" vertex="1">
+          <mxGeometry height="22" width="220" x="860" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="dep" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" value="💳 Пополнение баланса" vertex="1">
+          <mxGeometry height="45" width="180" x="285" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="dep_c" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="✅ Крипто (мин. 10 USDT) — реал-тайм курс" vertex="1">
+          <mxGeometry height="50" width="160" x="210" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="dep_k" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="Карта Visa/MC — 3DS (48ч заморозка)" vertex="1">
+          <mxGeometry height="50" width="160" x="385" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="bonus" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;" value="🎁 Бонус +200%, Вейджер ×20" vertex="1">
+          <mxGeometry height="45" width="180" x="285" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="wager1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;dashed=1;strokeWidth=2;" value="✅ Вейджер активен (фон)" vertex="1">
+          <mxGeometry height="45" width="175" x="10" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="wager2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Прогресс-бар вейджера в UI&#10;(0% → 100%)" vertex="1">
+          <mxGeometry height="50" width="175" x="10" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="wager3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Таймер 7 дней с обратным отсчётом" vertex="1">
+          <mxGeometry height="50" width="175" x="10" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="browse" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=11;" value="🗂️ Выбор кейса" vertex="1">
+          <mxGeometry height="45" width="180" x="285" y="735" as="geometry" />
+        </mxCell>
+        <mxCell id="opencase" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=11;" value="🎰 Открытие кейса&#10;✅ Provably Fair + server seed" vertex="1">
+          <mxGeometry height="55" width="180" x="285" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="result_d" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Результат?" vertex="1">
+          <mxGeometry height="65" width="150" x="300" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="win" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="🏆 Приз в инвентаре" vertex="1">
+          <mxGeometry height="45" width="165" x="130" y="975" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_d" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="Что делать?" vertex="1">
+          <mxGeometry height="65" width="155" x="135" y="1040" as="geometry" />
+        </mxCell>
+        <mxCell id="sell" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" value="💰 Продать -5% → баланс" vertex="1">
+          <mxGeometry height="45" width="150" x="20" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="keep" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" value="📦 Оставить в инвентаре" vertex="1">
+          <mxGeometry height="45" width="155" x="200" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="lose" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="😞 Проигрыш" vertex="1">
+          <mxGeometry height="45" width="160" x="435" y="975" as="geometry" />
+        </mxCell>
+        <mxCell id="GhZSseIUg3J8HSvNSyxF-1" edge="1" parent="1" source="more_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;curved=0;startSize=8;" target="dep">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="610" y="1073" />
+              <mxPoint x="610" y="560" />
+              <mxPoint x="465" y="560" />
+            </Array>
+            <mxPoint x="510" y="720" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="more_d" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="Пополнить ещё?" vertex="1">
+          <mxGeometry height="65" width="155" x="435" y="1040" as="geometry" />
+        </mxCell>
+        <mxCell id="ret_push" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="✅ Push: «Вернись — бонус ждёт»&#10;(retention-нотификация)" vertex="1">
+          <mxGeometry height="50" width="170" x="430" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="ref1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=11;" value="👥 Открывает реф.программу" vertex="1">
+          <mxGeometry height="45" width="185" x="630" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="ref2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="🔗 Копирует и делится ссылкой" vertex="1">
+          <mxGeometry height="45" width="185" x="630" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="ref3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Реферал регистрируется&#10;и пополняет &gt;= 20 USDT" vertex="1">
+          <mxGeometry height="50" width="185" x="630" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="ref4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="✅ GGR-выплата автоматически" vertex="1">
+          <mxGeometry height="45" width="185" x="630" y="735" as="geometry" />
+        </mxCell>
+        <mxCell id="ref5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Партнёрская панель: GGR, конверсия, история" vertex="1">
+          <mxGeometry height="50" width="185" x="630" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="notif1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Email: подтверждение депозита" vertex="1">
+          <mxGeometry height="45" width="210" x="870" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="notif2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Push: вейджер 50% выполнен" vertex="1">
+          <mxGeometry height="45" width="210" x="870" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="notif3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Push: вейджер выполнен — можно вывести" vertex="1">
+          <mxGeometry height="50" width="210" x="870" y="655" as="geometry" />
+        </mxCell>
+        <mxCell id="notif4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Push: реферал пополнил счёт" vertex="1">
+          <mxGeometry height="45" width="210" x="870" y="725" as="geometry" />
+        </mxCell>
+        <mxCell id="notif5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Push: статус вывода изменён" vertex="1">
+          <mxGeometry height="45" width="210" x="870" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" parent="1" style="text;html=1;strokeColor=#555;fillColor=#e8e8e8;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=13;" value="💸 3. ВЫВОД СРЕДСТВ (с KYC-шлюзом и SLA)" vertex="1">
+          <mxGeometry height="28" width="700" y="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="wd_dec" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Хочет вывести" vertex="1">
+          <mxGeometry height="65" width="160" x="340" y="1235" as="geometry" />
+        </mxCell>
+        <mxCell id="kyc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="✅ KYC-верификация&#10;(при первом выводе)" vertex="1">
+          <mxGeometry height="55" width="175" x="120" y="1320" as="geometry" />
+        </mxCell>
+        <mxCell id="kyc_fail" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="KYC не пройден → повторить / поддержка" vertex="1">
+          <mxGeometry height="45" width="175" x="10" y="1425" as="geometry" />
+        </mxCell>
+        <mxCell id="wd_form" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" value="✅ Серверная валидация адреса&#10;POST /api/user/payments/withdrawal" vertex="1">
+          <mxGeometry height="55" width="185" x="340" y="1320" as="geometry" />
+        </mxCell>
+        <mxCell id="wd_proc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" value="✅ Статус: В обработке&#10;SLA: 1-24 часа" vertex="1">
+          <mxGeometry height="50" width="185" x="340" y="1400" as="geometry" />
+        </mxCell>
+        <mxCell id="wd_push" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="✅ Push + Email при обработке" vertex="1">
+          <mxGeometry height="45" width="185" x="340" y="1470" as="geometry" />
+        </mxCell>
+        <mxCell id="done" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" value="✅ Крипта получена + Email" vertex="1">
+          <mxGeometry height="55" width="165" x="350" y="1535" as="geometry" />
+        </mxCell>
+        <mxCell id="ea01" edge="1" parent="1" source="a0" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;" target="a1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ea12" edge="1" parent="1" source="a1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;" target="a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ea23" edge="1" parent="1" source="a2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="a3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ea3d" edge="1" parent="1" source="a3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="dash">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="110" y="418" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eb01" edge="1" parent="1" source="b0" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;strokeWidth=2;" target="b1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eb12" edge="1" parent="1" source="b1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="b2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eb23" edge="1" parent="1" source="b2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="onb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eond" edge="1" parent="1" source="onb" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="dash">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="330" y="355" />
+              <mxPoint x="420" y="355" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ec01" edge="1" parent="1" source="c0" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="c1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec12" edge="1" parent="1" source="c1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="c2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2d" edge="1" parent="1" source="c2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="dash">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="550" y="350" />
+              <mxPoint x="550" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ed01" edge="1" parent="1" source="d0" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=2;" target="d1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed12" edge="1" parent="1" source="d1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="d2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed2d" edge="1" parent="1" source="d2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=2;" target="dash">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="830" y="418" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edd" edge="1" parent="1" source="dash" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;" target="dep">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="543" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edr" edge="1" parent="1" source="dash" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="723" y="430" />
+            </Array>
+            <mxPoint x="723" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edc" edge="1" parent="1" source="dep" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="dep_c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edk" edge="1" parent="1" source="dep" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" target="dep_k">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edcb" edge="1" parent="1" source="dep_c" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="bonus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edkb" edge="1" parent="1" source="dep_k" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" target="bonus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ebw" edge="1" parent="1" source="bonus" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;dashed=1;" target="wager1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ebg" edge="1" parent="1" source="bonus" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="browse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ew12" edge="1" parent="1" source="wager1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="wager2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ew23" edge="1" parent="1" source="wager2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="wager3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ego" edge="1" parent="1" source="browse" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="opencase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eor" edge="1" parent="1" source="opencase" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="result_d">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="erw" edge="1" parent="1" source="result_d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="win" value="Выигрыш">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="erl" edge="1" parent="1" source="result_d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;strokeWidth=2;" target="lose" value="Проигрыш">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ewi" edge="1" parent="1" source="win" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="inv_d">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eis" edge="1" parent="1" source="inv_d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;" target="sell" value="Продать">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eik" edge="1" parent="1" source="inv_d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;" target="keep" value="Оставить">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eloop" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;strokeWidth=2;dashed=1;" value="🔄 Ещё кейс!">
+          <mxGeometry relative="1" x="0.0016" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="30" y="1073" />
+              <mxPoint x="30" y="880" />
+              <mxPoint x="230" y="880" />
+              <mxPoint x="230" y="828" />
+            </Array>
+            <mxPoint x="150" y="1073" as="sourcePoint" />
+            <mxPoint x="280" y="830" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="elm" edge="1" parent="1" source="lose" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;strokeWidth=2;" target="more_d">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="emp" edge="1" parent="1" source="more_d" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="ret_push" value="Нет">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er12" edge="1" parent="1" source="ref1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=2;" target="ref2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er23" edge="1" parent="1" source="ref2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=2;" target="ref3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er34" edge="1" parent="1" source="ref3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="ref4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er45" edge="1" parent="1" source="ref4" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="ref5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="en12" edge="1" parent="1" source="notif1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="notif2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="en23" edge="1" parent="1" source="notif2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="notif3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="en34" edge="1" parent="1" source="notif3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="notif4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="en45" edge="1" parent="1" source="notif4" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="notif5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edn1" edge="1" parent="1" source="dep_c" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=1;dashed=1;" target="notif1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="290" y="580" />
+              <mxPoint x="840" y="580" />
+              <mxPoint x="840" y="543" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ern4" edge="1" parent="1" source="ref3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=1;dashed=1;" target="notif4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="700" />
+              <mxPoint x="850" y="748" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="esw" edge="1" parent="1" source="sell" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="wd_dec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="95" y="1190" />
+              <mxPoint x="420" y="1190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ewdk" edge="1" parent="1" source="wd_dec" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="kyc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ekf" edge="1" parent="1" source="kyc" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" target="kyc_fail" value="Не прошёл">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ekw" edge="1" parent="1" source="kyc" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="wd_form" value="Прошёл">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="efp" edge="1" parent="1" source="wd_form" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="wd_proc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="epush" edge="1" parent="1" source="wd_proc" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="wd_push">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="epd" edge="1" parent="1" source="wd_push" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" target="done">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ewdn5" edge="1" parent="1" source="wd_proc" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=1;dashed=1;" target="notif5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_s4" value="🎯 EPIC-8 — PROGRESSION &amp; RETENTION (Sprint 2-6)" style="text;html=1;strokeColor=#2d7600;fillColor=#d5e8d4;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="465" width="1085" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_h1" value="🎰 FREE CASE PROGRESSION" style="text;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;align=center;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="495" width="260" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_h2" value="🎫 TICKET ECONOMY" style="text;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=10;align=center;" parent="1" vertex="1">
+          <mxGeometry x="1375" y="495" width="260" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_h3" value="💎 SUPER CASE (VIP)" style="text;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=10;align=center;" parent="1" vertex="1">
+          <mxGeometry x="1650" y="495" width="260" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_h4" value="⚡ DOUBLE MECHANIC" style="text;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=10;align=center;" parent="1" vertex="1">
+          <mxGeometry x="1925" y="495" width="260" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_ftd" value="💳 FTD ≥ $10&#10;→ Free Case Tier 1 unlock мгновенно" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="520" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_fct" value="Кумулятивные депозиты ≥ $50 / $150 / $500&#10;→ Tier 2 / 3 / 4 unlock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="590" width="260" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_fcopen" value="🎁 Открытие Free Case&#10;✅ RTP 85–92% · Prizes → inventory only&#10;12h sell cooldown" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="665" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_fcreset" value="⏰ 7 дней без открытия → status = expired&#10;✅ Push / Email за 24ч до истечения&#10;Повторный unlock — только через новый депозит" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="735" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_ggr" value="🎮 Каждые $10 GGR с real balance&#10;= 1 Ticket (max 1 000 / сезон)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1375" y="520" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_tprog" value="📊 Прогресс тикетов виджет в профиле&#10;Таймер сезона (30 дней) + Prize Pool" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1375" y="590" width="260" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_sdraw" value="🏆 Сезонный розыгрыш&#10;✅ Provably Fair (server seed публикуется)&#10;Prize Pool = 5% season GGR · floor $500" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1375" y="665" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_texp" value="🔄 Тикеты истекают по завершении сезона&#10;(перенос запрещён, batch job → expired)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1375" y="735" width="260" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_key" value="💰 Каждые $100 GGR с real balance&#10;= 1 Key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1650" y="520" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_locked" value="🔒 Super Case locked&#10;(прогресс-бар до следующего ключа в хедере)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1650" y="590" width="260" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_super" value="⭐ Открытие Super Case (1 key списывается)&#10;✅ RTP 93–97% · Exclusive prize pool&#10;POST /api/cases/super/open" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1650" y="665" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_kfp" value="🛡️ Fingerprint: мульти-аккаунт с 1 device&#10;→ автофлаг, ключи замораживаются&#10;Ключи не переводятся между аккаунтами" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="1650" y="735" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_cwin" value="🏆 Выигрыш кейса с EV &gt; $5&#10;(порог настраиваем в admin)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1925" y="520" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_doffer" value="⚡ Double Оффер (таймер 30 с)&#10;win_probability = 45% (cap: 30–49%)&#10;EV = 0.45×2 − 0.55 = 0.35 &amp;lt; 1 ✓" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1925" y="590" width="260" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_dwin" value="✅ DOUBLE WIN&#10;Приз ×2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1925" y="665" width="125" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_dlose" value="❌ DOUBLE LOSS&#10;Приз обнуляется" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="2060" y="665" width="125" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_dcd" value="🕐 Cooldown 24ч / игрок&#10;(user_id + device_id)&#10;Логирование всех Double-сессий" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1925" y="735" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e1" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_ftd" target="p8_fct" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e2" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_fct" target="p8_fcopen" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e3" value="7 дней" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;fontStyle=2;" parent="1" source="p8_fcopen" target="p8_fcreset" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e4" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_ggr" target="p8_tprog" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e5" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_tprog" target="p8_sdraw" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e6" value="season end" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontStyle=2;" parent="1" source="p8_sdraw" target="p8_texp" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e7" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_key" target="p8_locked" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e8" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_locked" target="p8_super" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e9" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_super" target="p8_kfp" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e10" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_cwin" target="p8_doffer" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e11" value="WIN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" parent="1" source="p8_doffer" target="p8_dwin" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e12" value="LOSS" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" parent="1" source="p8_doffer" target="p8_dlose" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e13" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_dwin" target="p8_dcd" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_e14" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="p8_dlose" target="p8_dcd" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_dep_fc" value="FTD ≥ $10&#10;→ Free Case" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=8 4;strokeColor=#666;strokeWidth=1.5;endArrow=open;endFill=0;curved=1;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="dep" target="p8_ftd" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_oc_tk" value="$10 GGR&#10;→ Ticket" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=8 4;strokeColor=#666;strokeWidth=1.5;endArrow=open;endFill=0;curved=1;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="opencase" target="p8_ggr" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_oc_sc" value="$100 GGR&#10;→ Key" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=8 4;strokeColor=#666;strokeWidth=1.5;endArrow=open;endFill=0;curved=1;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="opencase" target="p8_key" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_win_db" value="EV &gt; $5&#10;→ Double оффер" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=8 4;strokeColor=#666;strokeWidth=1.5;endArrow=open;endFill=0;curved=1;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="win" target="p8_cwin" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p8_out_fc_win" value="Free Case prize&#10;→ inventory" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1.8;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_fcopen" target="win" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="980" y="695" />
+              <mxPoint x="980" y="960" />
+              <mxPoint x="260" y="960" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_fc_exp_ret" value="expired&#10;→ reactivation" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#d79b00;strokeWidth=1.6;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_fcreset" target="ret_push" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="765" />
+              <mxPoint x="1040" y="1140" />
+              <mxPoint x="600" y="1140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_fc_exp_dep" value="re-unlock&#10;через депозит" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#d79b00;strokeWidth=1.6;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_fcreset" target="dep" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="750" />
+              <mxPoint x="1020" y="560" />
+              <mxPoint x="470" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_tk_win" value="season prize&#10;→ inventory" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.8;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_sdraw" target="win" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1010" y="695" />
+              <mxPoint x="1010" y="950" />
+              <mxPoint x="255" y="950" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_tk_loop" value="новый сезон&#10;→ играем дальше" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#d6b656;strokeWidth=1.6;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_texp" target="browse" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="760" />
+              <mxPoint x="1040" y="758" />
+              <mxPoint x="470" y="758" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_sc_need" value="нужен key&#10;→ играй дальше" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#9673a6;strokeWidth=1.6;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_locked" target="opencase" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="620" />
+              <mxPoint x="990" y="828" />
+              <mxPoint x="470" y="828" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_sc_result" value="исход Super Case" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=1.8;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_super" target="result_d" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="695" />
+              <mxPoint x="990" y="910" />
+              <mxPoint x="470" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_db_win" value="x2 prize&#10;→ inventory" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1.8;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_dwin" target="win" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="690" />
+              <mxPoint x="1000" y="970" />
+              <mxPoint x="260" y="970" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_db_lose" value="loss&#10;→ приз обнулён" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.8;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_dlose" target="lose" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1080" y="690" />
+              <mxPoint x="1080" y="998" />
+              <mxPoint x="600" y="998" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p8_out_db_cd" value="после cooldown&#10;→ новый кейс" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#b85450;strokeWidth=1.6;labelBackgroundColor=#ffffff;fontSize=9;fontStyle=2;" parent="1" source="p8_dcd" target="browse" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1010" y="765" />
+              <mxPoint x="1010" y="748" />
+              <mxPoint x="470" y="748" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

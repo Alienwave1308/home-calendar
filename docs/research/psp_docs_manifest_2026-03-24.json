@@ -1,0 +1,227 @@
+{
+  "generated_at": "2026-03-24",
+  "project": "CAS",
+  "objective": "PSP documentation package for comparative analysis",
+  "providers": [
+    {
+      "provider": "dLocal",
+      "priority": 1,
+      "regions": ["LATAM", "EMEA", "APAC"],
+      "docs": {
+        "portal": "https://docs.dlocal.com/",
+        "api_reference": "https://docs.dlocal.com/reference/release-payout",
+        "credentials": "https://docs.dlocal.com/docs/get-api-credentials",
+        "webhooks": "https://docs.dlocal.com/docs/receive-notifications",
+        "coverage": "https://docs.dlocal.com/",
+        "status": "https://dlocal.statuspage.io/"
+      },
+      "integration": {
+        "auth": "Headers x-login + x-trans-key + Authorization (HMAC-SHA256)",
+        "sandbox": true,
+        "sandbox_signal": "Sandbox credentials and test mode described in docs",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Authorization signature validation (HMAC-SHA256)",
+        "webhook_retry": "Up to 12 attempts (hourly + 12-hour retries)"
+      },
+      "risk_notes": [
+        "Credential flow and signing are explicit and well documented",
+        "Status page includes API and Sandbox components"
+      ]
+    },
+    {
+      "provider": "EBANX",
+      "priority": 2,
+      "regions": ["LATAM", "selected markets in EMEA/APAC"],
+      "docs": {
+        "portal": "https://docs.ebanx.com/",
+        "api_reference": "https://docs.ebanx.com/api",
+        "status": "https://status.ebanx.com/"
+      },
+      "integration": {
+        "auth": "integration_key (and public_integration_key for tokenization flows)",
+        "sandbox": true,
+        "sandbox_signal": "Sandbox sign-up and sandbox endpoints in API reference",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Notification URL pattern documented; status updates via notification_url",
+        "webhook_retry": "Not explicitly extracted from source pages"
+      },
+      "risk_notes": [
+        "API reference includes both payins and payout operations",
+        "Notification handling is embedded across product guides"
+      ]
+    },
+    {
+      "provider": "PayRetailers",
+      "priority": 3,
+      "regions": ["LATAM", "Africa"],
+      "docs": {
+        "portal": "https://www.payretailers.dev/docs",
+        "getting_started": "https://www.payretailers.dev/docs/getting-started",
+        "authentication": "https://www.payretailers.dev/docs/authentication-1",
+        "webhooks": "https://www.payretailers.dev/docs/webhooks-and-notifications",
+        "status": "https://payretailers.statuspage.io/"
+      },
+      "integration": {
+        "auth": "HTTP Basic (shopId:secretKey) + Ocp-Apim-Subscription-Key",
+        "sandbox": true,
+        "sandbox_signal": "Sandbox Merchant Backoffice + sandbox API testing flow",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Signature validation supported by webhook sender",
+        "webhook_retry": "Retry logic mentioned (no exact schedule extracted)"
+      },
+      "risk_notes": [
+        "Strong operational status transparency via Statuspage",
+        "IP allowlisting/subscription key model can increase setup effort"
+      ]
+    },
+    {
+      "provider": "Kushki",
+      "priority": 4,
+      "regions": ["LATAM focus: CL, CO, EC, MX, PE"],
+      "docs": {
+        "portal": "https://docs.kushki.com/",
+        "webhooks_overview": "https://docs.kushki.com/pe/notifications/overview/",
+        "status": "https://status.kushkipagos.com/"
+      },
+      "integration": {
+        "auth": "Country/product specific; docs show X-API-Key usage and merchant IDs (Public/Private Merchant ID)",
+        "sandbox": true,
+        "sandbox_signal": "UAT console and test data sections in docs",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Headers X-Kushki-Key and HMAC-SHA256 signatures",
+        "webhook_retry": "Not explicitly extracted as a fixed schedule"
+      },
+      "risk_notes": [
+        "Documentation is country-scoped; analysis must be per GEO",
+        "Some pages are dynamic and require manual portal pass during deep-dive"
+      ]
+    },
+    {
+      "provider": "Pagsmile",
+      "priority": 5,
+      "regions": ["LATAM"],
+      "docs": {
+        "portal": "https://docs.pagsmile.com/",
+        "payin": "https://docs.pagsmile.com/payin",
+        "payin_environments": "https://docs.pagsmile.com/payin/environments",
+        "payin_notifications": "https://docs.pagsmile.com/payin/notification",
+        "payout": "https://docs.pagsmile.com/payout",
+        "payout_environments": "https://docs.pagsmile.com/payout/env",
+        "payout_security": "https://docs.pagsmile.com/payout/security",
+        "payout_notifications": "https://docs.pagsmile.com/payout/notification"
+      },
+      "integration": {
+        "auth": "AppId + Authorization signature (SHA256 over sorted params + app_key); Payin notifications use Pagsmile-Signature (HMAC-SHA256)",
+        "sandbox": true,
+        "sandbox_signal": "gateway-test.pagsmile.com and sandbox.transfersmile.com",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Signed callbacks with verification steps in docs",
+        "webhook_retry": "6 retries (10m, 30m, 60m, 120m, 360m, 840m)"
+      },
+      "risk_notes": [
+        "Two notification signature patterns exist (payin vs payout); normalize in adapter layer",
+        "No public status page found in official docs during this pass"
+      ]
+    },
+    {
+      "provider": "Nuvei",
+      "priority": 6,
+      "regions": ["Global"],
+      "docs": {
+        "portal": "https://docs.nuvei.com/",
+        "rest_1_guide": "https://docs.nuvei.com/documentation/accept-payment/server-to-server/rest-1-0/",
+        "rest_2_intro": "https://docs.nuvei.com/api/v2/main/docs/introduction",
+        "rest_2_auth": "https://docs.nuvei.com/api/v2/main/docs/authentication/",
+        "rest_2_payments_api": "https://docs.nuvei.com/api/v2/main/docs/payment/payments-api/",
+        "rest_2_webhooks": "https://docs.nuvei.com/documentation/additional-links/rest-2-0/integration/webhooks/",
+        "developer_hub": "https://docs-apm.nuvei.com/getting-started/"
+      },
+      "integration": {
+        "auth": "REST 2.0: X-API-KEY (and documented bearer scheme in API ref); REST 1.0: sessionToken/checksum flow",
+        "sandbox": true,
+        "sandbox_signal": "Global dashboard test environment and test API flows",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Message authentication via shared secret + HMAC-SHA256 digest headers",
+        "webhook_retry": "Retries mentioned; fixed schedule not extracted in this pass"
+      },
+      "risk_notes": [
+        "Two API generations in parallel (REST 1.0 and REST 2.0 beta references)",
+        "Need version lock before implementation estimation"
+      ]
+    },
+    {
+      "provider": "Paysafe",
+      "priority": 7,
+      "regions": ["Global"],
+      "docs": {
+        "portal": "https://developer.paysafe.com/en",
+        "payments_overview": "https://developer.paysafe.com/en/api-docs/payments-api/overview/",
+        "payments_get_started": "https://developer.paysafe.com/en/api-docs/payments-api/getting-started/",
+        "testing": "https://developer.paysafe.com/en/api-docs/payments-api/test-and-go-live/testing-instructions/",
+        "status": "https://status.paysafe.com/"
+      },
+      "integration": {
+        "auth": "API keys (username/password style credentials, sent via Authorization header per docs)",
+        "sandbox": true,
+        "sandbox_signal": "api.test.paysafe.com/paymenthub/v1",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Redirect methods often return to on_completed and server notifications depending on method",
+        "webhook_retry": "Method-dependent; no global retry schedule extracted"
+      },
+      "risk_notes": [
+        "Payment-method behavior differs significantly (redirect vs direct flows)",
+        "Status page is comprehensive but broad across multiple Paysafe products"
+      ]
+    },
+    {
+      "provider": "Unlimit",
+      "priority": 8,
+      "regions": ["Global"],
+      "docs": {
+        "legacy_cardpay_api": "https://integration.unlimit.com/v1/api/",
+        "legacy_cardpay_pdf": "https://integration.unlimit.com/v1/api/docs/cardpay-api.pdf",
+        "baas_dev_portal": "https://www.baas.unlimit.com/dev-portal/"
+      },
+      "integration": {
+        "auth": "CardPay REST API: Basic Auth (login:password) in Authorization header",
+        "sandbox": true,
+        "sandbox_signal": "sandbox.cardpay.com endpoints documented",
+        "payin": true,
+        "payout": true,
+        "webhook_security": "Callback verification via SHA-512 digest validation over payload + secret",
+        "webhook_retry": "Documented multi-attempt callback retries (legacy CardPay docs)"
+      },
+      "risk_notes": [
+        "Main payment docs appear legacy (CardPay v2.70 timeline) and may not reflect current commercial stack",
+        "Must validate current production-grade API set with Unlimit solution engineer before scoring"
+      ]
+    }
+  ],
+  "analysis_template": {
+    "weights": {
+      "geo_and_payment_method_fit": 25,
+      "auth_and_security_model": 15,
+      "webhook_reliability": 15,
+      "sandbox_and_testability": 10,
+      "payout_support": 15,
+      "operational_transparency_status_page": 10,
+      "docs_freshness_and_clarity": 10
+    },
+    "scoring_scale": "0-5 per criterion; weighted score converted to 0-100",
+    "must_verify_with_vendors": [
+      "Current production API version and deprecation policy",
+      "SLA and incident communication channel",
+      "Settlement windows by country and method",
+      "KYC/KYB onboarding lead time",
+      "Chargeback and dispute workflow APIs",
+      "IP allowlisting and certificate requirements"
+    ]
+  }
+}

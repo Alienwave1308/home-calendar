@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-03-24",
+  "project": "CAS",
+  "weights": {
+    "geo_and_payment_method_fit": 25,
+    "auth_and_security_model": 15,
+    "webhook_reliability": 15,
+    "sandbox_and_testability": 10,
+    "payout_support": 15,
+    "operational_transparency_status_page": 10,
+    "docs_freshness_and_clarity": 10
+  },
+  "scores": [
+    {"provider":"dLocal","total":100,"breakdown":{"geo":5,"auth":5,"webhook":5,"sandbox":5,"payout":5,"ops":5,"docs":5}},
+    {"provider":"EBANX","total":85,"breakdown":{"geo":5,"auth":4,"webhook":3,"sandbox":4,"payout":5,"ops":4,"docs":4}},
+    {"provider":"PayRetailers","total":85,"breakdown":{"geo":4,"auth":4,"webhook":4,"sandbox":4,"payout":5,"ops":5,"docs":4}},
+    {"provider":"Nuvei","total":76,"breakdown":{"geo":4,"auth":3,"webhook":4,"sandbox":4,"payout":5,"ops":3,"docs":3}},
+    {"provider":"Kushki","total":75,"breakdown":{"geo":4,"auth":3,"webhook":4,"sandbox":4,"payout":4,"ops":4,"docs":3}},
+    {"provider":"Paysafe","total":72,"breakdown":{"geo":3,"auth":4,"webhook":3,"sandbox":4,"payout":4,"ops":4,"docs":4}},
+    {"provider":"Pagsmile","total":69,"breakdown":{"geo":3,"auth":4,"webhook":4,"sandbox":4,"payout":4,"ops":2,"docs":3}},
+    {"provider":"Unlimit","total":59,"breakdown":{"geo":3,"auth":3,"webhook":3,"sandbox":3,"payout":4,"ops":2,"docs":2}}
+  ],
+  "top_3": ["dLocal", "EBANX", "PayRetailers"]
+}
