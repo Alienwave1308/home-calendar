@@ -44,6 +44,7 @@ describe('Web booking contact screen', () => {
     cy.get('#screen-calendar').should('have.class', 'active');
     cy.get('#calGrid button[data-day]:not([disabled])').first().click();
     cy.get('[data-slot-start]').first().click({ force: true });
+    cy.get('#dockAction').click();
   }
 
   it('показывает экран выбора мессенджера после нажатия "Подтвердить"', () => {
