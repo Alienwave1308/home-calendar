@@ -24,6 +24,7 @@ module.exports = [
         alert: "readonly",
         confirm: "readonly",
         localStorage: "readonly",
+        sessionStorage: "readonly",
         event: "readonly",
       },
     },
