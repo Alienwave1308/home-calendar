@@ -711,4 +711,63 @@ describe('Public Booking API', () => {
     // slots should be an array (may be empty since windows are empty, but no error)
     expect(Array.isArray(res.body.slots)).toBe(true);
   });
+
+  it('should create web booking with pending_confirmation status when web_contact_channel=vk', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [] }) // hot_windows
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // availability check
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] }) // active bookings count
+      .mockResolvedValueOnce({
+        rows: [{ id: 101, master_id: 3, client_id: 42, service_id: 11, start_at: startAt, status: 'pending_confirmation', web_contact_channel: 'vk' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, web_contact_channel: 'vk' })
+      .expect(201);
+
+    expect(res.body.status).toBe('pending_confirmation');
+    expect(res.body.web_contact_channel).toBe('vk');
+    expect(res.body.web_confirm_token).toBeDefined();
+  });
+
+  it('should create web booking with pending_confirmation status when web_contact_channel=tg', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [] }) // hot_windows
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // availability
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 102, master_id: 3, client_id: 42, service_id: 11, start_at: startAt, status: 'pending_confirmation', web_contact_channel: 'tg', web_confirm_token: 'abc123' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, web_contact_channel: 'tg' })
+      .expect(201);
+
+    expect(res.body.status).toBe('pending_confirmation');
+    expect(res.body.web_confirm_token).toBeDefined();
+  });
 });

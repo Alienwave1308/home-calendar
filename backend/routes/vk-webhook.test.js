@@ -244,4 +244,27 @@ describe('POST /api/vk/webhook', () => {
     expect(res.status).toBe(200);
     expect(res.text).toBe('ok');
   });
+
+  it('вызывает handleVkMessage при web_confirm payload', async () => {
+    await request(app)
+      .post('/api/vk/webhook')
+      .send({
+        type: 'message_new',
+        secret: 'test-secret',
+        object: {
+          message: {
+            from_id: 555,
+            text: '',
+            payload: JSON.stringify({ c: 'web_confirm', id: 42 })
+          }
+        }
+      })
+      .expect(200);
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(handleVkMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from_id: 555 }),
+      expect.any(Object)
+    );
+  });
 });
