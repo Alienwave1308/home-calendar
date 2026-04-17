@@ -1512,7 +1512,7 @@
       if (!raw) return;
       saved = JSON.parse(raw);
       sessionStorage.removeItem('vk_pending_booking');
-    } catch (e) { return; }
+    } catch (_) { return; }
 
     if (!saved || !saved.serviceIds || !saved.slotStart) return;
 
