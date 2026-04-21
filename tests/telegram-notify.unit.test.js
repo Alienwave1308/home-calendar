@@ -6,17 +6,27 @@ const { pool } = require('../backend/db');
 const {
   parseTelegramUserId,
   formatBookingTime,
+  sendTelegramMessage,
   notifyClientReminder,
   notifyClientBookingEvent
 } = require('../backend/lib/telegram-notify');
 
 describe('telegram-notify helpers', () => {
+  let consoleErrorSpy;
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.TELEGRAM_BOT_TOKEN = 'test-token';
+    delete process.env.TELEGRAM_API_BASE;
+    delete process.env.TELEGRAM_API_TIMEOUT_MS;
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     global.fetch = jest.fn().mockResolvedValue({
       ok: true
     });
+  });
+
+  afterEach(() => {
+    if (consoleErrorSpy) consoleErrorSpy.mockRestore();
   });
 
   it('parses telegram id from tg username', () => {
@@ -44,6 +54,21 @@ describe('telegram-notify helpers', () => {
     expect(result.ok).toBe(true);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch.mock.calls[0][0]).toContain('/sendMessage');
+  });
+
+  it('falls back to direct telegram api when custom api base times out', async () => {
+    process.env.TELEGRAM_API_BASE = 'https://home-calendar.niggest137.workers.dev';
+    process.env.TELEGRAM_API_TIMEOUT_MS = '1500';
+    global.fetch = jest.fn()
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ ok: true });
+
+    const result = await sendTelegramMessage('555', 'ping');
+
+    expect(result.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch.mock.calls[0][0]).toBe('https://home-calendar.niggest137.workers.dev/bottest-token/sendMessage');
+    expect(global.fetch.mock.calls[1][0]).toBe('https://api.telegram.org/bottest-token/sendMessage');
   });
 
   it('skips reminder when telegram id missing', async () => {

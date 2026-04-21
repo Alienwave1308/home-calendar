@@ -37,7 +37,7 @@ services:
       - MASTER_BOOKING_SLUG=${MASTER_BOOKING_SLUG}
       - APP_DOMAIN=${APP_DOMAIN}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-Rova_Epil_Bot}
-      - TELEGRAM_API_BASE=https://home-calendar.niggest137.workers.dev
+      - TELEGRAM_API_BASE=${TELEGRAM_API_BASE:-https://api.telegram.org}
     depends_on:
       - db
 
