@@ -25,7 +25,9 @@ jest.mock('../lib/telegram-notify', () => ({
   notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
   notifyClientBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
   sendTelegramMessage: jest.fn().mockResolvedValue({ ok: true, skipped: false, retryable: false }),
-  parseTelegramUserId: jest.fn()
+  parseTelegramUserId: jest.fn(),
+  telegramApiCall: jest.fn().mockResolvedValue({ ok: true, result: null, apiBase: 'https://api.telegram.org' }),
+  buildTelegramFileUrl: jest.fn().mockReturnValue(null)
 }));
 
 const { sendTelegramMessage, parseTelegramUserId } = require('../lib/telegram-notify');

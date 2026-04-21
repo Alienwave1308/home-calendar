@@ -13,7 +13,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
-const { sendTelegramMessage } = require('../lib/telegram-notify');
+const { sendTelegramMessage, telegramApiCall } = require('../lib/telegram-notify');
 const { createReminders } = require('../lib/reminders');
 const { notifyMasterBookingEvent } = require('../lib/telegram-notify');
 
@@ -176,35 +176,26 @@ router.post('/webhook', async (req, res) => {
 });
 
 async function sendTelegramMessageWithKeyboard(chatId, text, replyMarkup) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        reply_markup: replyMarkup
-      })
-    });
-  } catch (e) {
-    console.error('[tg-webhook] sendMessage error:', e.message);
+  const result = await telegramApiCall('sendMessage', {
+    chat_id: chatId,
+    text,
+    parse_mode: 'HTML',
+    reply_markup: replyMarkup
+  }, { timeoutMs: 8000 });
+
+  if (!result.ok && !result.skipped) {
+    console.error('[tg-webhook] sendMessage error:', result.tgError);
   }
 }
 
 async function answerCallback(callbackQueryId, text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ callback_query_id: callbackQueryId, text })
-    });
-  } catch (e) {
-    console.error('[tg-webhook] answerCallback error:', e.message);
+  const result = await telegramApiCall('answerCallbackQuery', {
+    callback_query_id: callbackQueryId,
+    text
+  }, { timeoutMs: 8000 });
+
+  if (!result.ok && !result.skipped) {
+    console.error('[tg-webhook] answerCallback error:', result.tgError);
   }
 }
 

@@ -16,9 +16,6 @@ services:
     build: .
     container_name: home-calendar
     restart: unless-stopped
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://calendar:calendar123@db:5432/home_calendar
@@ -37,7 +34,7 @@ services:
       - MASTER_BOOKING_SLUG=${MASTER_BOOKING_SLUG}
       - APP_DOMAIN=${APP_DOMAIN}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-Rova_Epil_Bot}
-      - TELEGRAM_API_BASE=${TELEGRAM_API_BASE:-https://api.telegram.org}
+      - TELEGRAM_API_BASE=${TELEGRAM_API_BASE:-https://home-calendar.niggest137.workers.dev}
     depends_on:
       - db
 

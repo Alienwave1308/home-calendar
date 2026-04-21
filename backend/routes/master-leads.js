@@ -2,41 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const asyncRoute = require('../lib/asyncRoute');
+const { telegramApiCall, buildTelegramFileUrl } = require('../lib/telegram-notify');
 const { loadMaster, LEAD_PERIODS, normalizeLeadPeriod, buildLeadConversion } = require('./master-shared');
 
-async function telegramApiCall(method, payload) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken || typeof fetch !== 'function') return null;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload || {}),
-      signal: controller.signal
-    });
-    if (!response.ok) return null;
-    const data = await response.json().catch(() => null);
-    return data && data.ok ? data.result : null;
-  } catch (error) {
-    console.error(`Error calling Telegram API ${method}:`, error);
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function getTelegramFileUrl(fileId) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken || !fileId) return null;
-  const file = await telegramApiCall('getFile', { file_id: fileId });
-  if (!file || !file.file_path) return null;
-  return `https://api.telegram.org/file/bot${botToken}/${file.file_path}`;
+  if (!fileId) return null;
+  const fileRes = await telegramApiCall('getFile', { file_id: fileId }, { timeoutMs: 8000 });
+  if (!fileRes.ok || !fileRes.result || !fileRes.result.file_path) return null;
+  return buildTelegramFileUrl(fileRes.result.file_path, fileRes.apiBase);
 }
 
 async function resolveTelegramProfile(telegramUserId) {
-  const chat = await telegramApiCall('getChat', { chat_id: telegramUserId });
+  const chatRes = await telegramApiCall('getChat', { chat_id: telegramUserId }, { timeoutMs: 8000 });
+  const chat = chatRes.ok ? chatRes.result : null;
   if (!chat) return null;
 
   const firstName = String(chat.first_name || '').trim();

@@ -20,6 +20,133 @@ function formatBookingTime(iso, timezone) {
   }).format(date);
 }
 
+function getTelegramApiBases() {
+  const configuredBase = String(process.env.TELEGRAM_API_BASE || '').trim();
+  const directBase = 'https://api.telegram.org';
+  return configuredBase && configuredBase !== directBase
+    ? [configuredBase, directBase]
+    : [directBase];
+}
+
+function describeTelegramNetworkError(error) {
+  const primary = String(error && error.message ? error.message : error || 'unknown error');
+  const cause = error && error.cause;
+  const details = [];
+
+  if (cause) {
+    if (cause.code) details.push(String(cause.code));
+    if (cause.errno && cause.errno !== cause.code) details.push(String(cause.errno));
+    if (cause.syscall) details.push(String(cause.syscall));
+    if (cause.hostname) details.push(String(cause.hostname));
+    if (cause.message && cause.message !== primary) details.push(String(cause.message));
+  }
+
+  return [primary].concat(details).filter(Boolean).join(' | ');
+}
+
+async function telegramApiCall(method, payload, options) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    console.warn('[notify] telegramApiCall skipped: botToken=MISSING method=%s', method);
+    return { ok: false, skipped: true, retryable: false };
+  }
+  if (typeof fetch !== 'function') {
+    console.warn('[notify] telegramApiCall skipped: fetch is not available');
+    return { ok: false, skipped: true, retryable: false };
+  }
+
+  const timeoutMs = Math.max(1000, Number(process.env.TELEGRAM_API_TIMEOUT_MS || (options && options.timeoutMs) || 4000));
+  const apiBases = getTelegramApiBases();
+  let lastFailure = null;
+
+  for (let i = 0; i < apiBases.length; i += 1) {
+    const apiBase = apiBases[i];
+    const AbortControllerCtor = typeof globalThis.AbortController === 'function'
+      ? globalThis.AbortController
+      : null;
+    const controller = AbortControllerCtor ? new AbortControllerCtor() : null;
+    const timeout = controller
+      ? setTimeout(() => controller.abort(new Error('timeout')), timeoutMs)
+      : null;
+
+    try {
+      const response = await fetch(`${apiBase}/bot${botToken}/${method}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+        signal: controller ? controller.signal : undefined
+      });
+
+      if (timeout) clearTimeout(timeout);
+
+      let rawBody = '';
+      let data = null;
+      if (typeof response.text === 'function') {
+        rawBody = await response.text().catch(() => '');
+        if (rawBody) {
+          try {
+            data = JSON.parse(rawBody);
+          } catch (parseError) {
+            data = null;
+          }
+        }
+      } else if (typeof response.json === 'function') {
+        data = await response.json().catch(() => null);
+        rawBody = data ? JSON.stringify(data) : '';
+      } else if (response.ok) {
+        data = { ok: true, result: null };
+      }
+
+      if (!response.ok || !data || data.ok === false) {
+        const tgError = (data && data.description) || rawBody || `HTTP ${response.status}`;
+        lastFailure = {
+          ok: false,
+          skipped: false,
+          retryable: response.status >= 500,
+          status: response.status,
+          tgError,
+          apiBase
+        };
+        console.error('Telegram %s failed via %s:', method, apiBase, tgError);
+        if (i < apiBases.length - 1) continue;
+        return lastFailure;
+      }
+
+      return {
+        ok: true,
+        skipped: false,
+        retryable: false,
+        status: response.status,
+        apiBase,
+        data,
+        result: data.result
+      };
+    } catch (error) {
+      if (timeout) clearTimeout(timeout);
+      const tgError = 'network: ' + describeTelegramNetworkError(error);
+      console.error('Telegram %s error via %s:', method, apiBase, error);
+      lastFailure = {
+        ok: false,
+        skipped: false,
+        retryable: true,
+        tgError,
+        apiBase
+      };
+      if (i < apiBases.length - 1) continue;
+      return lastFailure;
+    }
+  }
+
+  return lastFailure || { ok: false, skipped: false, retryable: true, tgError: 'network: unknown error' };
+}
+
+function buildTelegramFileUrl(filePath, apiBase) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken || !filePath) return null;
+  const base = apiBase || getTelegramApiBases()[0];
+  return `${base}/file/bot${botToken}/${filePath}`;
+}
+
 async function sendTelegramMessage(chatId, text) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken || !chatId || !text) {
@@ -32,68 +159,19 @@ async function sendTelegramMessage(chatId, text) {
     return { ok: false, skipped: true, retryable: false };
   }
 
-  const configuredBase = String(process.env.TELEGRAM_API_BASE || '').trim();
-  const directBase = 'https://api.telegram.org';
-  const apiBases = configuredBase && configuredBase !== directBase
-    ? [configuredBase, directBase]
-    : [directBase];
-  const timeoutMs = Math.max(1000, Number(process.env.TELEGRAM_API_TIMEOUT_MS || 4000));
+  const result = await telegramApiCall('sendMessage', {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true
+  });
 
-  let lastFailure = null;
-  for (let i = 0; i < apiBases.length; i += 1) {
-    const apiBase = apiBases[i];
-    const AbortControllerCtor = typeof globalThis.AbortController === 'function'
-      ? globalThis.AbortController
-      : null;
-    const controller = AbortControllerCtor ? new AbortControllerCtor() : null;
-    const timeout = controller
-      ? setTimeout(() => controller.abort(new Error('timeout')), timeoutMs)
-      : null;
-
-    try {
-      const response = await fetch(`${apiBase}/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          disable_web_page_preview: true
-        }),
-        signal: controller ? controller.signal : undefined
-      });
-
-      if (timeout) clearTimeout(timeout);
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        lastFailure = {
-          ok: false,
-          skipped: false,
-          retryable: response.status >= 500,
-          status: response.status,
-          tgError: body
-        };
-        console.error('Telegram sendMessage failed via %s:', apiBase, response.status, body);
-        if (i < apiBases.length - 1) continue;
-        return lastFailure;
-      }
-
-      return { ok: true, skipped: false, retryable: false };
-    } catch (error) {
-      if (timeout) clearTimeout(timeout);
-      console.error('Telegram sendMessage error via %s:', apiBase, error);
-      lastFailure = {
-        ok: false,
-        skipped: false,
-        retryable: true,
-        tgError: 'network: ' + String(error.message)
-      };
-      if (i < apiBases.length - 1) continue;
-      return lastFailure;
-    }
-  }
-
-  return lastFailure || { ok: false, skipped: false, retryable: true, tgError: 'network: unknown error' };
+  return {
+    ok: result.ok,
+    skipped: result.skipped,
+    retryable: result.retryable,
+    status: result.status,
+    tgError: result.tgError
+  };
 }
 
 async function loadBookingNotificationData(bookingId) {
@@ -218,6 +296,8 @@ async function notifyClientBookingEvent(bookingId, eventType) {
 module.exports = {
   parseTelegramUserId,
   formatBookingTime,
+  telegramApiCall,
+  buildTelegramFileUrl,
   sendTelegramMessage,
   notifyMasterBookingEvent,
   notifyClientReminder,
