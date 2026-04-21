@@ -32,32 +32,68 @@ async function sendTelegramMessage(chatId, text) {
     return { ok: false, skipped: true, retryable: false };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const apiBase = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
-    const response = await fetch(`${apiBase}/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        disable_web_page_preview: true
-      }),
-      signal: controller.signal
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      console.error('Telegram sendMessage failed:', response.status, body);
-      return { ok: false, skipped: false, retryable: response.status >= 500, status: response.status, tgError: body };
+  const configuredBase = String(process.env.TELEGRAM_API_BASE || '').trim();
+  const directBase = 'https://api.telegram.org';
+  const apiBases = configuredBase && configuredBase !== directBase
+    ? [configuredBase, directBase]
+    : [directBase];
+  const timeoutMs = Math.max(1000, Number(process.env.TELEGRAM_API_TIMEOUT_MS || 4000));
+
+  let lastFailure = null;
+  for (let i = 0; i < apiBases.length; i += 1) {
+    const apiBase = apiBases[i];
+    const AbortControllerCtor = typeof globalThis.AbortController === 'function'
+      ? globalThis.AbortController
+      : null;
+    const controller = AbortControllerCtor ? new AbortControllerCtor() : null;
+    const timeout = controller
+      ? setTimeout(() => controller.abort(new Error('timeout')), timeoutMs)
+      : null;
+
+    try {
+      const response = await fetch(`${apiBase}/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          disable_web_page_preview: true
+        }),
+        signal: controller ? controller.signal : undefined
+      });
+
+      if (timeout) clearTimeout(timeout);
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        lastFailure = {
+          ok: false,
+          skipped: false,
+          retryable: response.status >= 500,
+          status: response.status,
+          tgError: body
+        };
+        console.error('Telegram sendMessage failed via %s:', apiBase, response.status, body);
+        if (i < apiBases.length - 1) continue;
+        return lastFailure;
+      }
+
+      return { ok: true, skipped: false, retryable: false };
+    } catch (error) {
+      if (timeout) clearTimeout(timeout);
+      console.error('Telegram sendMessage error via %s:', apiBase, error);
+      lastFailure = {
+        ok: false,
+        skipped: false,
+        retryable: true,
+        tgError: 'network: ' + String(error.message)
+      };
+      if (i < apiBases.length - 1) continue;
+      return lastFailure;
     }
-    return { ok: true, skipped: false, retryable: false };
-  } catch (error) {
-    console.error('Telegram sendMessage error:', error);
-    return { ok: false, skipped: false, retryable: true, tgError: 'network: ' + String(error.message) };
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return lastFailure || { ok: false, skipped: false, retryable: true, tgError: 'network: unknown error' };
 }
 
 async function loadBookingNotificationData(bookingId) {

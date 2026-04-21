@@ -25,11 +25,12 @@ module.exports = [
         alert: "readonly",
         confirm: "readonly",
         localStorage: "readonly",
+        sessionStorage: "readonly",
         event: "readonly",
       },
     },
     rules: {
-      "no-unused-vars": "warn",
+      "no-unused-vars": ["warn", { "caughtErrors": "none" }],
       "no-console": "off",
       eqeqeq: "warn",
       "no-var": "error",

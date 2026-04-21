@@ -1,13 +1,6 @@
 // Загружаем переменные окружения из .env файла
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
-// Validate required env vars at startup
-const REQUIRED_ENV_VARS = ['DATABASE_URL', 'JWT_SECRET'];
-const missingVars = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);
-if (missingVars.length > 0 && process.env.NODE_ENV !== 'test') {
-  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-}
-
 // Импортируем Express - это библиотека для создания веб-сервера
 const express = require('express');
 const path = require('path');
@@ -58,7 +51,7 @@ const authLimiter = rateLimit({
 });
 
 // Middleware для работы с JSON
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json());
 
 // Подключаем статические файлы (HTML, CSS, JS), по умолчанию из frontend
 const frontendDir = process.env.FRONTEND_DIR
@@ -124,6 +117,11 @@ app.use('/api/public', publicBookingRouter);
 const vkWebhookRouter = require('./routes/vk-webhook');
 app.use('/api/vk', vkWebhookRouter);
 
+
+// Telegram Bot webhook (подтверждение web-записей по deep link)
+const telegramWebhookRouter = require('./routes/telegram-webhook');
+app.use('/api/telegram', telegramWebhookRouter);
+
 // Подключаем роуты для повторяющихся задач (требуют авторизации)
 const recurrenceRouter = require('./routes/recurrence');
 app.use('/api', recurrenceRouter);
@@ -171,14 +169,8 @@ app.get('/master', (req, res) => {
 });
 
 // Роут для проверки здоровья сервера
-app.get('/health', async (req, res) => {
-  try {
-    const { pool } = require('./db');
-    await pool.query('SELECT 1');
-    res.json({ status: 'OK', timestamp: new Date() });
-  } catch (e) {
-    res.status(503).json({ status: 'DOWN', error: e.message, timestamp: new Date() });
-  }
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date() });
 });
 
 // Централизованный обработчик ошибок (должен быть последним)
@@ -198,8 +190,6 @@ if (require.main === module) {
     });
 
     if (process.env.NODE_ENV !== 'test') {
-      const { pool } = require('./db');
-
       const pollMs = Number(process.env.REMINDER_POLL_MS || 60000);
       setInterval(async () => {
         try {
@@ -208,20 +198,6 @@ if (require.main === module) {
           console.error('Reminder worker tick failed:', error);
         }
       }, pollMs);
-
-      // Cleanup soft-deleted tasks older than 1 year — runs once per day
-      const cleanupIntervalMs = 24 * 60 * 60 * 1000;
-      setInterval(async () => {
-        try {
-          const { rows } = await pool.query('SELECT cleanup_old_deleted_tasks() AS deleted');
-          const count = rows[0] && rows[0].deleted;
-          if (Number(count) > 0) {
-            console.log(`[cleanup] Permanently deleted ${count} expired soft-deleted tasks`);
-          }
-        } catch (err) {
-          console.error('[cleanup] Retention policy error:', err.message);
-        }
-      }, cleanupIntervalMs);
     }
   });
 }

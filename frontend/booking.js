@@ -13,13 +13,11 @@
 
   const urlParams = new URLSearchParams(window.location.search);
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
+  const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
 
-  if (!isCypress && !hasTelegramSession && !hasVkSession) {
-    document.body.innerHTML = '<main style="max-width:480px;margin:64px auto;padding:24px;text-align:center;font-family:system-ui,-apple-system,sans-serif;">'
-      + '<h1 style="margin-bottom:12px;">Откройте через Telegram или ВКонтакте</h1>'
-      + '<p style="margin:0;color:#5b6575;">Форма записи доступна только в Telegram Mini App или VK Mini App.</p>'
-      + '</main>';
-    return;
+  // Применяем мобильную верстку для веб-браузера (убираем "телефон" обёртку)
+  if (isWebBrowser) {
+    document.documentElement.classList.add('is-web-browser');
   }
 
   if (tg && hasTelegramSession) {
@@ -34,6 +32,7 @@
       void error;
     }
   }
+
 
   function normalizeOrigin(value) {
     if (!value) return '';
@@ -115,6 +114,7 @@
       services: document.getElementById('screen-services'),
       calendar: document.getElementById('screen-calendar'),
       confirm: document.getElementById('screen-confirm'),
+      contact: document.getElementById('screen-contact'),
       done: document.getElementById('screen-done'),
       bookings: document.getElementById('screen-bookings')
     },
@@ -143,6 +143,9 @@
     noteInput: document.getElementById('noteInput'),
     confirmBack: document.getElementById('confirmBack'),
     confirmSubmit: document.getElementById('confirmSubmit'),
+    contactBack: document.getElementById('contactBack'),
+    contactVk: document.getElementById('contactVk'),
+    contactTg: document.getElementById('contactTg'),
     doneText: document.getElementById('doneText'),
     doneNew: document.getElementById('doneNew'),
     doneBookings: document.getElementById('doneBookings'),
@@ -306,6 +309,9 @@
       const vkUserId = urlParams.get('vk_user_id');
       return vkUserId ? ('vk:' + vkUserId) : 'vk';
     }
+    if (isWebBrowser) {
+      return 'guest:' + getOrCreateGuestId();
+    }
     return '';
   }
 
@@ -354,55 +360,61 @@
     throw (lastError || new Error('Ошибка сети'));
   }
 
-  async function initAuth(options) {
-    const force = Boolean(options && options.force);
-    if (!force && hasCurrentAuthToken()) {
-      return true;
+  function getOrCreateGuestId() {
+    const key = 'guest_id';
+    let id = localStorage.getItem(key);
+    if (!id || id.length < 16) {
+      id = Array.from(window.crypto.getRandomValues(new Uint8Array(18)))
+        .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      localStorage.setItem(key, id);
     }
-
-    try {
-      if (hasTelegramSession) {
-        const data = await requestJson('/auth/telegram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData: tg.initData })
-        });
-        if (data.token) {
-          saveAuthToken(data.token);
-          return true;
-        }
-        throw new Error('Ошибка авторизации Telegram');
-      }
-
-      if (hasVkSession) {
-        const data = await requestJson('/auth/vk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ launchParams: window.location.search.slice(1) })
-        });
-        if (data.token) {
-          saveAuthToken(data.token);
-          return true;
-        }
-        throw new Error('Ошибка авторизации ВКонтакте');
-      }
-
-      throw new Error('Откройте форму внутри Telegram или ВКонтакте');
-    } catch (error) {
-      throw (error instanceof Error ? error : new Error(String(error || 'Ошибка авторизации')));
-    }
+    return id;
   }
 
-  async function ensureAuth() {
-    if (hasCurrentAuthToken()) return true;
-    try {
-      await initAuth({ force: true });
-      return true;
-    } catch (error) {
-      const message = error && error.message ? error.message : 'Не удалось авторизоваться';
-      showToast('Ошибка авторизации: ' + message);
-      return false;
+  async function initAuth(options) {
+    const force = Boolean(options && options.force);
+    if (!force && hasCurrentAuthToken()) return true;
+
+    if (hasTelegramSession) {
+      const data = await requestJson('/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData })
+      });
+      if (data.token) {
+        saveAuthToken(data.token);
+        return true;
+      }
+      throw new Error('Ошибка авторизации Telegram');
     }
+
+    if (hasVkSession) {
+      const data = await requestJson('/auth/vk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ launchParams: window.location.search.slice(1) })
+      });
+      if (data.token) {
+        saveAuthToken(data.token);
+        return true;
+      }
+      throw new Error('Ошибка авторизации ВКонтакте');
+    }
+
+    if (isWebBrowser) {
+      const data = await requestJson('/auth/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guest_id: getOrCreateGuestId() })
+      });
+      if (data.token) {
+        saveAuthToken(data.token);
+        return true;
+      }
+      throw new Error('Ошибка создания гостевого аккаунта');
+    }
+
+    throw new Error('Откройте форму внутри Telegram, ВКонтакте или в браузере');
   }
 
   async function apiFetch(path) {
@@ -974,49 +986,17 @@
   function currentPricing() {
     const totals = selectedTotals();
     const base = Number(totals.price || 0);
-    const hotWindow = state.selectedSlot && state.selectedSlot.hotWindow && typeof state.selectedSlot.hotWindow === 'object'
-      ? state.selectedSlot.hotWindow
-      : null;
 
     if (!state.promoPreview || !state.promoCode) {
-      let hotRewardType = null;
-      let hotDiscountPercent = null;
-      let hotGiftServiceName = null;
-      let hotDiscount = 0;
-
-      if (hotWindow && hotWindow.reward_type === 'percent') {
-        hotRewardType = 'percent';
-        hotDiscountPercent = Number(hotWindow.discount_percent || 0) || null;
-        if (hotDiscountPercent) {
-          hotDiscount = Math.round(base * hotDiscountPercent) / 100;
-        }
-      } else if (hotWindow && hotWindow.reward_type === 'gift_service') {
-        hotRewardType = 'gift_service';
-        hotGiftServiceName = hotWindow.gift_service_name || null;
-        const giftServiceId = Number(hotWindow.gift_service_id || 0);
-        if (giftServiceId > 0) {
-          const giftService = state.services.find(function (service) {
-            return Number(service.id) === giftServiceId;
-          });
-          if (giftService) {
-            hotDiscount = Number(giftService.price || 0);
-          }
-        }
-      }
-
-      hotDiscount = Math.min(base, Math.max(0, hotDiscount));
-      const hotFinal = Math.max(0, Math.round((base - hotDiscount) * 100) / 100);
-
       return {
         base: base,
-        final: hotFinal,
-        discount: hotDiscount,
+        final: base,
+        discount: 0,
         promoCode: null,
-        rewardType: hotRewardType,
-        discountPercent: hotDiscountPercent,
-        giftServiceName: hotGiftServiceName,
-        giftAdded: false,
-        source: hotRewardType ? 'hot_window' : null
+        rewardType: null,
+        discountPercent: null,
+        giftServiceName: null,
+        giftAdded: false
       };
     }
 
@@ -1028,8 +1008,7 @@
       rewardType: state.promoPreview.promo_reward_type || null,
       discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
       giftServiceName: state.promoPreview.promo_gift_service_name || null,
-      giftAdded: Boolean(state.promoPreview.promo_gift_service_added),
-      source: 'promo'
+      giftAdded: Boolean(state.promoPreview.promo_gift_service_added)
     };
   }
 
@@ -1059,20 +1038,13 @@
       + '<div class="row-line"><strong>Услуги</strong><span>' + services.length + '</span></div>'
       + serviceLines;
 
-    let discountLine = '';
-    if (pricing.source === 'promo' && pricing.promoCode) {
-      discountLine = '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
-    } else if (pricing.source === 'hot_window') {
-      if (pricing.rewardType === 'percent' && pricing.discountPercent) {
-        discountLine = '<div class="row-line"><span>Горячее окно (−' + pricing.discountPercent + '%)</span><span>−' + money(pricing.discount) + ' ₽</span></div>';
-      } else if (pricing.rewardType === 'gift_service' && pricing.giftServiceName) {
-        discountLine = '<div class="row-line"><span>Горячее окно (подарок)</span><span>' + escapeHtml(pricing.giftServiceName) + '</span></div>';
-      }
-    }
+    const promoLine = pricing.promoCode
+      ? '<div class="row-line"><span>Промокод (' + escapeHtml(pricing.promoCode) + ')</span><span>−' + money(pricing.discount) + ' ₽</span></div>'
+      : '';
 
     el.confirmPricing.innerHTML = ''
       + '<div class="row-line"><span>Стоимость</span><span>' + money(pricing.base) + ' ₽</span></div>'
-      + discountLine
+      + promoLine
       + '<div class="row-line total"><span>Итого</span><span>' + money(pricing.final) + ' ₽</span></div>';
 
     el.promoInput.value = state.promoCode;
@@ -1131,10 +1103,6 @@
     const note = String(el.noteInput.value || '').trim();
     state.note = note;
 
-    if (!await ensureAuth()) {
-      return;
-    }
-
     if (state.editingBookingId) {
       try {
         showLoader();
@@ -1182,26 +1150,13 @@
           promoLine += ' (подарок: ' + pricing.promo_gift_service_name + ')';
         }
         details.push(promoLine);
-      } else if (pricing.hot_window_reward_type) {
-        let hotLine = 'Горячее окно';
-        if (pricing.hot_window_reward_type === 'percent' && pricing.hot_window_discount_percent) {
-          hotLine += ' (скидка ' + pricing.hot_window_discount_percent + '%)';
-        }
-        if (pricing.hot_window_reward_type === 'gift_service' && pricing.hot_window_gift_service_name) {
-          hotLine += ' (подарок: ' + pricing.hot_window_gift_service_name + ')';
-        }
-        details.push(hotLine);
       }
 
       el.doneText.textContent = details.join(' · ');
       setFlow('done');
 
       if (hasTelegramSession && tg && typeof tg.showAlert === 'function') {
-        try {
-          tg.showAlert('Вы успешно записаны!');
-        } catch (error) {
-          void error;
-        }
+        tg.showAlert('Вы успешно записаны!');
       }
     } catch (error) {
       hideLoader();
@@ -1332,6 +1287,60 @@
     }
   }
 
+  async function submitBookingWeb(channel) {
+    if (!state.selectedServiceIds.length || !state.selectedSlot) {
+      showToast('Проверьте выбор услуги, даты и времени');
+      return;
+    }
+
+    if (!await initAuth()) return;
+
+    try {
+      showLoader();
+      const note = String(el.noteInput ? el.noteInput.value || '' : '').trim();
+      const body = {
+        service_ids: normalizeServiceIdsForApi(state.selectedServiceIds.slice()),
+        start_at: state.selectedSlot.start,
+        client_note: note || undefined,
+        web_contact_channel: channel
+      };
+      if (state.promoCode) body.promo_code = state.promoCode;
+
+      const created = await apiPost('/public/master/' + slug + '/book', body);
+      hideLoader();
+
+      const token = created.web_confirm_token;
+      const tgBotUsername = 'Rova_Epil_Bot';
+
+      if (channel === 'tg' && token) {
+        // Открываем Telegram бота с deep link
+        const deepLink = 'https://t.me/' + tgBotUsername + '?start=booking_' + token;
+        // Показываем экран done с инструкцией
+        if (el.doneText) {
+          el.doneText.textContent = 'Откройте Telegram-бота и подтвердите запись 👆';
+        }
+        setFlow('done');
+        // Открываем Telegram в новой вкладке
+        setTimeout(function () { window.open(deepLink, '_blank'); }, 300);
+      } else {
+        // VK — показываем код подтверждения, который нужно отправить боту
+        const shortCode = token ? token.slice(0, 8).toUpperCase() : '';
+        if (el.doneText) {
+          el.doneText.textContent = shortCode
+            ? 'Отправьте боту ВКонтакте сообщение:\n\nПОДТВЕРЖДЕНИЕ ' + shortCode
+            : 'Запись создана. Напишите в сообщество ВКонтакте для подтверждения.';
+        }
+        setFlow('done');
+        if (shortCode) {
+          window.open('https://vk.com/im?sel=-' + (window.__VK_GROUP_ID__ || '236570980'), '_blank');
+        }
+      }
+    } catch (error) {
+      hideLoader();
+      showToast(error.message);
+    }
+  }
+
   function resetFlow() {
     state.flowScreen = 'services';
     screenStack = ['services'];
@@ -1398,7 +1407,28 @@
 
     el.promoApply.addEventListener('click', applyPromo);
     el.confirmBack.addEventListener('click', function () { setFlow('calendar'); });
-    el.confirmSubmit.addEventListener('click', submitBooking);
+    el.confirmSubmit.addEventListener('click', function () {
+      // Для веб-браузера показываем экран выбора мессенджера перед созданием записи
+      if (isWebBrowser) {
+        setFlow('contact');
+      } else {
+        submitBooking();
+      }
+    });
+
+    if (el.contactBack) {
+      el.contactBack.addEventListener('click', function () { setFlow('confirm'); });
+    }
+    if (el.contactVk) {
+      el.contactVk.addEventListener('click', function () {
+        submitBookingWeb('vk');
+      });
+    }
+    if (el.contactTg) {
+      el.contactTg.addEventListener('click', function () {
+        submitBookingWeb('tg');
+      });
+    }
     el.doneNew.addEventListener('click', resetFlow);
     el.doneBookings.addEventListener('click', function () { openTab('bookings'); });
 
@@ -1489,6 +1519,7 @@
       renderTabs();
       renderScreens();
       renderDock();
+
     } catch (error) {
       showToast('Не удалось загрузить данные: ' + error.message);
       el.servicesList.innerHTML = '<section class="card"><p class="meta" style="margin:0;">Не удалось загрузить услуги.</p></section>';

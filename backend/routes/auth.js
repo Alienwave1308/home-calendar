@@ -429,4 +429,30 @@ router.post('/telegram', asyncRoute(async (req, res) => {
   });
 }));
 
+// POST /api/auth/guest — creates or reuses a guest account for web booking
+// Guest accounts are identified by a stable browser fingerprint stored in localStorage.
+// Rate-limited by the general limiter; no sensitive data is exposed.
+router.post('/guest', asyncRoute(async (req, res) => {
+  const guestId = String(req.body.guest_id || '').trim();
+  if (!guestId || guestId.length < 16 || guestId.length > 64) {
+    return res.status(400).json({ error: 'guest_id required (16-64 chars)' });
+  }
+
+  const username = `guest_${guestId}`;
+  let userResult = await pool.query(
+    'SELECT id, username FROM users WHERE username = $1 LIMIT 1',
+    [username]
+  );
+  if (userResult.rows.length === 0) {
+    userResult = await pool.query(
+      'INSERT INTO users (username) VALUES ($1) RETURNING id, username',
+      [username]
+    );
+  }
+
+  const user = userResult.rows[0];
+  const token = buildToken(user);
+  res.json({ token });
+}));
+
 module.exports = router;

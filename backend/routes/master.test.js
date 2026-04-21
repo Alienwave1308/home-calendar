@@ -23,8 +23,12 @@ jest.mock('../lib/reminders', () => ({
 
 jest.mock('../lib/telegram-notify', () => ({
   notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
-  notifyClientBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+  notifyClientBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
+  sendTelegramMessage: jest.fn().mockResolvedValue({ ok: true, skipped: false, retryable: false }),
+  parseTelegramUserId: jest.fn()
 }));
+
+const { sendTelegramMessage, parseTelegramUserId } = require('../lib/telegram-notify');
 
 const token = jwt.sign({ id: 1, username: 'master1' }, JWT_SECRET);
 const authHeader = `Bearer ${token}`;
@@ -107,6 +111,38 @@ describe('Master API', () => {
         .get('/api/master/profile')
         .set('Authorization', authHeader)
         .expect(404);
+    });
+  });
+
+  describe('POST /api/master/test-notification', () => {
+    it('should send test notification to parsed telegram chat id', async () => {
+      parseTelegramUserId.mockReturnValueOnce('777');
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ username: 'tg_777' }] });
+
+      const res = await request(app)
+        .post('/api/master/test-notification')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(sendTelegramMessage).toHaveBeenCalledWith('777', '✅ Тестовое уведомление — бот работает корректно.');
+      expect(res.body).toMatchObject({ ok: true, skipped: false, chatId: '777' });
+    });
+
+    it('should explain invalid username format', async () => {
+      parseTelegramUserId.mockReturnValueOnce(null);
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] }) // loadMaster
+        .mockResolvedValueOnce({ rows: [{ username: 'master1' }] });
+
+      const res = await request(app)
+        .post('/api/master/test-notification')
+        .set('Authorization', authHeader)
+        .expect(400);
+
+      expect(sendTelegramMessage).not.toHaveBeenCalled();
+      expect(res.body).toMatchObject({ ok: false, reason: 'username_format', username: 'master1' });
     });
   });
 

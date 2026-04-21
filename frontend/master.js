@@ -138,9 +138,14 @@
           const message = localizeApiErrorMessage(rawMessage);
           if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
             lastError = new Error(message);
+            lastError.status = res.status;
+            lastError.data = data;
             continue;
           }
-          throw new Error(message);
+          const error = new Error(message);
+          error.status = res.status;
+          error.data = data;
+          throw error;
         }
 
         API_BASE = base;
@@ -171,9 +176,14 @@
           const message = localizeApiErrorMessage(rawMessage);
           if (i < orderedBases.length - 1 && shouldRetryWithNextBase(res.status)) {
             lastError = new Error(message);
+            lastError.status = res.status;
+            lastError.data = data;
             continue;
           }
-          throw new Error(message);
+          const error = new Error(message);
+          error.status = res.status;
+          error.data = data;
+          throw error;
         }
 
         ROOT_API_BASE = base;
@@ -215,6 +225,20 @@
     $('networkToast').style.display = 'none';
   }
 
+  function formatTestNotificationError(error) {
+    const data = error && error.data ? error.data : null;
+    if (data && data.reason === 'username_format') {
+      return '❌ Username не в формате tg_XXXXX: ' + (data.username || 'не задан');
+    }
+    if (data && data.skipped) {
+      return '❌ Пропущено: нет токена бота или chatId';
+    }
+    if (data && data.tgError) {
+      return '❌ Telegram HTTP ' + (data.status || error.status || '?') + ': ' + data.tgError;
+    }
+    return '❌ Запрос не выполнен: ' + (error && error.message ? error.message : 'неизвестно');
+  }
+
   async function testNotification() {
     const btn = $('btnTestNotification');
     const result = $('testNotificationResult');
@@ -234,7 +258,7 @@
         result.textContent = '❌ Ошибка: ' + (data.error || 'неизвестно');
       }
     } catch (e) {
-      result.textContent = '❌ Запрос не выполнен: ' + e.message;
+      result.textContent = formatTestNotificationError(e);
     } finally {
       btn.disabled = false;
     }
