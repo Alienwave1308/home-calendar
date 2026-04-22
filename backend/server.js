@@ -18,6 +18,9 @@ const PORT = process.env.PORT || 3000;
 
 // === Security Middleware ===
 
+// Trust first proxy (Caddy) so rate limiters use real client IP from X-Forwarded-For
+app.set('trust proxy', 1);
+
 // Helmet — secure HTTP headers
 app.use(helmet({ contentSecurityPolicy: false }));
 

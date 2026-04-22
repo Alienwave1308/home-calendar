@@ -1129,6 +1129,8 @@
       return;
     }
 
+    if (!await initAuth()) return;
+
     const note = String(el.noteInput.value || '').trim();
     state.note = note;
 
