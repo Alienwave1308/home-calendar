@@ -87,7 +87,6 @@ async function getWebBookingAvailability(slug) {
 }
 
 module.exports = {
-  getAllowedWebBookingSlugs,
   getTelegramBotUsername,
   getVkGroupId,
   getWebBookingAvailability,
