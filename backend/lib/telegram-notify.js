@@ -1,10 +1,17 @@
 const { pool } = require('../db');
+const { sendVkMessage } = require('./vk-api');
 const SALON_ADDRESS = process.env.SALON_ADDRESS || 'Мкр Околица д.1, квартира 60';
 
 function parseTelegramUserId(username) {
   if (!username || typeof username !== 'string') return null;
   const match = username.match(/^tg_(\d+)$/);
   return match ? match[1] : null;
+}
+
+function parseVkUserId(username) {
+  if (!username || typeof username !== 'string') return null;
+  const match = username.match(/^vk_(\d+)$/);
+  return match ? Number(match[1]) : null;
 }
 
 function formatBookingTime(iso, timezone) {
@@ -266,9 +273,6 @@ async function notifyClientBookingEvent(bookingId, eventType) {
     const data = await loadBookingNotificationData(bookingId);
     if (!data) return { ok: false, skipped: true, retryable: false };
 
-    const clientTelegramId = parseTelegramUserId(data.client_username);
-    if (!clientTelegramId) return { ok: false, skipped: true, retryable: false };
-
     const isCanceled = eventType === 'canceled';
     const isCreated = eventType === 'created';
     const lines = [
@@ -278,15 +282,27 @@ async function notifyClientBookingEvent(bookingId, eventType) {
       `Дата и время: ${formatBookingTime(data.start_at, data.master_timezone)} (${data.master_timezone || 'Asia/Novosibirsk'})`,
       `Мастер: ${data.master_name || 'Лера'}`
     ];
+    if (data.client_note) lines.push(`Комментарий: ${data.client_note}`);
+    if (isCanceled) lines.push('По вопросам и для подбора нового времени: @RoVVVVa');
+    const text = lines.join('\n');
 
-    if (data.client_note) {
-      lines.push(`Комментарий: ${data.client_note}`);
-    }
-    if (isCanceled) {
-      lines.push('По вопросам и для подбора нового времени: @RoVVVVa');
+    const clientTelegramId = parseTelegramUserId(data.client_username);
+    if (clientTelegramId) {
+      return await sendTelegramMessage(clientTelegramId, text);
     }
 
-    return await sendTelegramMessage(clientTelegramId, lines.join('\n'));
+    const clientVkId = parseVkUserId(data.client_username);
+    if (clientVkId) {
+      try {
+        await sendVkMessage(clientVkId, text);
+        return { ok: true, skipped: false, retryable: false };
+      } catch (vkError) {
+        console.warn('[notify] VK client notify failed for booking', bookingId, vkError.message);
+        return { ok: false, skipped: false, retryable: true };
+      }
+    }
+
+    return { ok: false, skipped: true, retryable: false };
   } catch (error) {
     console.error('Error notifying client booking event:', error);
     return { ok: false, skipped: false, retryable: true };
