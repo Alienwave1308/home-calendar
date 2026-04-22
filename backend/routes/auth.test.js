@@ -44,6 +44,7 @@ describe('Auth API', () => {
     process.env.NODE_ENV = 'test';
     delete process.env.ALLOW_PASSWORD_AUTH;
     delete process.env.MASTER_TELEGRAM_USER_ID;
+    delete process.env.WEB_BOOKING_ENABLED;
   });
 
   afterAll(() => {
@@ -456,6 +457,33 @@ describe('Auth API', () => {
       expect(res.status).toBe(200);
       const decoded = jwt.verify(res.body.token, JWT_SECRET);
       expect(decoded.id).toBe(99);
+    });
+  });
+
+  describe('POST /api/auth/guest', () => {
+    it('should create a guest token when web booking is enabled', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: 77, username: 'guest_abcdef1234567890' }] });
+
+      const response = await request(app)
+        .post('/api/auth/guest')
+        .send({ guest_id: 'abcdef1234567890' })
+        .expect(200);
+
+      expect(response.body.token).toBeTruthy();
+    });
+
+    it('should reject guest auth when web booking is disabled explicitly', async () => {
+      process.env.WEB_BOOKING_ENABLED = 'false';
+
+      const response = await request(app)
+        .post('/api/auth/guest')
+        .send({ guest_id: 'abcdef1234567890' })
+        .expect(503);
+
+      expect(response.body.reason).toBe('web_booking_disabled');
+      expect(pool.query).not.toHaveBeenCalled();
     });
   });
 });

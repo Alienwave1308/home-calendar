@@ -26,7 +26,9 @@ jest.mock('../lib/reminders', () => ({
 }));
 
 jest.mock('../lib/telegram-notify', () => ({
-  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
+  notifyClientBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
+  telegramApiCall: jest.fn().mockResolvedValue({ ok: true, result: null })
 }));
 
 describe('Public Booking API', () => {
@@ -36,6 +38,9 @@ describe('Public Booking API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     pool.query.mockReset();
+    delete process.env.WEB_BOOKING_ENABLED;
+    delete process.env.TELEGRAM_BOT_USERNAME;
+    delete process.env.VK_GROUP_ID;
   });
 
   it('should return master profile and active services by slug', async () => {
@@ -159,6 +164,20 @@ describe('Public Booking API', () => {
     await request(app)
       .get('/api/public/master/master-slug/slots')
       .expect(400);
+  });
+
+  it('should inject runtime config into booking page', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'false';
+    process.env.TELEGRAM_BOT_USERNAME = 'LaunchBot';
+    process.env.VK_GROUP_ID = '123456';
+
+    const res = await request(app)
+      .get('/book/master-slug')
+      .expect(200);
+
+    expect(res.text).toContain('window.__HC_WEB_BOOKING_ENABLED__ = false;');
+    expect(res.text).toContain('window.__TG_BOT_USERNAME__ = "LaunchBot";');
+    expect(res.text).toContain('window.__VK_GROUP_ID__ = "123456";');
   });
 
   it('should return pricing preview for percent promo code', async () => {
@@ -740,6 +759,19 @@ describe('Public Booking API', () => {
     expect(res.body.status).toBe('pending_confirmation');
     expect(res.body.web_contact_channel).toBe('vk');
     expect(res.body.web_confirm_token).toBeDefined();
+  });
+
+  it('should reject web booking when feature flag is disabled', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'false';
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: futureDate(), web_contact_channel: 'vk' })
+      .expect(503);
+
+    expect(res.body.reason).toBe('web_booking_disabled');
+    expect(pool.query).not.toHaveBeenCalled();
   });
 
   it('should create web booking with pending_confirmation status when web_contact_channel=tg', async () => {

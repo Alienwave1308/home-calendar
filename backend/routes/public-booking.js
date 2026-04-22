@@ -7,6 +7,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { generateSlotsFromWindows, localDateTimeToUtcMs } = require('../lib/slots');
 const { createReminders } = require('../lib/reminders');
 const { notifyMasterBookingEvent, notifyClientBookingEvent } = require('../lib/telegram-notify');
+const { getWebBookingAvailability, getTelegramBotUsername } = require('../lib/web-booking');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -899,6 +900,16 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       : null;
     const isWebBooking = webContactChannel === 'vk' || webContactChannel === 'tg';
 
+    if (isWebBooking) {
+      const availability = await getWebBookingAvailability();
+      if (!availability.ok) {
+        return res.status(availability.status).json({
+          error: availability.error,
+          reason: availability.reason
+        });
+      }
+    }
+
     // Normalize to array of IDs
     let rawIds = req.body.service_ids;
     if (!rawIds) {
@@ -1154,13 +1165,12 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         // Для web-записи не создаём напоминания до подтверждения.
         // Если выбран Telegram — отправляем deep link сообщение через бота.
         if (webContactChannel === 'tg') {
-          const tgBotUsername = process.env.TELEGRAM_BOT_USERNAME || 'Rova_Epil_Bot';
+          const tgBotUsername = getTelegramBotUsername();
           // Уведомление будет отправлено когда пользователь откроет deep link и нажмёт /start
           // Ничего дополнительно не делаем на сервере.
           void tgBotUsername;
         }
-        // Для VK: пользователь уже авторизован через OAuth, бот напишет ему
-        // когда он напишет сообщество (стандартный vk-bot-handler flow).
+        // Для VK пользователь подтверждает запись кодом через бот сообщества.
       } else {
         await createReminders(created.id, created.master_id, created.start_at);
         await notifyMasterBookingEvent(created.id, 'created');

@@ -9,6 +9,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
 const asyncRoute = require('../lib/asyncRoute');
+const { getWebBookingAvailability } = require('../lib/web-booking');
 const TELEGRAM_ONLY_ERROR = 'Only Telegram Mini App authentication is allowed';
 
 function buildToken(user) {
@@ -433,6 +434,14 @@ router.post('/telegram', asyncRoute(async (req, res) => {
 // Guest accounts are identified by a stable browser fingerprint stored in localStorage.
 // Rate-limited by the general limiter; no sensitive data is exposed.
 router.post('/guest', asyncRoute(async (req, res) => {
+  const availability = await getWebBookingAvailability();
+  if (!availability.ok) {
+    return res.status(availability.status).json({
+      error: availability.error,
+      reason: availability.reason
+    });
+  }
+
   const guestId = String(req.body.guest_id || '').trim();
   if (!guestId || guestId.length < 16 || guestId.length > 64) {
     return res.status(400).json({ error: 'guest_id required (16-64 chars)' });
