@@ -99,6 +99,7 @@ function renderBookingHtml(slug) {
   const runtimeScript = '<script>'
     + `window.__HC_WEB_BOOKING_ENABLED__ = ${JSON.stringify(runtimeConfig.enabled)};`
     + `window.__TG_BOT_USERNAME__ = ${JSON.stringify(runtimeConfig.telegramBotUsername)};`
+    + `window.__TG_BOT_ID__ = ${JSON.stringify(runtimeConfig.telegramBotId)};`
     + `window.__VK_GROUP_ID__ = ${JSON.stringify(runtimeConfig.vkGroupId)};`
     + `window.__VK_APP_ID__ = ${JSON.stringify(runtimeConfig.vkAppId)};`
     + '</script>';

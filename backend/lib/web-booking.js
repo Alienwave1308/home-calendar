@@ -39,6 +39,12 @@ function getTelegramBotUsername() {
   return value || 'Rova_Epil_Bot';
 }
 
+function getTelegramBotId() {
+  const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  const colon = token.indexOf(':');
+  return colon === -1 ? '' : token.slice(0, colon);
+}
+
 function getVkGroupId() {
   return String(process.env.VK_GROUP_ID || '').trim();
 }
@@ -51,6 +57,7 @@ function getWebBookingPublicConfig(slug) {
   return {
     enabled: isWebBookingEnabled() && isWebBookingAllowedForSlug(slug),
     telegramBotUsername: getTelegramBotUsername(),
+    telegramBotId: getTelegramBotId(),
     vkGroupId: getVkGroupId(),
     vkAppId: getVkAppId()
   };

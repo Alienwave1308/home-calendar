@@ -16,6 +16,7 @@
   const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
   const webBookingLaunchEnabled = Boolean(window.__HC_WEB_BOOKING_ENABLED__);
   const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim();
+  const tgBotId = String(window.__TG_BOT_ID__ || '').trim();
   const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
   const vkAppId = String(window.__VK_APP_ID__ || '').trim();
 
@@ -411,7 +412,9 @@
       + '<div style="font-size:30px;margin-bottom:8px;">🔐</div>'
       + '<h3 style="margin:0 0 6px;font-size:17px;">Войдите, чтобы записаться</h3>'
       + '<p style="margin:0 0 18px;color:#527064;font-size:13px;line-height:1.5;">Для получения уведомлений о записи</p>'
-      + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;"></div>'
+      + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;">'
+      + (tgBotId ? '<button id="web-auth-tg-btn" style="background:#2ca5e0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:15px;font-weight:600;cursor:pointer;">Войти через Telegram</button>' : '')
+      + '</div>'
       + (vkAppId ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
       + '<button id="web-auth-cancel" style="margin-top:12px;background:none;border:none;color:#8a9e96;font-size:13px;cursor:pointer;text-decoration:underline;">Отмена</button>'
       + '</div>';
@@ -436,6 +439,15 @@
   };
 
   window.addEventListener('message', function (event) {
+    // TG oauth.telegram.org sends {event: 'auth_result', result: {...}} to opener after login
+    if (event.origin === 'https://oauth.telegram.org' && event.data && event.data.event === 'auth_result') {
+      const result = event.data.result;
+      if (result && result.id) {
+        window.__onTelegramWidgetAuth__(result);
+      }
+      return;
+    }
+
     // VK blank.html sends window.location.href (a string) to opener from oauth.vk.com
     if (event.origin === 'https://oauth.vk.com' && typeof event.data === 'string') {
       try {
@@ -470,18 +482,25 @@
       const modal = createWebAuthModal();
       modal.style.display = 'flex';
 
-      // Inject TG Login Widget script fresh each time (widget only fires once otherwise)
-      const container = document.getElementById('web-auth-tg-widget');
-      container.innerHTML = '';
-      const script = document.createElement('script');
-      script.src = 'https://telegram.org/js/telegram-widget.js?22';
-      script.setAttribute('data-telegram-login', tgBotUsername);
-      script.setAttribute('data-size', 'large');
-      script.setAttribute('data-radius', '8');
-      script.setAttribute('data-request-access', 'write');
-      script.setAttribute('data-onauth', '__onTelegramWidgetAuth__(user)');
-      script.async = true;
-      container.appendChild(script);
+      const tgBtn = document.getElementById('web-auth-tg-btn');
+      if (tgBtn) {
+        tgBtn.onclick = function () {
+          const params = new URLSearchParams({
+            bot_id: tgBotId,
+            origin: window.location.origin,
+            embed: '0',
+            request_access: 'write'
+          });
+          const w = 550, h = 480;
+          const left = Math.round(screen.width / 2 - w / 2);
+          const top = Math.round(screen.height / 2 - h / 2);
+          window.open(
+            'https://oauth.telegram.org/auth?' + params,
+            'tg_auth',
+            'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
+          );
+        };
+      }
 
       const vkBtn = document.getElementById('web-auth-vk-btn');
       if (vkBtn) {
