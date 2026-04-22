@@ -389,6 +389,109 @@
     throw (lastError || new Error('Ошибка сети'));
   }
 
+  function parseJwtPayload(token) {
+    try { return JSON.parse(atob(String(token).split('.')[1])); } catch { return null; }
+  }
+
+  function isGuestToken(token) {
+    const payload = parseJwtPayload(token);
+    return Boolean(payload && payload.username && payload.username.startsWith('guest_'));
+  }
+
+  let _webAuthResolve = null;
+  let _webAuthReject = null;
+
+  function createWebAuthModal() {
+    let modal = document.getElementById('web-auth-modal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'web-auth-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+    modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:28px 20px;max-width:340px;width:100%;text-align:center;font-family:system-ui,-apple-system,sans-serif;color:#183127;">'
+      + '<div style="font-size:30px;margin-bottom:8px;">🔐</div>'
+      + '<h3 style="margin:0 0 6px;font-size:17px;">Войдите, чтобы записаться</h3>'
+      + '<p style="margin:0 0 18px;color:#527064;font-size:13px;line-height:1.5;">Для получения уведомлений о записи</p>'
+      + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;"></div>'
+      + (vkGroupId ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
+      + '<button id="web-auth-cancel" style="margin-top:12px;background:none;border:none;color:#8a9e96;font-size:13px;cursor:pointer;text-decoration:underline;">Отмена</button>'
+      + '</div>';
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  window.__onTelegramWidgetAuth__ = function (user) {
+    requestJson('/auth/telegram-widget', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user)
+    }).then(function (data) {
+      if (data && data.token) {
+        saveAuthToken(data.token);
+        hideWebAuthModal();
+        if (_webAuthResolve) { _webAuthResolve(true); _webAuthResolve = null; }
+      }
+    }).catch(function () {
+      showToast('Ошибка авторизации через Telegram');
+    });
+  };
+
+  window.addEventListener('message', function (event) {
+    if (!event.data || event.data.type !== 'vk-oauth-token') return;
+    const token = event.data.token;
+    if (token) {
+      saveAuthToken(token);
+      hideWebAuthModal();
+      if (_webAuthResolve) { _webAuthResolve(true); _webAuthResolve = null; }
+    }
+  });
+
+  function showWebAuthModal() {
+    return new Promise(function (resolve, reject) {
+      _webAuthResolve = resolve;
+      _webAuthReject = reject;
+
+      const modal = createWebAuthModal();
+      modal.style.display = 'flex';
+
+      // Inject TG Login Widget script fresh each time (widget only fires once otherwise)
+      const container = document.getElementById('web-auth-tg-widget');
+      container.innerHTML = '';
+      const script = document.createElement('script');
+      script.src = 'https://telegram.org/js/telegram-widget.js?22';
+      script.setAttribute('data-telegram-login', tgBotUsername);
+      script.setAttribute('data-size', 'large');
+      script.setAttribute('data-radius', '8');
+      script.setAttribute('data-request-access', 'write');
+      script.setAttribute('data-onauth', '__onTelegramWidgetAuth__(user)');
+      script.async = true;
+      container.appendChild(script);
+
+      const vkBtn = document.getElementById('web-auth-vk-btn');
+      if (vkBtn) {
+        vkBtn.onclick = function () {
+          const w = 600, h = 600;
+          const left = Math.round(screen.width / 2 - w / 2);
+          const top = Math.round(screen.height / 2 - h / 2);
+          window.open(
+            apiBase + '/auth/vk-oauth',
+            'vk_oauth',
+            'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
+          );
+        };
+      }
+
+      document.getElementById('web-auth-cancel').onclick = function () {
+        hideWebAuthModal();
+        reject(new Error('Авторизация отменена'));
+      };
+    });
+  }
+
+  function hideWebAuthModal() {
+    const modal = document.getElementById('web-auth-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
   function getOrCreateGuestId() {
     const key = 'guest_id';
     let id = localStorage.getItem(key);
@@ -402,9 +505,9 @@
 
   async function initAuth(options) {
     const force = Boolean(options && options.force);
-    if (!force && hasCurrentAuthToken()) return true;
 
     if (hasTelegramSession) {
+      if (!force && hasCurrentAuthToken()) return true;
       const data = await requestJson('/auth/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -418,6 +521,7 @@
     }
 
     if (hasVkSession) {
+      if (!force && hasCurrentAuthToken()) return true;
       const data = await requestJson('/auth/vk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -431,16 +535,18 @@
     }
 
     if (isWebBrowser) {
-      const data = await requestJson('/auth/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guest_id: getOrCreateGuestId() })
-      });
-      if (data.token) {
-        saveAuthToken(data.token);
-        return true;
+      // Clear stale guest tokens — web users must authenticate with TG or VK for notifications
+      if (!force) {
+        const existingToken = localStorage.getItem('token');
+        if (existingToken && isGuestToken(existingToken)) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('bookingAuthSession');
+        } else if (hasCurrentAuthToken()) {
+          return true;
+        }
       }
-      throw new Error('Ошибка создания гостевого аккаунта');
+      await showWebAuthModal();
+      return true;
     }
 
     throw new Error('Откройте форму внутри Telegram, ВКонтакте или в браузере');
@@ -1446,12 +1552,7 @@
     el.promoApply.addEventListener('click', applyPromo);
     el.confirmBack.addEventListener('click', function () { setFlow('calendar'); });
     el.confirmSubmit.addEventListener('click', function () {
-      // Для веб-браузера показываем экран выбора мессенджера перед созданием записи
-      if (isWebBrowser) {
-        setFlow('contact');
-      } else {
-        submitBooking();
-      }
+      submitBooking();
     });
 
     if (el.contactBack) {

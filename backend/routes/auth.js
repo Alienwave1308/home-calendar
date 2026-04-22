@@ -464,4 +464,186 @@ router.post('/guest', asyncRoute(async (req, res) => {
   res.json({ token });
 }));
 
+// --- Telegram Login Widget ---
+
+function isValidTelegramWidgetData(data, botToken) {
+  const hash = data.hash;
+  if (!hash) return false;
+
+  const checkString = Object.entries(data)
+    .filter(([key]) => key !== 'hash')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+
+  // Widget uses SHA256(botToken) as secret key, unlike Mini App which uses HMAC("WebAppData", botToken)
+  const secretKey = crypto.createHash('sha256').update(botToken).digest();
+  const computedHash = crypto.createHmac('sha256', secretKey).update(checkString).digest('hex');
+  const computedBuffer = Buffer.from(computedHash, 'hex');
+  const receivedBuffer = Buffer.from(hash, 'hex');
+  if (computedBuffer.length !== receivedBuffer.length) return false;
+  return crypto.timingSafeEqual(computedBuffer, receivedBuffer);
+}
+
+// POST /api/auth/telegram-widget — Telegram Login Widget (browser, not Mini App)
+router.post('/telegram-widget', asyncRoute(async (req, res) => {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return res.status(503).json({ error: 'Telegram auth is not configured' });
+  }
+
+  const body = req.body;
+  if (!body || !body.id || !body.hash || !body.auth_date) {
+    return res.status(400).json({ error: 'Invalid widget data: id, hash and auth_date are required' });
+  }
+
+  // Normalise to strings to prevent type-injection attacks
+  const widgetData = {};
+  for (const key of ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash']) {
+    if (body[key] !== undefined) widgetData[key] = String(body[key]);
+  }
+
+  const authDate = Number(widgetData.auth_date);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!authDate || nowSeconds - authDate > 600) {
+    return res.status(401).json({ error: 'Telegram widget data expired (max 10 minutes)' });
+  }
+
+  if (!isValidTelegramWidgetData(widgetData, botToken)) {
+    return res.status(401).json({ error: 'Invalid Telegram widget signature' });
+  }
+
+  const telegramId = widgetData.id;
+  const username = `tg_${telegramId}`;
+
+  let userResult = await pool.query(
+    'SELECT id, username FROM users WHERE username = $1',
+    [username]
+  );
+
+  if (userResult.rows.length === 0) {
+    const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 10);
+    userResult = await pool.query(
+      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
+      [username, randomPasswordHash]
+    );
+  }
+
+  const user = userResult.rows[0];
+  const rawUser = {
+    id: body.id,
+    first_name: body.first_name,
+    last_name: body.last_name,
+    username: body.username,
+    photo_url: body.photo_url
+  };
+  await syncTelegramUserProfile(user.id, rawUser);
+  const token = buildToken(user);
+  const { role, master } = await resolveRoleAndMaster(user, telegramId, rawUser);
+
+  res.json({
+    user: { id: user.id, username: user.username },
+    token,
+    role,
+    booking_slug: master ? master.booking_slug : null,
+    master_id: master ? master.id : null
+  });
+}));
+
+// --- VK OAuth ---
+
+function buildPostMessagePage(token, errorMsg) {
+  const message = token
+    ? { type: 'vk-oauth-token', token }
+    : { type: 'vk-oauth-error', error: errorMsg || 'VK auth failed' };
+  const origin = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*'
+    ? JSON.stringify(process.env.CORS_ORIGIN)
+    : "'*'";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>VK Auth</title></head><body><script>
+  try { window.opener.postMessage(${JSON.stringify(message)}, ${origin}); } catch(e) {}
+  window.close();
+</script></body></html>`;
+}
+
+function getVkOAuthRedirectUri(req) {
+  if (process.env.VK_OAUTH_REDIRECT_URI) return process.env.VK_OAUTH_REDIRECT_URI;
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${proto}://${host}/api/auth/vk-oauth/callback`;
+}
+
+// GET /api/auth/vk-oauth — redirect browser to VK OAuth consent screen
+router.get('/vk-oauth', (req, res) => {
+  const appId = process.env.VK_APP_ID;
+  if (!appId) return res.status(503).send('VK OAuth is not configured');
+
+  const params = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: getVkOAuthRedirectUri(req),
+    scope: '',
+    response_type: 'code',
+    v: '5.199',
+    display: 'popup'
+  });
+  res.redirect(`https://oauth.vk.com/authorize?${params}`);
+});
+
+// GET /api/auth/vk-oauth/callback — exchange code, create/find user, postMessage token to opener
+router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
+  const { code, error } = req.query;
+
+  if (error || !code) {
+    return res.send(buildPostMessagePage(null, 'VK авторизация отменена'));
+  }
+
+  const appId = process.env.VK_APP_ID;
+  const appSecret = process.env.VK_APP_SECRET;
+  if (!appId || !appSecret) {
+    return res.send(buildPostMessagePage(null, 'VK OAuth не настроен'));
+  }
+
+  const tokenParams = new URLSearchParams({
+    client_id: appId,
+    client_secret: appSecret,
+    redirect_uri: getVkOAuthRedirectUri(req),
+    code: String(code)
+  });
+
+  let tokenData;
+  try {
+    const tokenRes = await fetch(`https://oauth.vk.com/access_token?${tokenParams}`);
+    tokenData = await tokenRes.json();
+  } catch (fetchErr) {
+    console.error('[vk-oauth] token exchange failed:', fetchErr);
+    return res.send(buildPostMessagePage(null, 'Ошибка связи с ВКонтакте'));
+  }
+
+  if (tokenData.error || !tokenData.user_id) {
+    console.error('[vk-oauth] token error:', tokenData.error, tokenData.error_description);
+    return res.send(buildPostMessagePage(null, 'Ошибка авторизации ВКонтакте'));
+  }
+
+  const vkUserId = Number(tokenData.user_id);
+  const username = `vk_${vkUserId}`;
+
+  let userResult = await pool.query(
+    'SELECT id, username, vk_user_id FROM users WHERE vk_user_id = $1 OR username = $2 LIMIT 1',
+    [vkUserId, username]
+  );
+
+  if (userResult.rows.length === 0) {
+    userResult = await pool.query(
+      'INSERT INTO users (username, vk_user_id) VALUES ($1, $2) RETURNING id, username',
+      [username, vkUserId]
+    );
+  } else if (!userResult.rows[0].vk_user_id) {
+    await pool.query('UPDATE users SET vk_user_id = $1 WHERE id = $2', [vkUserId, userResult.rows[0].id]);
+  }
+
+  const user = userResult.rows[0];
+  const token = buildToken(user);
+
+  res.send(buildPostMessagePage(token, null));
+}));
+
 module.exports = router;
