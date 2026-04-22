@@ -26,7 +26,9 @@ jest.mock('../lib/reminders', () => ({
 }));
 
 jest.mock('../lib/telegram-notify', () => ({
-  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true })
+  notifyMasterBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
+  notifyClientBookingEvent: jest.fn().mockResolvedValue({ ok: true }),
+  telegramApiCall: jest.fn().mockResolvedValue({ ok: true, result: null })
 }));
 
 describe('Public Booking API', () => {
@@ -36,6 +38,10 @@ describe('Public Booking API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     pool.query.mockReset();
+    delete process.env.WEB_BOOKING_ENABLED;
+    delete process.env.WEB_BOOKING_ALLOWED_SLUGS;
+    delete process.env.TELEGRAM_BOT_USERNAME;
+    delete process.env.VK_GROUP_ID;
   });
 
   it('should return master profile and active services by slug', async () => {
@@ -159,6 +165,32 @@ describe('Public Booking API', () => {
     await request(app)
       .get('/api/public/master/master-slug/slots')
       .expect(400);
+  });
+
+  it('should inject runtime config into booking page for allowed slug', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'true';
+    process.env.WEB_BOOKING_ALLOWED_SLUGS = 'master-slug,other-slug';
+    process.env.TELEGRAM_BOT_USERNAME = 'LaunchBot';
+    process.env.VK_GROUP_ID = '123456';
+
+    const res = await request(app)
+      .get('/book/master-slug')
+      .expect(200);
+
+    expect(res.text).toContain('window.__HC_WEB_BOOKING_ENABLED__ = true;');
+    expect(res.text).toContain('window.__TG_BOT_USERNAME__ = "LaunchBot";');
+    expect(res.text).toContain('window.__VK_GROUP_ID__ = "123456";');
+  });
+
+  it('should inject disabled runtime config into booking page for slug outside allowlist', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'true';
+    process.env.WEB_BOOKING_ALLOWED_SLUGS = 'other-slug';
+
+    const res = await request(app)
+      .get('/book/master-slug')
+      .expect(200);
+
+    expect(res.text).toContain('window.__HC_WEB_BOOKING_ENABLED__ = false;');
   });
 
   it('should return pricing preview for percent promo code', async () => {
@@ -744,5 +776,90 @@ describe('Public Booking API', () => {
     expect(res.body).toHaveProperty('slots');
     // slots should be an array (may be empty since windows are empty, but no error)
     expect(Array.isArray(res.body.slots)).toBe(true);
+  });
+  it('should create web booking with pending_confirmation status when web_contact_channel=vk', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [] }) // hot_windows
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // availability check
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] }) // active bookings count
+      .mockResolvedValueOnce({
+        rows: [{ id: 101, master_id: 3, client_id: 42, service_id: 11, start_at: startAt, status: 'pending_confirmation', web_contact_channel: 'vk' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, web_contact_channel: 'vk' })
+      .expect(201);
+
+    expect(res.body.status).toBe('pending_confirmation');
+    expect(res.body.web_contact_channel).toBe('vk');
+    expect(res.body.web_confirm_token).toBeDefined();
+  });
+
+  it('should reject web booking when feature flag is disabled', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'false';
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: futureDate(), web_contact_channel: 'vk' })
+      .expect(503);
+
+    expect(res.body.reason).toBe('web_booking_disabled');
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('should reject web booking when slug is outside allowlist', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'true';
+    process.env.WEB_BOOKING_ALLOWED_SLUGS = 'other-slug';
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: futureDate(), web_contact_channel: 'vk' })
+      .expect(503);
+
+    expect(res.body.reason).toBe('web_booking_slug_not_enabled');
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('should create web booking with pending_confirmation status when web_contact_channel=tg', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Мастер', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1200, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [] }) // hot_windows
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // availability
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 102, master_id: 3, client_id: 42, service_id: 11, start_at: startAt, status: 'pending_confirmation', web_contact_channel: 'tg', web_confirm_token: 'abc123' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, web_contact_channel: 'tg' })
+      .expect(201);
+
+    expect(res.body.status).toBe('pending_confirmation');
+    expect(res.body.web_confirm_token).toBeDefined();
   });
 });

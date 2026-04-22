@@ -14,6 +14,25 @@
   const urlParams = new URLSearchParams(window.location.search);
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
   const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
+  const webBookingLaunchEnabled = Boolean(window.__HC_WEB_BOOKING_ENABLED__);
+  const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim() || 'Rova_Epil_Bot';
+  const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
+
+  function renderWebBookingDisabled() {
+    const telegramBotLink = tgBotUsername
+      ? `<p style="margin:16px 0 0;"><a href="https://t.me/${encodeURIComponent(tgBotUsername)}" style="color:#1f8c5a;font-weight:600;">Открыть Telegram-бота</a></p>`
+      : '';
+    document.body.innerHTML = '<main style="max-width:420px;margin:48px auto;padding:24px;text-align:center;font-family:system-ui,-apple-system,sans-serif;color:#183127;">'
+      + '<h1 style="margin:0 0 12px;">Веб-запись пока закрыта</h1>'
+      + '<p style="margin:0;color:#527064;line-height:1.5;">Откройте запись через Telegram Mini App или обратитесь к мастеру напрямую.</p>'
+      + telegramBotLink
+      + '</main>';
+  }
+
+  if (isWebBrowser && !webBookingLaunchEnabled) {
+    renderWebBookingDisabled();
+    return;
+  }
 
   // Применяем мобильную верстку для веб-браузера (убираем "телефон" обёртку)
   if (isWebBrowser) {
@@ -146,6 +165,7 @@
     contactBack: document.getElementById('contactBack'),
     contactVk: document.getElementById('contactVk'),
     contactTg: document.getElementById('contactTg'),
+    doneTitle: document.getElementById('doneTitle'),
     doneText: document.getElementById('doneText'),
     doneNew: document.getElementById('doneNew'),
     doneBookings: document.getElementById('doneBookings'),
@@ -264,6 +284,15 @@
   function showLoader() {
     if (el.fullLoader) {
       el.fullLoader.style.display = 'flex';
+    }
+  }
+
+  function setDoneState(title, text) {
+    if (el.doneTitle) {
+      el.doneTitle.textContent = title || 'Запись подтверждена';
+    }
+    if (el.doneText) {
+      el.doneText.textContent = text || '';
     }
   }
 
@@ -1152,7 +1181,7 @@
         details.push(promoLine);
       }
 
-      el.doneText.textContent = details.join(' · ');
+      setDoneState('Запись подтверждена', details.join(' · '));
       setFlow('done');
 
       if (hasTelegramSession && tg && typeof tg.showAlert === 'function') {
@@ -1293,6 +1322,16 @@
       return;
     }
 
+    if (channel === 'vk' && !vkGroupId) {
+      showToast('Подтверждение через ВКонтакте пока недоступно');
+      return;
+    }
+
+    if (channel === 'tg' && !tgBotUsername) {
+      showToast('Подтверждение через Telegram пока недоступно');
+      return;
+    }
+
     if (!await initAuth()) return;
 
     try {
@@ -1310,29 +1349,26 @@
       hideLoader();
 
       const token = created.web_confirm_token;
-      const tgBotUsername = 'Rova_Epil_Bot';
 
       if (channel === 'tg' && token) {
         // Открываем Telegram бота с deep link
         const deepLink = 'https://t.me/' + tgBotUsername + '?start=booking_' + token;
-        // Показываем экран done с инструкцией
-        if (el.doneText) {
-          el.doneText.textContent = 'Откройте Telegram-бота и подтвердите запись 👆';
-        }
+        setDoneState('Нужно подтвердить запись', 'Откройте Telegram-бота и подтвердите запись 👆');
         setFlow('done');
         // Открываем Telegram в новой вкладке
         setTimeout(function () { window.open(deepLink, '_blank'); }, 300);
       } else {
         // VK — показываем код подтверждения, который нужно отправить боту
         const shortCode = token ? token.slice(0, 8).toUpperCase() : '';
-        if (el.doneText) {
-          el.doneText.textContent = shortCode
+        setDoneState(
+          'Нужно подтвердить запись',
+          shortCode
             ? 'Отправьте боту ВКонтакте сообщение:\n\nПОДТВЕРЖДЕНИЕ ' + shortCode
-            : 'Запись создана. Напишите в сообщество ВКонтакте для подтверждения.';
-        }
+            : 'Запись создана. Напишите в сообщество ВКонтакте для подтверждения.'
+        );
         setFlow('done');
         if (shortCode) {
-          window.open('https://vk.com/im?sel=-' + (window.__VK_GROUP_ID__ || '236570980'), '_blank');
+          window.open('https://vk.com/im?sel=-' + vkGroupId, '_blank');
         }
       }
     } catch (error) {
@@ -1420,6 +1456,11 @@
       el.contactBack.addEventListener('click', function () { setFlow('confirm'); });
     }
     if (el.contactVk) {
+      if (!vkGroupId) {
+        el.contactVk.disabled = true;
+        el.contactVk.style.opacity = '0.55';
+        el.contactVk.title = 'Подтверждение через ВКонтакте пока недоступно';
+      }
       el.contactVk.addEventListener('click', function () {
         submitBookingWeb('vk');
       });
