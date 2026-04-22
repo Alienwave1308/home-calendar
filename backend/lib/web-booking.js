@@ -22,15 +22,16 @@ function normalizeSlug(slug) {
   return String(slug || '').trim().toLowerCase();
 }
 
-const ALLOWED_WEB_BOOKING_SLUGS = (() => {
+function getAllowedWebBookingSlugs() {
   const raw = String(process.env.WEB_BOOKING_ALLOWED_SLUGS || '').trim();
   if (!raw) return [];
   return raw.split(',').map(normalizeSlug).filter(Boolean);
-})();
+}
 
 function isWebBookingAllowedForSlug(slug) {
-  if (!ALLOWED_WEB_BOOKING_SLUGS.length) return true;
-  return ALLOWED_WEB_BOOKING_SLUGS.includes(normalizeSlug(slug));
+  const allowed = getAllowedWebBookingSlugs();
+  if (!allowed.length) return true;
+  return allowed.includes(normalizeSlug(slug));
 }
 
 function getTelegramBotUsername() {
