@@ -59,12 +59,16 @@ describe('Web booking contact screen', () => {
     cy.get('#contactTg').should('be.visible');
   });
 
-  it('кнопка ВКонтакте ведёт на VK OAuth', () => {
+  it('без VK_GROUP_ID кнопка ВКонтакте неактивна, а Telegram остаётся доступным', () => {
     selectServiceAndSlot();
     cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
     cy.get('#screen-contact').should('have.class', 'active');
-    cy.get('#contactVk').should('be.visible').should('not.be.disabled');
+    cy.get('#contactVk')
+      .should('be.visible')
+      .should('be.disabled')
+      .and('have.attr', 'title', 'Подтверждение через ВКонтакте пока недоступно');
+    cy.get('#contactTg').should('be.visible').should('not.be.disabled');
   });
 
   it('кнопка "Назад" возвращает на экран подтверждения', () => {
