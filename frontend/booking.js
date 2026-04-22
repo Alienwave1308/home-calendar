@@ -17,6 +17,7 @@
   const webBookingLaunchEnabled = Boolean(window.__HC_WEB_BOOKING_ENABLED__);
   const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim();
   const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
+  const vkAppId = String(window.__VK_APP_ID__ || '').trim();
 
   function renderWebBookingDisabled() {
     const telegramBotLink = tgBotUsername
@@ -411,7 +412,7 @@
       + '<h3 style="margin:0 0 6px;font-size:17px;">Войдите, чтобы записаться</h3>'
       + '<p style="margin:0 0 18px;color:#527064;font-size:13px;line-height:1.5;">Для получения уведомлений о записи</p>'
       + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;"></div>'
-      + (vkGroupId ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
+      + (vkAppId ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
       + '<button id="web-auth-cancel" style="margin-top:12px;background:none;border:none;color:#8a9e96;font-size:13px;cursor:pointer;text-decoration:underline;">Отмена</button>'
       + '</div>';
     document.body.appendChild(modal);
@@ -435,12 +436,30 @@
   };
 
   window.addEventListener('message', function (event) {
-    if (!event.data || event.data.type !== 'vk-oauth-token') return;
-    const token = event.data.token;
-    if (token) {
-      saveAuthToken(token);
-      hideWebAuthModal();
-      if (_webAuthResolve) { _webAuthResolve(true); _webAuthResolve = null; }
+    // VK blank.html sends window.location.href (a string) to opener from oauth.vk.com
+    if (event.origin === 'https://oauth.vk.com' && typeof event.data === 'string') {
+      try {
+        const hash = event.data.split('#')[1] || '';
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        const userId = params.get('user_id');
+        if (accessToken && userId) {
+          requestJson('/auth/vk-oauth-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access_token: accessToken, user_id: userId })
+          }).then(function (data) {
+            if (data && data.token) {
+              saveAuthToken(data.token);
+              hideWebAuthModal();
+              if (_webAuthResolve) { _webAuthResolve(true); _webAuthResolve = null; }
+            }
+          }).catch(function () {
+            showToast('Ошибка авторизации ВКонтакте');
+          });
+        }
+      } catch (_) { /* ignore parse errors */ }
+      return;
     }
   });
 
@@ -467,11 +486,19 @@
       const vkBtn = document.getElementById('web-auth-vk-btn');
       if (vkBtn) {
         vkBtn.onclick = function () {
+          const params = new URLSearchParams({
+            client_id: vkAppId,
+            redirect_uri: 'https://oauth.vk.com/blank.html',
+            scope: '0',
+            response_type: 'token',
+            display: 'popup',
+            v: '5.199'
+          });
           const w = 600, h = 600;
           const left = Math.round(screen.width / 2 - w / 2);
           const top = Math.round(screen.height / 2 - h / 2);
           window.open(
-            apiBase + '/auth/vk-oauth',
+            'https://oauth.vk.com/authorize?' + params,
             'vk_oauth',
             'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
           );

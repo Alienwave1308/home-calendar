@@ -100,6 +100,7 @@ function renderBookingHtml(slug) {
     + `window.__HC_WEB_BOOKING_ENABLED__ = ${JSON.stringify(runtimeConfig.enabled)};`
     + `window.__TG_BOT_USERNAME__ = ${JSON.stringify(runtimeConfig.telegramBotUsername)};`
     + `window.__VK_GROUP_ID__ = ${JSON.stringify(runtimeConfig.vkGroupId)};`
+    + `window.__VK_APP_ID__ = ${JSON.stringify(runtimeConfig.vkAppId)};`
     + '</script>';
   const injected = bookingHtmlTemplate.replace('</head>', `  ${runtimeScript}\n</head>`);
   return injected !== bookingHtmlTemplate ? injected : `${runtimeScript}\n${bookingHtmlTemplate}`;

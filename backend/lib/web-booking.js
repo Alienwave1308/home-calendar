@@ -43,11 +43,16 @@ function getVkGroupId() {
   return String(process.env.VK_GROUP_ID || '').trim();
 }
 
+function getVkAppId() {
+  return String(process.env.VK_APP_ID || '').trim();
+}
+
 function getWebBookingPublicConfig(slug) {
   return {
     enabled: isWebBookingEnabled() && isWebBookingAllowedForSlug(slug),
     telegramBotUsername: getTelegramBotUsername(),
-    vkGroupId: getVkGroupId()
+    vkGroupId: getVkGroupId(),
+    vkAppId: getVkAppId()
   };
 }
 

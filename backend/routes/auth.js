@@ -550,82 +550,39 @@ router.post('/telegram-widget', asyncRoute(async (req, res) => {
   });
 }));
 
-// --- VK OAuth ---
+// --- VK OAuth (implicit flow via oauth.vk.com/blank.html) ---
 
-function buildPostMessagePage(token, errorMsg) {
-  const message = token
-    ? { type: 'vk-oauth-token', token }
-    : { type: 'vk-oauth-error', error: errorMsg || 'VK auth failed' };
-  const origin = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*'
-    ? JSON.stringify(process.env.CORS_ORIGIN)
-    : "'*'";
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>VK Auth</title></head><body><script>
-  try { window.opener.postMessage(${JSON.stringify(message)}, ${origin}); } catch(e) {}
-  window.close();
-</script></body></html>`;
-}
+// POST /api/auth/vk-oauth-token — receive VK access_token from blank.html popup, verify and return JWT
+router.post('/vk-oauth-token', asyncRoute(async (req, res) => {
+  const { access_token, user_id } = req.body;
 
-function getVkOAuthRedirectUri(req) {
-  if (process.env.VK_OAUTH_REDIRECT_URI) return process.env.VK_OAUTH_REDIRECT_URI;
-  const proto = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.headers['x-forwarded-host'] || req.get('host');
-  return `${proto}://${host}/api/auth/vk-oauth/callback`;
-}
-
-// GET /api/auth/vk-oauth — redirect browser to VK OAuth consent screen
-router.get('/vk-oauth', (req, res) => {
-  const appId = process.env.VK_APP_ID;
-  if (!appId) return res.status(503).send('VK OAuth is not configured');
-
-  const params = new URLSearchParams({
-    client_id: appId,
-    redirect_uri: getVkOAuthRedirectUri(req),
-    scope: '',
-    response_type: 'code',
-    v: '5.199',
-    display: 'popup'
-  });
-  res.redirect(`https://oauth.vk.com/authorize?${params}`);
-});
-
-// GET /api/auth/vk-oauth/callback — exchange code, create/find user, postMessage token to opener
-router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
-  const { code, error } = req.query;
-
-  if (error || !code) {
-    return res.send(buildPostMessagePage(null, 'VK авторизация отменена'));
+  if (!access_token || !user_id) {
+    return res.status(400).json({ error: 'Missing access_token or user_id' });
   }
 
-  const appId = process.env.VK_APP_ID;
-  const appSecret = process.env.VK_APP_SECRET;
-  if (!appId || !appSecret) {
-    return res.send(buildPostMessagePage(null, 'VK OAuth не настроен'));
+  const vkUserId = Number(user_id);
+  if (!vkUserId || !Number.isFinite(vkUserId)) {
+    return res.status(400).json({ error: 'Invalid user_id' });
   }
 
-  const tokenParams = new URLSearchParams({
-    client_id: appId,
-    client_secret: appSecret,
-    redirect_uri: getVkOAuthRedirectUri(req),
-    code: String(code)
-  });
-
-  let tokenData;
+  let apiUserId;
   try {
-    const tokenRes = await fetch(`https://oauth.vk.com/access_token?${tokenParams}`);
-    tokenData = await tokenRes.json();
+    const apiRes = await fetch(`https://api.vk.com/method/users.get?access_token=${encodeURIComponent(String(access_token))}&v=5.199`);
+    const data = await apiRes.json();
+    if (data.error || !data.response || !data.response[0]) {
+      return res.status(401).json({ error: 'Invalid VK token' });
+    }
+    apiUserId = Number(data.response[0].id);
   } catch (fetchErr) {
-    console.error('[vk-oauth] token exchange failed:', fetchErr);
-    return res.send(buildPostMessagePage(null, 'Ошибка связи с ВКонтакте'));
+    console.error('[vk-oauth-token] VK API call failed:', fetchErr);
+    return res.status(503).json({ error: 'Ошибка связи с ВКонтакте' });
   }
 
-  if (tokenData.error || !tokenData.user_id) {
-    console.error('[vk-oauth] token error:', tokenData.error, tokenData.error_description);
-    return res.send(buildPostMessagePage(null, 'Ошибка авторизации ВКонтакте'));
+  if (apiUserId !== vkUserId) {
+    return res.status(401).json({ error: 'VK user_id mismatch' });
   }
 
-  const vkUserId = Number(tokenData.user_id);
   const username = `vk_${vkUserId}`;
-
   let userResult = await pool.query(
     'SELECT id, username, vk_user_id FROM users WHERE vk_user_id = $1 OR username = $2 LIMIT 1',
     [vkUserId, username]
@@ -641,9 +598,7 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
   }
 
   const user = userResult.rows[0];
-  const token = buildToken(user);
-
-  res.send(buildPostMessagePage(token, null));
+  res.json({ token: buildToken(user) });
 }));
 
 module.exports = router;
