@@ -60,6 +60,12 @@ const frontendDir = process.env.FRONTEND_DIR
   ? path.resolve(__dirname, '..', process.env.FRONTEND_DIR)
   : path.join(__dirname, '../frontend');
 const bookingHtmlPath = path.join(frontendDir, 'booking.html');
+let bookingHtmlTemplate = null;
+try {
+  bookingHtmlTemplate = fs.readFileSync(bookingHtmlPath, 'utf8');
+} catch (error) {
+  console.error('Failed to load booking HTML template:', error);
+}
 function applyNoStoreHeaders(res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -85,22 +91,15 @@ app.use(express.static(frontendDir, {
 }));
 
 function renderBookingHtml(slug) {
+  if (!bookingHtmlTemplate) return '';
   const runtimeConfig = getWebBookingPublicConfig(slug);
   const runtimeScript = '<script>'
     + `window.__HC_WEB_BOOKING_ENABLED__ = ${JSON.stringify(runtimeConfig.enabled)};`
     + `window.__TG_BOT_USERNAME__ = ${JSON.stringify(runtimeConfig.telegramBotUsername)};`
     + `window.__VK_GROUP_ID__ = ${JSON.stringify(runtimeConfig.vkGroupId)};`
     + '</script>';
-  try {
-    const html = fs.readFileSync(bookingHtmlPath, 'utf8');
-    if (html.includes('</head>')) {
-      return html.replace('</head>', `  ${runtimeScript}\n</head>`);
-    }
-    return `${runtimeScript}\n${html}`;
-  } catch (error) {
-    console.error('Failed to read booking HTML template:', error);
-    return '';
-  }
+  const injected = bookingHtmlTemplate.replace('</head>', `  ${runtimeScript}\n</head>`);
+  return injected !== bookingHtmlTemplate ? injected : `${runtimeScript}\n${bookingHtmlTemplate}`;
 }
 
 // Подключаем роуты авторизации (с усиленным rate limiter)

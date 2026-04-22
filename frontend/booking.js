@@ -15,7 +15,7 @@
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
   const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
   const webBookingLaunchEnabled = Boolean(window.__HC_WEB_BOOKING_ENABLED__);
-  const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim() || 'Rova_Epil_Bot';
+  const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim();
   const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
 
   function renderWebBookingDisabled() {

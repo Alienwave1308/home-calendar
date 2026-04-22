@@ -13,31 +13,24 @@ function isTestEnv() {
 }
 
 function isWebBookingEnabled() {
-  const raw = process.env.WEB_BOOKING_ENABLED;
-  if (raw === undefined || raw === null || String(raw).trim() === '') {
-    return isTestEnv();
-  }
-  return String(raw).trim().toLowerCase() === 'true';
+  const raw = String(process.env.WEB_BOOKING_ENABLED || '').trim();
+  if (!raw) return isTestEnv();
+  return raw.toLowerCase() === 'true';
 }
 
 function normalizeSlug(slug) {
   return String(slug || '').trim().toLowerCase();
 }
 
-function getAllowedWebBookingSlugs() {
+const ALLOWED_WEB_BOOKING_SLUGS = (() => {
   const raw = String(process.env.WEB_BOOKING_ALLOWED_SLUGS || '').trim();
   if (!raw) return [];
-
-  return raw
-    .split(',')
-    .map((value) => normalizeSlug(value))
-    .filter(Boolean);
-}
+  return raw.split(',').map(normalizeSlug).filter(Boolean);
+})();
 
 function isWebBookingAllowedForSlug(slug) {
-  const allowedSlugs = getAllowedWebBookingSlugs();
-  if (!allowedSlugs.length) return true;
-  return allowedSlugs.includes(normalizeSlug(slug));
+  if (!ALLOWED_WEB_BOOKING_SLUGS.length) return true;
+  return ALLOWED_WEB_BOOKING_SLUGS.includes(normalizeSlug(slug));
 }
 
 function getTelegramBotUsername() {
@@ -81,35 +74,15 @@ async function isWebBookingSchemaReady() {
   }
 }
 
+function unavailable(reason) {
+  return { ok: false, status: 503, reason, error: 'Web booking is temporarily unavailable' };
+}
+
 async function getWebBookingAvailability(slug) {
-  if (!isWebBookingEnabled()) {
-    return {
-      ok: false,
-      status: 503,
-      reason: 'web_booking_disabled',
-      error: 'Web booking is temporarily unavailable'
-    };
-  }
-
-  if (!isWebBookingAllowedForSlug(slug)) {
-    return {
-      ok: false,
-      status: 503,
-      reason: 'web_booking_slug_not_enabled',
-      error: 'Web booking is temporarily unavailable'
-    };
-  }
-
+  if (!isWebBookingEnabled()) return unavailable('web_booking_disabled');
+  if (!isWebBookingAllowedForSlug(slug)) return unavailable('web_booking_slug_not_enabled');
   const schemaReady = await isWebBookingSchemaReady();
-  if (!schemaReady) {
-    return {
-      ok: false,
-      status: 503,
-      reason: 'web_booking_schema_not_ready',
-      error: 'Web booking is temporarily unavailable'
-    };
-  }
-
+  if (!schemaReady) return unavailable('web_booking_schema_not_ready');
   return { ok: true };
 }
 
