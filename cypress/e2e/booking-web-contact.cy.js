@@ -28,9 +28,10 @@ describe('Web booking native auth modal', () => {
       }
     }).as('slots');
 
+    // Token must look like a real JWT with username=guest_* so isGuestToken() detects it
     cy.intercept('POST', /\/api\/auth\/guest/, {
       statusCode: 200,
-      body: { token: 'guest-token-for-page-load' }
+      body: { token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Imd1ZXN0X3Rlc3QxMjMiLCJpZCI6MX0.fakesig' }
     }).as('guestAuth');
 
     cy.intercept('POST', /\/api\/auth\/telegram-widget/, {
