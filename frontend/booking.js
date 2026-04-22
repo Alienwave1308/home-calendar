@@ -551,7 +551,7 @@
       const data = await requestJson('/auth/guest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guest_id: getOrCreateGuestId() })
+        body: JSON.stringify({ guest_id: getOrCreateGuestId(), slug })
       });
       if (data.token) {
         saveAuthToken(data.token);

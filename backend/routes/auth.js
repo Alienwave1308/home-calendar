@@ -434,7 +434,7 @@ router.post('/telegram', asyncRoute(async (req, res) => {
 // Guest accounts are identified by a stable browser fingerprint stored in localStorage.
 // Rate-limited by the general limiter; no sensitive data is exposed.
 router.post('/guest', asyncRoute(async (req, res) => {
-  const availability = await getWebBookingAvailability();
+  const availability = await getWebBookingAvailability(req.body.slug);
   if (!availability.ok) {
     return res.status(availability.status).json({
       error: availability.error,
