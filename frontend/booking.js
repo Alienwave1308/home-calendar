@@ -1,4 +1,4 @@
-/* global URLSearchParams */
+/* global URLSearchParams, atob, screen */
 (function () {
   'use strict';
 
@@ -399,7 +399,6 @@
   }
 
   let _webAuthResolve = null;
-  let _webAuthReject = null;
 
   function createWebAuthModal() {
     let modal = document.getElementById('web-auth-modal');
@@ -448,7 +447,6 @@
   function showWebAuthModal() {
     return new Promise(function (resolve, reject) {
       _webAuthResolve = resolve;
-      _webAuthReject = reject;
 
       const modal = createWebAuthModal();
       modal.style.display = 'flex';
