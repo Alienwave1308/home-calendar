@@ -503,9 +503,20 @@
 
   async function initAuth(options) {
     const force = Boolean(options && options.force);
+    const requireRealIdentity = Boolean(options && options.requireRealIdentity);
+
+    // For web booking: clear stale guest token before checking if we have a valid one
+    if (isWebBrowser && requireRealIdentity && !force) {
+      const existingToken = localStorage.getItem('token');
+      if (existingToken && isGuestToken(existingToken)) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('bookingAuthSession');
+      }
+    }
+
+    if (!force && hasCurrentAuthToken()) return true;
 
     if (hasTelegramSession) {
-      if (!force && hasCurrentAuthToken()) return true;
       const data = await requestJson('/auth/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -519,7 +530,6 @@
     }
 
     if (hasVkSession) {
-      if (!force && hasCurrentAuthToken()) return true;
       const data = await requestJson('/auth/vk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -533,18 +543,21 @@
     }
 
     if (isWebBrowser) {
-      // Clear stale guest tokens — web users must authenticate with TG or VK for notifications
-      if (!force) {
-        const existingToken = localStorage.getItem('token');
-        if (existingToken && isGuestToken(existingToken)) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('bookingAuthSession');
-        } else if (hasCurrentAuthToken()) {
-          return true;
-        }
+      if (requireRealIdentity) {
+        await showWebAuthModal();
+        return true;
       }
-      await showWebAuthModal();
-      return true;
+      // Page load: silent guest auth
+      const data = await requestJson('/auth/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guest_id: getOrCreateGuestId() })
+      });
+      if (data.token) {
+        saveAuthToken(data.token);
+        return true;
+      }
+      throw new Error('Ошибка создания гостевого аккаунта');
     }
 
     throw new Error('Откройте форму внутри Telegram, ВКонтакте или в браузере');
@@ -1233,7 +1246,7 @@
       return;
     }
 
-    if (!await initAuth()) return;
+    if (!await initAuth(isWebBrowser ? { requireRealIdentity: true } : undefined)) return;
 
     const note = String(el.noteInput.value || '').trim();
     state.note = note;
@@ -1550,7 +1563,9 @@
     el.promoApply.addEventListener('click', applyPromo);
     el.confirmBack.addEventListener('click', function () { setFlow('calendar'); });
     el.confirmSubmit.addEventListener('click', function () {
-      submitBooking();
+      submitBooking().catch(function (err) {
+        if (err && err.message) showToast(err.message);
+      });
     });
 
     if (el.contactBack) {

@@ -1,9 +1,9 @@
 /**
- * E2E tests: web booking contact selection screen.
- * Runs without Telegram/VK Mini App context.
+ * E2E tests: web booking native auth modal (TG Login Widget + VK OAuth).
+ * Runs without Telegram/VK Mini App context (isWebBrowser=true).
  */
 
-describe('Web booking contact screen', () => {
+describe('Web booking native auth modal', () => {
   beforeEach(() => {
     cy.intercept('GET', /\/api\/public\/master\/[^/]+$/, {
       statusCode: 200,
@@ -28,16 +28,30 @@ describe('Web booking contact screen', () => {
       }
     }).as('slots');
 
+    cy.intercept('POST', /\/api\/auth\/guest/, {
+      statusCode: 200,
+      body: { token: 'guest-token-for-page-load' }
+    }).as('guestAuth');
+
+    cy.intercept('POST', /\/api\/auth\/telegram-widget/, {
+      statusCode: 200,
+      body: { token: 'real-tg-token' }
+    }).as('tgWidgetAuth');
+
+    cy.intercept('POST', /\/api\/public\/master\/[^/]+\/book/, {
+      statusCode: 201,
+      body: { id: 1, status: 'confirmed', pricing: {} }
+    }).as('postBook');
+
     cy.visit('/book/lera', {
       onBeforeLoad(win) {
         delete win.Telegram;
         delete win.vkBridge;
-        // booking.js checks window.Cypress to detect mini-app context;
-        // unset it so isWebBrowser=true and the contact screen is shown
         delete win.Cypress;
       }
     });
 
+    cy.wait('@guestAuth');
     cy.get('#servicesList').should('be.visible');
   });
 
@@ -50,40 +64,52 @@ describe('Web booking contact screen', () => {
     cy.get('#dockAction').click();
   }
 
-  it('показывает экран выбора мессенджера после нажатия "Подтвердить"', () => {
+  it('показывает модал авторизации после нажатия "Подтвердить"', () => {
     selectServiceAndSlot();
     cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
-    cy.get('#screen-contact').should('have.class', 'active');
-    cy.get('#contactVk').should('be.visible');
-    cy.get('#contactTg').should('be.visible');
+    cy.get('#web-auth-modal').should('be.visible');
+    cy.get('#web-auth-tg-widget').should('exist');
+    cy.get('#web-auth-cancel').should('be.visible');
   });
 
-  it('без VK_GROUP_ID кнопка ВКонтакте неактивна, а Telegram остаётся доступным', () => {
+  it('кнопка отмены скрывает модал и остаётся на экране подтверждения', () => {
     selectServiceAndSlot();
-    cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
-    cy.get('#screen-contact').should('have.class', 'active');
-    cy.get('#contactVk')
-      .should('be.visible')
-      .should('be.disabled')
-      .and('have.attr', 'title', 'Подтверждение через ВКонтакте пока недоступно');
-    cy.get('#contactTg').should('be.visible').should('not.be.disabled');
+    cy.get('#web-auth-modal').should('be.visible');
+    cy.get('#web-auth-cancel').click();
+    cy.get('#web-auth-modal').should('not.be.visible');
+    cy.get('#screen-confirm').should('have.class', 'active');
   });
 
-  it('кнопка "Назад" возвращает на экран подтверждения', () => {
+  it('авторизация через TG виджет закрывает модал и создаёт запись', () => {
     selectServiceAndSlot();
-    cy.get('#screen-confirm').should('have.class', 'active');
     cy.get('#confirmSubmit').click();
-    cy.get('#screen-contact').should('have.class', 'active');
-    cy.get('#contactBack').click();
-    cy.get('#screen-confirm').should('have.class', 'active');
+    cy.get('#web-auth-modal').should('be.visible');
+
+    cy.window().then((win) => {
+      win.__onTelegramWidgetAuth__({
+        id: '123456',
+        first_name: 'Test',
+        auth_date: String(Math.floor(Date.now() / 1000)),
+        hash: 'fakehash'
+      });
+    });
+
+    cy.wait('@tgWidgetAuth');
+    cy.get('#web-auth-modal').should('not.be.visible');
+    cy.wait('@postBook');
+    cy.get('#screen-done').should('have.class', 'active');
   });
 
-  it('в Mini App Telegram экран contact не показывается — сразу submitBooking', () => {
-    cy.visit('/book/lera?cypress_auth=1', {
+  it('в Mini App Telegram модал не показывается — submitBooking вызывается напрямую', () => {
+    cy.intercept('POST', /\/api\/auth\/telegram/, {
+      statusCode: 200,
+      body: { token: 'tg-mini-app-token' }
+    }).as('tgAuth');
+
+    cy.visit('/book/lera', {
       onBeforeLoad(win) {
-        // Симулируем Telegram Mini App
         win.Telegram = {
           WebApp: {
             initData: 'query_id=test&user=%7B%22id%22%3A12345%7D',
@@ -95,11 +121,12 @@ describe('Web booking contact screen', () => {
             themeParams: {}
           }
         };
+        win.localStorage.setItem('token', 'tg-mini-app-token');
+        win.localStorage.setItem('bookingAuthSession', 'tg:12345');
       }
     });
-    // В Telegram Mini App кнопка подтверждения должна вызывать submitBooking напрямую
-    // (без экрана contact). Тест проверяет что screen-contact не имеет класс active
-    // после нажатия confirmSubmit.
+
     cy.get('#screen-confirm').should('exist');
+    cy.get('#web-auth-modal').should('not.exist');
   });
 });
