@@ -45,6 +45,7 @@ describe('Auth API', () => {
     delete process.env.ALLOW_PASSWORD_AUTH;
     delete process.env.MASTER_TELEGRAM_USER_ID;
     delete process.env.WEB_BOOKING_ENABLED;
+    delete process.env.WEB_BOOKING_ALLOWED_SLUGS;
   });
 
   afterAll(() => {

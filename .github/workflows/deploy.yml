@@ -29,6 +29,7 @@ jobs:
         TELEGRAM_BOT_USERNAME: ${{ secrets.TELEGRAM_BOT_USERNAME }}
         TELEGRAM_API_BASE: ${{ secrets.TELEGRAM_API_BASE }}
         WEB_BOOKING_ENABLED: ${{ secrets.WEB_BOOKING_ENABLED }}
+        WEB_BOOKING_ALLOWED_SLUGS: ${{ secrets.WEB_BOOKING_ALLOWED_SLUGS }}
       run: |
         set -euo pipefail
 
@@ -48,7 +49,7 @@ jobs:
           cd ~/home-calendar
           git pull --ff-only origin main
 
-          printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\nVK_GROUP_TOKEN=%s\nVK_GROUP_ID=%s\nVK_SECRET=%s\nVK_CONFIRMATION_STRING=%s\nVK_APP_SECRET=%s\nMASTER_BOOKING_SLUG=%s\nTELEGRAM_BOT_USERNAME=%s\nTELEGRAM_API_BASE=%s\nWEB_BOOKING_ENABLED=%s\n" \
+          printf "APP_DOMAIN=%s\nLETSENCRYPT_EMAIL=%s\nJWT_SECRET=%s\nTELEGRAM_BOT_TOKEN=%s\nVK_GROUP_TOKEN=%s\nVK_GROUP_ID=%s\nVK_SECRET=%s\nVK_CONFIRMATION_STRING=%s\nVK_APP_SECRET=%s\nMASTER_BOOKING_SLUG=%s\nTELEGRAM_BOT_USERNAME=%s\nTELEGRAM_API_BASE=%s\nWEB_BOOKING_ENABLED=%s\nWEB_BOOKING_ALLOWED_SLUGS=%s\n" \
             "${APP_DOMAIN}" \
             "${LETSENCRYPT_EMAIL}" \
             "${JWT_SECRET}" \
@@ -61,7 +62,8 @@ jobs:
             "${MASTER_BOOKING_SLUG}" \
             "${TELEGRAM_BOT_USERNAME}" \
             "${TELEGRAM_API_BASE}" \
-            "${WEB_BOOKING_ENABLED}" > .env
+            "${WEB_BOOKING_ENABLED}" \
+            "${WEB_BOOKING_ALLOWED_SLUGS}" > .env
 
           # Clean stale layers/images to avoid ENOSPC on long-lived host.
           docker builder prune -af || true

@@ -84,8 +84,8 @@ app.use(express.static(frontendDir, {
   }
 }));
 
-function renderBookingHtml() {
-  const runtimeConfig = getWebBookingPublicConfig();
+function renderBookingHtml(slug) {
+  const runtimeConfig = getWebBookingPublicConfig(slug);
   const runtimeScript = '<script>'
     + `window.__HC_WEB_BOOKING_ENABLED__ = ${JSON.stringify(runtimeConfig.enabled)};`
     + `window.__TG_BOT_USERNAME__ = ${JSON.stringify(runtimeConfig.telegramBotUsername)};`
@@ -181,7 +181,7 @@ app.use('/api/calendar-sync', calendarSyncRouter);
 app.get('/book/:slug', (req, res) => {
   res.removeHeader('X-Frame-Options');
   applyNoStoreHeaders(res);
-  const html = renderBookingHtml();
+  const html = renderBookingHtml(req.params.slug);
   if (!html) {
     return res.status(500).send('Booking page is unavailable');
   }

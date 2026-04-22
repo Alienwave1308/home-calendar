@@ -901,7 +901,7 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const isWebBooking = webContactChannel === 'vk' || webContactChannel === 'tg';
 
     if (isWebBooking) {
-      const availability = await getWebBookingAvailability();
+      const availability = await getWebBookingAvailability(req.params.slug);
       if (!availability.ok) {
         return res.status(availability.status).json({
           error: availability.error,

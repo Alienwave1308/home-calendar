@@ -39,6 +39,7 @@ describe('Public Booking API', () => {
     jest.clearAllMocks();
     pool.query.mockReset();
     delete process.env.WEB_BOOKING_ENABLED;
+    delete process.env.WEB_BOOKING_ALLOWED_SLUGS;
     delete process.env.TELEGRAM_BOT_USERNAME;
     delete process.env.VK_GROUP_ID;
   });
@@ -166,8 +167,9 @@ describe('Public Booking API', () => {
       .expect(400);
   });
 
-  it('should inject runtime config into booking page', async () => {
-    process.env.WEB_BOOKING_ENABLED = 'false';
+  it('should inject runtime config into booking page for allowed slug', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'true';
+    process.env.WEB_BOOKING_ALLOWED_SLUGS = 'master-slug,other-slug';
     process.env.TELEGRAM_BOT_USERNAME = 'LaunchBot';
     process.env.VK_GROUP_ID = '123456';
 
@@ -175,9 +177,20 @@ describe('Public Booking API', () => {
       .get('/book/master-slug')
       .expect(200);
 
-    expect(res.text).toContain('window.__HC_WEB_BOOKING_ENABLED__ = false;');
+    expect(res.text).toContain('window.__HC_WEB_BOOKING_ENABLED__ = true;');
     expect(res.text).toContain('window.__TG_BOT_USERNAME__ = "LaunchBot";');
     expect(res.text).toContain('window.__VK_GROUP_ID__ = "123456";');
+  });
+
+  it('should inject disabled runtime config into booking page for slug outside allowlist', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'true';
+    process.env.WEB_BOOKING_ALLOWED_SLUGS = 'other-slug';
+
+    const res = await request(app)
+      .get('/book/master-slug')
+      .expect(200);
+
+    expect(res.text).toContain('window.__HC_WEB_BOOKING_ENABLED__ = false;');
   });
 
   it('should return pricing preview for percent promo code', async () => {
@@ -771,6 +784,20 @@ describe('Public Booking API', () => {
       .expect(503);
 
     expect(res.body.reason).toBe('web_booking_disabled');
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('should reject web booking when slug is outside allowlist', async () => {
+    process.env.WEB_BOOKING_ENABLED = 'true';
+    process.env.WEB_BOOKING_ALLOWED_SLUGS = 'other-slug';
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: futureDate(), web_contact_channel: 'vk' })
+      .expect(503);
+
+    expect(res.body.reason).toBe('web_booking_slug_not_enabled');
     expect(pool.query).not.toHaveBeenCalled();
   });
 

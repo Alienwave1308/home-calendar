@@ -36,6 +36,7 @@ services:
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-Rova_Epil_Bot}
       - TELEGRAM_API_BASE=${TELEGRAM_API_BASE:-https://home-calendar.niggest137.workers.dev}
       - WEB_BOOKING_ENABLED=${WEB_BOOKING_ENABLED:-false}
+      - WEB_BOOKING_ALLOWED_SLUGS=${WEB_BOOKING_ALLOWED_SLUGS}
     depends_on:
       - db
 
