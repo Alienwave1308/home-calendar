@@ -427,6 +427,7 @@ describe('Auth API', () => {
       delete process.env.VK_MINI_APP_SECRET;
       delete process.env.VK_MINI_APP_SECRETS;
       delete process.env.VK_SECRET;
+      delete process.env.VK_MINI_ALLOW_UNVERIFIED;
     });
 
     it('возвращает 503 если VK_APP_SECRET не настроен', async () => {
@@ -523,6 +524,30 @@ describe('Auth API', () => {
         .post('/api/auth/vk')
         .send({ launchParams: 'vk_user_id=123&sign=bad_signature' });
       expect(res.status).toBe(401);
+    });
+
+    it('разрешает аварийный fallback без подписи при включенном флаге', async () => {
+      process.env.VK_MINI_ALLOW_UNVERIFIED = 'true';
+      process.env.VK_APP_SECRET = '';
+      process.env.VK_APP_ID = '54478943';
+      const launchParams = new URLSearchParams({
+        vk_app_id: '54478943',
+        vk_user_id: '777001',
+        vk_ts: String(Math.floor(Date.now() / 1000)),
+        vk_platform: 'mobile_web'
+      }).toString();
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 19, username: 'vk_777001', vk_user_id: 777001 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.user.username).toBe('vk_777001');
     });
 
     it('создаёт нового пользователя и возвращает token для нового VK userId', async () => {
