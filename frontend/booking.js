@@ -420,7 +420,9 @@
   }
 
   function buildVkOAuthUrl() {
-    return window.location.origin + '/api/auth/vk-oauth?' + buildWebAuthContextParams().toString();
+    const params = buildWebAuthContextParams();
+    if (!vkWebAuthUsesRedirect) params.set('auth_mode', 'popup');
+    return window.location.origin + '/api/auth/vk-oauth?' + params.toString();
   }
 
   function startVkWebAuth() {

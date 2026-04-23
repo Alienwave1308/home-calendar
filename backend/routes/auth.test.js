@@ -611,15 +611,34 @@ describe('Auth API', () => {
       expect(target.searchParams.get('client_id')).toBe('54478943');
       expect(target.searchParams.get('response_type')).toBe('code');
       expect(target.searchParams.get('scope')).toBe('vkid.personal_info');
-      expect(target.searchParams.get('code_challenge_method')).toBe('S256');
+      expect(target.searchParams.get('code_challenge_method')).toBe('s256');
       expect(target.searchParams.get('code_challenge')).toBeTruthy();
       expect(target.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/vk-oauth\/callback$/);
+      expect(target.searchParams.get('origin')).toBeNull();
       const [encodedPayload, signature] = String(target.searchParams.get('state')).split('.');
       expect(signature).toBeTruthy();
       const state = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
       expect(state.returnTo).toBe('/book/lera');
       expect(state.sessionKey).toBe('guest:abcdef1234567890');
       expect(state.codeVerifier).toMatch(/^[A-Za-z0-9\-_]{43,128}$/);
+    });
+
+    it('adds origin for popup auth so VK ID can talk back to the opener', async () => {
+      process.env.VK_APP_ID = '54478943';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth')
+        .set('host', 'rova-epil.ru')
+        .set('x-forwarded-proto', 'https')
+        .query({
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890',
+          auth_mode: 'popup'
+        })
+        .expect(302);
+
+      const target = new URL(response.headers.location);
+      expect(target.searchParams.get('origin')).toBe('https://rova-epil.ru');
     });
 
     it('uses VK_OAUTH_REDIRECT_URI when it is explicitly configured', async () => {
@@ -662,7 +681,7 @@ describe('Auth API', () => {
 
       expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
       expect(response.text).toContain('window.__TG_BOT_USERNAME__');
-      expect(response.text).toContain('/booking.js?v=20260423-vkbrowser1');
+      expect(response.text).toContain('/booking.js?v=20260423-vkbrowser2');
     });
   });
 });
