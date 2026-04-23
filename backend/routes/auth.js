@@ -427,6 +427,14 @@ function isVkMiniUnverifiedFallbackEnabled() {
   return String(process.env.VK_MINI_ALLOW_UNVERIFIED || '').trim() === 'true';
 }
 
+function getVkMiniAppId() {
+  return String(process.env.VK_MINI_APP_ID || process.env.VK_APP_ID || '').trim();
+}
+
+function getVkWebOAuthAppId() {
+  return String(process.env.VK_WEB_APP_ID || process.env.VK_APP_ID || '').trim();
+}
+
 // POST /api/auth/vk
 router.post('/vk', asyncRoute(async (req, res) => {
   const { launchParams } = req.body;
@@ -440,7 +448,7 @@ router.post('/vk', asyncRoute(async (req, res) => {
     return res.status(400).json({ error: 'launchParams is required' });
   }
   const launchParamsMap = new URLSearchParams(String(launchParams).replace(/^[?#]/, ''));
-  const expectedAppId = String(process.env.VK_APP_ID || '').trim();
+  const expectedAppId = getVkMiniAppId();
   const launchAppId = String(launchParamsMap.get('vk_app_id') || '').trim();
   if (expectedAppId && launchAppId && launchAppId !== expectedAppId) {
     return res.status(401).json({
@@ -988,7 +996,7 @@ async function findOrCreateVkUser(vkUserId) {
 
 // GET /api/auth/vk-oauth — redirect browser to VK ID consent screen (OAuth 2.1 + PKCE)
 router.get('/vk-oauth', (req, res) => {
-  const appId = process.env.VK_APP_ID;
+  const appId = getVkWebOAuthAppId();
   if (!appId) {
     applyPopupFriendlyHeaders(res);
     return res.status(503).type('html').send(buildAuthCompletionPage({
@@ -1047,7 +1055,7 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     }));
   }
 
-  const appId = process.env.VK_APP_ID;
+  const appId = getVkWebOAuthAppId();
   if (!appId) {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'VK OAuth is not configured',
