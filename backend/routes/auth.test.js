@@ -38,6 +38,22 @@ describe('Auth API', () => {
     return params.toString();
   }
 
+  function buildTelegramWidgetPayload(botToken, userId = 42, authDate = Math.floor(Date.now() / 1000)) {
+    const payload = {
+      id: String(userId),
+      first_name: 'Test',
+      username: 'tguser',
+      auth_date: String(authDate)
+    };
+    const checkString = Object.keys(payload)
+      .sort()
+      .map((key) => `${key}=${payload[key]}`)
+      .join('\n');
+    const secretKey = crypto.createHash('sha256').update(botToken).digest();
+    payload.hash = crypto.createHmac('sha256', secretKey).update(checkString).digest('hex');
+    return payload;
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.TELEGRAM_BOT_TOKEN = 'telegram-test-bot-token';
@@ -485,6 +501,78 @@ describe('Auth API', () => {
 
       expect(response.body.reason).toBe('web_booking_disabled');
       expect(pool.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/auth/telegram-widget/callback', () => {
+    it('returns popup-safe HTML that completes Telegram auth on our origin', async () => {
+      const widgetData = buildTelegramWidgetPayload(process.env.TELEGRAM_BOT_TOKEN, 55);
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 7, username: 'tg_55' }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get('/api/auth/telegram-widget/callback')
+        .query({
+          ...widgetData,
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890'
+        })
+        .expect(200);
+
+      expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
+      expect(response.text).toContain('"type":"web-auth-result"');
+      expect(response.text).toContain('"sessionKey":"guest:abcdef1234567890"');
+      expect(response.text).toContain('window.opener.postMessage');
+      expect(response.text).toContain('var returnTo = "/book/lera";');
+      expect(response.text).toContain('window.location.replace(returnTo)');
+    });
+  });
+
+  describe('GET /api/auth/vk-oauth/callback', () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('exchanges the VK code and returns popup-safe HTML', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_APP_SECRET = 'vk-secret';
+      global.fetch = jest.fn().mockResolvedValue({
+        json: async () => ({ access_token: 'vk-token', user_id: 123456 })
+      });
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id: 5, username: 'vk_123456', vk_user_id: 123456 }]
+      });
+
+      const state = Buffer.from(JSON.stringify({
+        returnTo: '/book/lera',
+        sessionKey: 'guest:abcdef1234567890'
+      })).toString('base64url');
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth/callback')
+        .query({ code: 'oauth-code', state })
+        .expect(200);
+
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('https://oauth.vk.com/access_token?'));
+      expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
+      expect(response.text).toContain('"type":"web-auth-result"');
+      expect(response.text).toContain('"sessionKey":"guest:abcdef1234567890"');
+      expect(response.text).toContain('window.opener.postMessage');
+    });
+  });
+
+  describe('GET /book/:slug', () => {
+    it('relaxes COOP for popup-based web auth', async () => {
+      const response = await request(app)
+        .get('/book/lera')
+        .expect(200);
+
+      expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
+      expect(response.text).toContain('window.__TG_BOT_USERNAME__');
+      expect(response.text).toContain('/booking.js?v=20260423-authfix1');
     });
   });
 });

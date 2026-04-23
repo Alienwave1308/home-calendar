@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { URLSearchParams } = require('url');
+const { URL, URLSearchParams } = require('url');
 const { Buffer } = require('buffer');
 const { nanoid } = require('nanoid');
 const router = express.Router();
@@ -485,6 +485,86 @@ function isValidTelegramWidgetData(data, botToken) {
   return crypto.timingSafeEqual(computedBuffer, receivedBuffer);
 }
 
+function sanitizeReturnTo(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '/';
+
+  try {
+    const parsed = new URL(raw, 'https://rova-epil.local');
+    if (parsed.origin !== 'https://rova-epil.local') return '/';
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return '/';
+  }
+}
+
+function sanitizeSessionKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw.length > 200) return '';
+  return raw.replace(/[^\w:-]/g, '');
+}
+
+function applyPopupFriendlyHeaders(res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+}
+
+function buildAuthCompletionPage({ token, sessionKey, error, returnTo }) {
+  const payload = {
+    type: 'web-auth-result',
+    token: token || '',
+    sessionKey: sessionKey || '',
+    error: error || ''
+  };
+  const safeReturnTo = sanitizeReturnTo(returnTo);
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Authorization</title>
+</head>
+<body>
+  <script>
+    (function () {
+      var payload = ${JSON.stringify(payload)};
+      var returnTo = ${JSON.stringify(safeReturnTo)};
+
+      try {
+        if (payload.token) {
+          localStorage.setItem('token', payload.token);
+          if (payload.sessionKey) {
+            localStorage.setItem('bookingAuthSession', payload.sessionKey);
+          }
+        }
+      } catch (error) {
+        void error;
+      }
+
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, window.location.origin);
+          window.close();
+          return;
+        }
+      } catch (error) {
+        void error;
+      }
+
+      if (returnTo) {
+        window.location.replace(returnTo);
+        return;
+      }
+
+      document.body.textContent = payload.error || 'Авторизация завершена';
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 // POST /api/auth/telegram-widget — Telegram Login Widget (browser, not Mini App)
 router.post('/telegram-widget', asyncRoute(async (req, res) => {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -550,7 +630,212 @@ router.post('/telegram-widget', asyncRoute(async (req, res) => {
   });
 }));
 
-// --- VK OAuth (implicit flow via oauth.vk.com/blank.html) ---
+// GET /api/auth/telegram-widget/callback — redirect target for Telegram Login Widget
+router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
+  applyPopupFriendlyHeaders(res);
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Telegram auth is not configured',
+      returnTo: req.query.return_to
+    }));
+  }
+
+  const widgetData = {};
+  for (const key of ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash']) {
+    if (req.query[key] !== undefined) widgetData[key] = String(req.query[key]);
+  }
+
+  if (!widgetData.id || !widgetData.hash || !widgetData.auth_date) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Invalid Telegram widget data',
+      returnTo: req.query.return_to,
+      sessionKey: sanitizeSessionKey(req.query.session_key)
+    }));
+  }
+
+  const authDate = Number(widgetData.auth_date);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!authDate || nowSeconds - authDate > 600) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Telegram widget data expired',
+      returnTo: req.query.return_to,
+      sessionKey: sanitizeSessionKey(req.query.session_key)
+    }));
+  }
+
+  if (!isValidTelegramWidgetData(widgetData, botToken)) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Invalid Telegram widget signature',
+      returnTo: req.query.return_to,
+      sessionKey: sanitizeSessionKey(req.query.session_key)
+    }));
+  }
+
+  const telegramId = widgetData.id;
+  const username = `tg_${telegramId}`;
+  let userResult = await pool.query(
+    'SELECT id, username FROM users WHERE username = $1',
+    [username]
+  );
+
+  if (userResult.rows.length === 0) {
+    const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 10);
+    userResult = await pool.query(
+      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
+      [username, randomPasswordHash]
+    );
+  }
+
+  const user = userResult.rows[0];
+  await syncTelegramUserProfile(user.id, {
+    id: widgetData.id,
+    first_name: widgetData.first_name,
+    last_name: widgetData.last_name,
+    username: widgetData.username,
+    photo_url: widgetData.photo_url
+  });
+
+  return res.type('html').send(buildAuthCompletionPage({
+    token: buildToken(user),
+    sessionKey: sanitizeSessionKey(req.query.session_key),
+    returnTo: req.query.return_to
+  }));
+}));
+
+// --- VK OAuth (server callback flow) ---
+
+function encodeVkOAuthState({ returnTo, sessionKey }) {
+  return Buffer.from(JSON.stringify({
+    returnTo: sanitizeReturnTo(returnTo),
+    sessionKey: sanitizeSessionKey(sessionKey)
+  })).toString('base64url');
+}
+
+function decodeVkOAuthState(rawState) {
+  if (!rawState) return { returnTo: '/', sessionKey: '' };
+
+  try {
+    const parsed = JSON.parse(Buffer.from(String(rawState), 'base64url').toString('utf8'));
+    return {
+      returnTo: sanitizeReturnTo(parsed.returnTo),
+      sessionKey: sanitizeSessionKey(parsed.sessionKey)
+    };
+  } catch {
+    return { returnTo: '/', sessionKey: '' };
+  }
+}
+
+function getVkOAuthRedirectUri(req) {
+  if (process.env.VK_OAUTH_REDIRECT_URI) return process.env.VK_OAUTH_REDIRECT_URI;
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${proto}://${host}/api/auth/vk-oauth/callback`;
+}
+
+// GET /api/auth/vk-oauth — redirect browser to VK OAuth consent screen
+router.get('/vk-oauth', (req, res) => {
+  const appId = process.env.VK_APP_ID;
+  if (!appId) {
+    applyPopupFriendlyHeaders(res);
+    return res.status(503).type('html').send(buildAuthCompletionPage({
+      error: 'VK OAuth is not configured',
+      returnTo: req.query.return_to,
+      sessionKey: sanitizeSessionKey(req.query.session_key)
+    }));
+  }
+
+  const params = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: getVkOAuthRedirectUri(req),
+    scope: '',
+    response_type: 'code',
+    display: 'popup',
+    v: '5.199',
+    state: encodeVkOAuthState({
+      returnTo: req.query.return_to,
+      sessionKey: req.query.session_key
+    })
+  });
+  res.redirect(`https://oauth.vk.com/authorize?${params}`);
+});
+
+// GET /api/auth/vk-oauth/callback — exchange code, create/find user and complete auth
+router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
+  applyPopupFriendlyHeaders(res);
+
+  const state = decodeVkOAuthState(req.query.state);
+  const { code, error } = req.query;
+  if (error || !code) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'VK авторизация отменена',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const appId = process.env.VK_APP_ID;
+  const appSecret = process.env.VK_APP_SECRET;
+  if (!appId || !appSecret) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'VK OAuth is not configured',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const tokenParams = new URLSearchParams({
+    client_id: appId,
+    client_secret: appSecret,
+    redirect_uri: getVkOAuthRedirectUri(req),
+    code: String(code)
+  });
+
+  let tokenData;
+  try {
+    const tokenRes = await fetch(`https://oauth.vk.com/access_token?${tokenParams}`);
+    tokenData = await tokenRes.json();
+  } catch (fetchErr) {
+    console.error('[vk-oauth] token exchange failed:', fetchErr);
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Ошибка связи с ВКонтакте',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  if (tokenData.error || !tokenData.user_id) {
+    console.error('[vk-oauth] token error:', tokenData.error, tokenData.error_description);
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Ошибка авторизации ВКонтакте',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const vkUserId = Number(tokenData.user_id);
+  const username = `vk_${vkUserId}`;
+  let userResult = await pool.query(
+    'SELECT id, username, vk_user_id FROM users WHERE vk_user_id = $1 OR username = $2 LIMIT 1',
+    [vkUserId, username]
+  );
+
+  if (userResult.rows.length === 0) {
+    userResult = await pool.query(
+      'INSERT INTO users (username, vk_user_id) VALUES ($1, $2) RETURNING id, username',
+      [username, vkUserId]
+    );
+  } else if (!userResult.rows[0].vk_user_id) {
+    await pool.query('UPDATE users SET vk_user_id = $1 WHERE id = $2', [vkUserId, userResult.rows[0].id]);
+  }
+
+  return res.type('html').send(buildAuthCompletionPage({
+    token: buildToken(userResult.rows[0]),
+    sessionKey: state.sessionKey,
+    returnTo: state.returnTo
+  }));
+}));
 
 // POST /api/auth/vk-oauth-token — receive VK access_token from blank.html popup, verify and return JWT
 router.post('/vk-oauth-token', asyncRoute(async (req, res) => {
