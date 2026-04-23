@@ -401,6 +401,8 @@ describe('Auth API', () => {
     beforeEach(() => {
       jest.clearAllMocks();
       process.env.VK_APP_SECRET = VK_APP_SECRET;
+      delete process.env.VK_MINI_APP_SECRET;
+      delete process.env.VK_MINI_APP_SECRETS;
     });
 
     it('возвращает 503 если VK_APP_SECRET не настроен', async () => {
@@ -409,6 +411,22 @@ describe('Auth API', () => {
         .post('/api/auth/vk')
         .send({ launchParams: 'vk_user_id=1&sign=x' });
       expect(res.status).toBe(503);
+    });
+
+    it('принимает подпись из VK_MINI_APP_SECRET если VK_APP_SECRET не совпадает', async () => {
+      process.env.VK_APP_SECRET = 'wrong-secret';
+      process.env.VK_MINI_APP_SECRET = VK_APP_SECRET;
+      const launchParams = buildVkLaunchParams(333333);
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 3, username: 'vk_333333', vk_user_id: 333333 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
     });
 
     it('возвращает 400 если launchParams отсутствует', async () => {
@@ -610,7 +628,7 @@ describe('Auth API', () => {
       expect(target.origin + target.pathname).toBe('https://id.vk.com/authorize');
       expect(target.searchParams.get('client_id')).toBe('54478943');
       expect(target.searchParams.get('response_type')).toBe('code');
-      expect(target.searchParams.get('scope')).toBe('vkid.personal_info');
+      expect(target.searchParams.get('scope')).toBeNull();
       expect(target.searchParams.get('code_challenge_method')).toBe('s256');
       expect(target.searchParams.get('code_challenge')).toBeTruthy();
       expect(target.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/vk-oauth\/callback$/);
@@ -639,6 +657,23 @@ describe('Auth API', () => {
 
       const target = new URL(response.headers.location);
       expect(target.searchParams.get('origin')).toBe('https://rova-epil.ru');
+    });
+
+    it('adds scope when VK_OAUTH_SCOPE is configured', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_OAUTH_SCOPE = 'phone email';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth')
+        .query({
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890'
+        })
+        .expect(302);
+
+      const target = new URL(response.headers.location);
+      expect(target.searchParams.get('scope')).toBe('phone email');
+      delete process.env.VK_OAUTH_SCOPE;
     });
 
     it('uses VK_OAUTH_REDIRECT_URI when it is explicitly configured', async () => {
