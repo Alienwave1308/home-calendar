@@ -49,6 +49,9 @@ describe('Web booking native auth modal', () => {
         delete win.Telegram;
         delete win.vkBridge;
         delete win.Cypress;
+        win.__HC_WEB_BOOKING_ENABLED__ = true;
+        win.__TG_BOT_USERNAME__ = 'Rova_Epil_Bot';
+        win.__VK_APP_ID__ = '54478943';
       }
     });
 
@@ -81,6 +84,22 @@ describe('Web booking native auth modal', () => {
     cy.get('#web-auth-cancel').click();
     cy.get('#web-auth-modal').should('not.be.visible');
     cy.get('#screen-confirm').should('have.class', 'active');
+  });
+
+  it('на десктопе кнопка ВКонтакте открывает OAuth через наш callback flow', () => {
+    selectServiceAndSlot();
+
+    cy.window().then((win) => {
+      cy.stub(win, 'open').as('windowOpen');
+    });
+
+    cy.get('#confirmSubmit').click();
+    cy.get('#web-auth-modal').should('be.visible');
+    cy.get('#web-auth-vk-btn').should('be.visible').click();
+
+    cy.get('@windowOpen').should('have.been.calledOnce');
+    cy.get('@windowOpen').its('firstCall.args.0').should('include', '/api/auth/vk-oauth?');
+    cy.get('@windowOpen').its('firstCall.args.1').should('eq', 'vk_oauth');
   });
 
   it('авторизация через TG виджет закрывает модал и создаёт запись', () => {
