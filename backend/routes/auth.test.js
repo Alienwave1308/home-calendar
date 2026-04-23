@@ -4,7 +4,7 @@ const { pool } = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { URLSearchParams } = require('url');
+const { URL, URLSearchParams } = require('url');
 const { JWT_SECRET } = require('../middleware/auth');
 
 jest.mock('../db', () => ({
@@ -564,6 +564,32 @@ describe('Auth API', () => {
     });
   });
 
+  describe('GET /api/auth/vk-oauth', () => {
+    it('redirects browser auth to VK with callback state preserved', async () => {
+      process.env.VK_APP_ID = '54478943';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth')
+        .query({
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890'
+        })
+        .expect(302);
+
+      const location = response.headers.location;
+      const target = new URL(location);
+      expect(target.origin + target.pathname).toBe('https://oauth.vk.com/authorize');
+      expect(target.searchParams.get('client_id')).toBe('54478943');
+      expect(target.searchParams.get('response_type')).toBe('code');
+      expect(target.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/vk-oauth\/callback$/);
+      const state = JSON.parse(Buffer.from(String(target.searchParams.get('state')), 'base64url').toString('utf8'));
+      expect(state).toEqual({
+        returnTo: '/book/lera',
+        sessionKey: 'guest:abcdef1234567890'
+      });
+    });
+  });
+
   describe('GET /book/:slug', () => {
     it('relaxes COOP for popup-based web auth', async () => {
       const response = await request(app)
@@ -572,7 +598,7 @@ describe('Auth API', () => {
 
       expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
       expect(response.text).toContain('window.__TG_BOT_USERNAME__');
-      expect(response.text).toContain('/booking.js?v=20260423-authfix1');
+      expect(response.text).toContain('/booking.js?v=20260423-vkbrowser1');
     });
   });
 });

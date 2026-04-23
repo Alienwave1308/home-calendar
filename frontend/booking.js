@@ -19,7 +19,8 @@
   const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim();
   const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
   const vkAppId = String(window.__VK_APP_ID__ || '').trim();
-  const vkWebAuthEnabled = Boolean(vkAppId) && !isMobileBrowser;
+  const vkWebAuthEnabled = Boolean(vkAppId);
+  const vkWebAuthUsesRedirect = isMobileBrowser;
   const WEB_AUTH_DRAFT_KEY = 'bookingWebAuthDraft';
 
   function renderWebBookingDisabled() {
@@ -422,6 +423,24 @@
     return window.location.origin + '/api/auth/vk-oauth?' + buildWebAuthContextParams().toString();
   }
 
+  function startVkWebAuth() {
+    const url = buildVkOAuthUrl();
+    if (vkWebAuthUsesRedirect) {
+      window.location.assign(url);
+      return;
+    }
+
+    const w = 600;
+    const h = 600;
+    const left = Math.round(screen.width / 2 - w / 2);
+    const top = Math.round(screen.height / 2 - h / 2);
+    window.open(
+      url,
+      'vk_oauth',
+      'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
+    );
+  }
+
   function parseMonthKey(value) {
     const match = /^(\d{4})-(\d{2})$/.exec(String(value || '').trim());
     if (!match) return null;
@@ -573,7 +592,7 @@
       + '<p style="margin:0 0 18px;color:#527064;font-size:13px;line-height:1.5;">Для получения уведомлений о записи</p>'
       + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;"></div>'
       + (vkWebAuthEnabled ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
-      + (!vkWebAuthEnabled && vkAppId ? '<p style="margin:8px 0 0;color:#8a9e96;font-size:12px;line-height:1.4;">ВКонтакте временно недоступен в мобильном браузере. Используйте Telegram.</p>' : '')
+      + (vkWebAuthEnabled && vkWebAuthUsesRedirect ? '<p style="margin:8px 0 0;color:#8a9e96;font-size:12px;line-height:1.4;">Вход через ВКонтакте откроется в этой вкладке, потом вы вернётесь к записи.</p>' : '')
       + '<button id="web-auth-cancel" style="margin-top:12px;background:none;border:none;color:#8a9e96;font-size:13px;cursor:pointer;text-decoration:underline;">Отмена</button>'
       + '</div>';
     document.body.appendChild(modal);
@@ -652,14 +671,7 @@
       const vkBtn = document.getElementById('web-auth-vk-btn');
       if (vkBtn) {
         vkBtn.onclick = function () {
-          const w = 600, h = 600;
-          const left = Math.round(screen.width / 2 - w / 2);
-          const top = Math.round(screen.height / 2 - h / 2);
-          window.open(
-            buildVkOAuthUrl(),
-            'vk_oauth',
-            'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
-          );
+          startVkWebAuth();
         };
       }
 
