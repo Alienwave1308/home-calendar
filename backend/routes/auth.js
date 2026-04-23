@@ -345,18 +345,31 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   addVariants(encodedDecodedVkPairs);
   addVariants(encodedDecodedPairs);
 
+  const decodeSignToDigest = (input) => {
+    const raw = String(input || '').trim();
+    if (!raw) return null;
+    const normalized = raw.replace(/-/g, '+').replace(/_/g, '/').replace(/\s+/g, '');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    try {
+      const digest = Buffer.from(padded, 'base64');
+      return digest.length ? digest : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const receivedDigest = decodeSignToDigest(receivedSign);
+  if (!receivedDigest) return false;
+
   for (const checkString of variants) {
     if (!checkString) continue;
-    const computedSign = crypto
+    const computedDigest = crypto
       .createHmac('sha256', appSecret)
       .update(checkString)
-      .digest('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+      .digest();
 
-    if (computedSign.length !== receivedSign.length) continue;
-    if (crypto.timingSafeEqual(Buffer.from(computedSign), Buffer.from(receivedSign))) {
+    if (computedDigest.length !== receivedDigest.length) continue;
+    if (crypto.timingSafeEqual(computedDigest, receivedDigest)) {
       return true;
     }
   }
@@ -394,9 +407,19 @@ router.post('/vk', asyncRoute(async (req, res) => {
   if (!launchParams || typeof launchParams !== 'string') {
     return res.status(400).json({ error: 'launchParams is required' });
   }
+  const launchParamsMap = new URLSearchParams(String(launchParams).replace(/^[?#]/, ''));
+  const expectedAppId = String(process.env.VK_APP_ID || '').trim();
+  const launchAppId = String(launchParamsMap.get('vk_app_id') || '').trim();
+  if (expectedAppId && launchAppId && launchAppId !== expectedAppId) {
+    return res.status(401).json({
+      error: 'VK launch params are from another app',
+      expected_app_id: expectedAppId,
+      launch_app_id: launchAppId
+    });
+  }
+
   const hasValidSignature = appSecrets.some((secret) => isValidVkLaunchParams(launchParams, secret));
   if (!hasValidSignature) {
-    const launchParamsMap = new URLSearchParams(launchParams);
     console.warn('[vk-mini] invalid launch params signature', {
       vk_app_id: launchParamsMap.get('vk_app_id') || null,
       secrets_count: appSecrets.length
