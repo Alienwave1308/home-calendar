@@ -14,11 +14,13 @@
   const urlParams = new URLSearchParams(window.location.search);
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
   const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
+  const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(String((window.navigator && window.navigator.userAgent) || ''));
   const webBookingLaunchEnabled = Boolean(window.__HC_WEB_BOOKING_ENABLED__);
   const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim();
-  const tgBotId = String(window.__TG_BOT_ID__ || '').trim();
   const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
   const vkAppId = String(window.__VK_APP_ID__ || '').trim();
+  const vkWebAuthEnabled = Boolean(vkAppId) && !isMobileBrowser;
+  const WEB_AUTH_DRAFT_KEY = 'bookingWebAuthDraft';
 
   function renderWebBookingDisabled() {
     const telegramBotLink = tgBotUsername
@@ -355,9 +357,9 @@
     return localStorage.getItem('bookingAuthSession') === currentSessionKey;
   }
 
-  function saveAuthToken(token) {
+  function saveAuthToken(token, sessionKey) {
     localStorage.setItem('token', token);
-    const currentSessionKey = getCurrentAuthSessionKey();
+    const currentSessionKey = sessionKey || getCurrentAuthSessionKey();
     if (currentSessionKey) localStorage.setItem('bookingAuthSession', currentSessionKey);
   }
 
@@ -400,7 +402,164 @@
     return Boolean(payload && payload.username && payload.username.startsWith('guest_'));
   }
 
+  function getWebAuthReturnTo() {
+    return window.location.pathname + window.location.search;
+  }
+
+  function buildWebAuthContextParams() {
+    const params = new URLSearchParams();
+    params.set('return_to', getWebAuthReturnTo());
+    const sessionKey = getCurrentAuthSessionKey();
+    if (sessionKey) params.set('session_key', sessionKey);
+    return params;
+  }
+
+  function buildTelegramWidgetAuthUrl() {
+    return window.location.origin + '/api/auth/telegram-widget/callback?' + buildWebAuthContextParams().toString();
+  }
+
+  function buildVkOAuthUrl() {
+    return window.location.origin + '/api/auth/vk-oauth?' + buildWebAuthContextParams().toString();
+  }
+
+  function parseMonthKey(value) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(value || '').trim());
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  }
+
+  function saveWebBookingDraft() {
+    if (!isWebBrowser || !state.selectedServiceIds.length) return;
+
+    const draft = {
+      savedAt: Date.now(),
+      selectedServiceIds: state.selectedServiceIds.slice(),
+      selectedDate: state.selectedDate || '',
+      selectedSlotStart: state.selectedSlot ? state.selectedSlot.start : '',
+      promoCode: state.promoCode || '',
+      note: String(el.noteInput ? el.noteInput.value || state.note || '' : state.note || '').trim(),
+      flowScreen: state.flowScreen || 'confirm',
+      currentMonth: state.currentMonth
+        ? `${state.currentMonth.getFullYear()}-${String(state.currentMonth.getMonth() + 1).padStart(2, '0')}`
+        : ''
+    };
+
+    try {
+      sessionStorage.setItem(WEB_AUTH_DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // Ignore storage failures in privacy mode.
+    }
+  }
+
+  function clearWebBookingDraft() {
+    try {
+      sessionStorage.removeItem(WEB_AUTH_DRAFT_KEY);
+    } catch {
+      // Ignore storage failures in privacy mode.
+    }
+  }
+
+  async function restoreWebBookingDraft() {
+    if (!isWebBrowser) return;
+
+    let draft = null;
+    try {
+      draft = JSON.parse(sessionStorage.getItem(WEB_AUTH_DRAFT_KEY) || 'null');
+    } catch {
+      draft = null;
+    }
+
+    if (!draft || !Array.isArray(draft.selectedServiceIds) || !draft.selectedServiceIds.length) {
+      clearWebBookingDraft();
+      return;
+    }
+    if (Date.now() - Number(draft.savedAt || 0) > 30 * 60 * 1000) {
+      clearWebBookingDraft();
+      return;
+    }
+
+    const allowedServiceIds = new Set(state.services.map(function (service) {
+      return String(service.id);
+    }));
+    state.selectedServiceIds = draft.selectedServiceIds.filter(function (serviceId) {
+      return allowedServiceIds.has(String(serviceId));
+    });
+    if (!state.selectedServiceIds.length) {
+      clearWebBookingDraft();
+      return;
+    }
+
+    const restoredMonth = parseMonthKey(draft.currentMonth);
+    if (restoredMonth) {
+      state.currentMonth = restoredMonth;
+    }
+    if (draft.selectedDate) {
+      state.selectedDate = draft.selectedDate;
+    }
+    state.promoCode = String(draft.promoCode || '').trim().toUpperCase();
+    state.promoPreview = null;
+    state.note = String(draft.note || '').trim();
+
+    renderServices();
+    renderCalendarInfo();
+
+    try {
+      await loadSlotsRange();
+    } catch (error) {
+      clearWebBookingDraft();
+      showToast('Не удалось восстановить запись: ' + error.message);
+      return;
+    }
+
+    const slots = state.selectedDate ? (state.slotsByDay.get(state.selectedDate) || []) : [];
+    const restoredSlot = slots.find(function (slot) {
+      return slot.start === draft.selectedSlotStart;
+    });
+    state.selectedSlot = restoredSlot || null;
+    state.selectedSlotLabel = restoredSlot ? restoredSlot.label : '';
+
+    renderCalendar();
+    renderSlots();
+    renderConfirm();
+    renderDock();
+    setFlow(restoredSlot ? 'confirm' : 'calendar');
+    clearWebBookingDraft();
+
+    if (localStorage.getItem('token') && !isGuestToken(localStorage.getItem('token'))) {
+      showToast('Вход выполнен. Проверьте запись и подтвердите её ещё раз.');
+    }
+  }
+
   let _webAuthResolve = null;
+  let _webAuthReject = null;
+
+  function finishWebAuth(result) {
+    if (!result) return;
+
+    if (result.error) {
+      hideWebAuthModal();
+      if (_webAuthReject) {
+        const reject = _webAuthReject;
+        _webAuthResolve = null;
+        _webAuthReject = null;
+        reject(new Error(result.error));
+      } else {
+        showToast(result.error);
+      }
+      return;
+    }
+
+    if (!result.token) return;
+
+    saveAuthToken(result.token, result.sessionKey);
+    hideWebAuthModal();
+    if (_webAuthResolve) {
+      const resolve = _webAuthResolve;
+      _webAuthResolve = null;
+      _webAuthReject = null;
+      resolve(true);
+    }
+  }
 
   function createWebAuthModal() {
     let modal = document.getElementById('web-auth-modal');
@@ -412,10 +571,9 @@
       + '<div style="font-size:30px;margin-bottom:8px;">🔐</div>'
       + '<h3 style="margin:0 0 6px;font-size:17px;">Войдите, чтобы записаться</h3>'
       + '<p style="margin:0 0 18px;color:#527064;font-size:13px;line-height:1.5;">Для получения уведомлений о записи</p>'
-      + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;">'
-      + (tgBotId ? '<button id="web-auth-tg-btn" style="background:#2ca5e0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:15px;font-weight:600;cursor:pointer;">Войти через Telegram</button>' : '')
-      + '</div>'
-      + (vkAppId ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
+      + '<div id="web-auth-tg-widget" style="margin-bottom:10px;display:flex;justify-content:center;min-height:40px;"></div>'
+      + (vkWebAuthEnabled ? '<button id="web-auth-vk-btn" style="width:100%;padding:10px;background:#0077ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">ВКонтакте</button>' : '')
+      + (!vkWebAuthEnabled && vkAppId ? '<p style="margin:8px 0 0;color:#8a9e96;font-size:12px;line-height:1.4;">ВКонтакте временно недоступен в мобильном браузере. Используйте Telegram.</p>' : '')
       + '<button id="web-auth-cancel" style="margin-top:12px;background:none;border:none;color:#8a9e96;font-size:13px;cursor:pointer;text-decoration:underline;">Отмена</button>'
       + '</div>';
     document.body.appendChild(modal);
@@ -429,48 +587,39 @@
       body: JSON.stringify(user)
     }).then(function (data) {
       if (data && data.token) {
-        saveAuthToken(data.token);
-        hideWebAuthModal();
-        if (_webAuthResolve) { _webAuthResolve(true); _webAuthResolve = null; }
+        finishWebAuth({
+          token: data.token,
+          sessionKey: getCurrentAuthSessionKey()
+        });
       }
-    }).catch(function () {
-      showToast('Ошибка авторизации через Telegram');
+    }).catch(function (error) {
+      const message = error && error.message ? error.message : 'Ошибка авторизации через Telegram';
+      finishWebAuth({ error: message });
     });
   };
 
   window.addEventListener('message', function (event) {
-    // TG oauth.telegram.org sends {event: 'auth_result', result: {...}} to opener after login
-    if (event.origin === 'https://oauth.telegram.org' && event.data && event.data.event === 'auth_result') {
-      const result = event.data.result;
-      if (result && result.id) {
-        window.__onTelegramWidgetAuth__(result);
-      }
+    if (event.origin !== window.location.origin || !event.data || typeof event.data !== 'object') {
       return;
     }
 
-    // VK blank.html sends window.location.href (a string) to opener from oauth.vk.com
-    if (event.origin === 'https://oauth.vk.com' && typeof event.data === 'string') {
-      try {
-        const hash = event.data.split('#')[1] || '';
-        const params = new URLSearchParams(hash);
-        const accessToken = params.get('access_token');
-        const userId = params.get('user_id');
-        if (accessToken && userId) {
-          requestJson('/auth/vk-oauth-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ access_token: accessToken, user_id: userId })
-          }).then(function (data) {
-            if (data && data.token) {
-              saveAuthToken(data.token);
-              hideWebAuthModal();
-              if (_webAuthResolve) { _webAuthResolve(true); _webAuthResolve = null; }
-            }
-          }).catch(function () {
-            showToast('Ошибка авторизации ВКонтакте');
-          });
-        }
-      } catch (_) { /* ignore parse errors */ }
+    if (event.data.type === 'web-auth-result') {
+      finishWebAuth(event.data);
+      return;
+    }
+
+    if (event.data.type === 'vk-oauth-token') {
+      finishWebAuth({
+        token: event.data.token,
+        sessionKey: event.data.sessionKey
+      });
+      return;
+    }
+
+    if (event.data.type === 'vk-oauth-error') {
+      finishWebAuth({
+        error: event.data.error || 'Ошибка авторизации ВКонтакте'
+      });
       return;
     }
   });
@@ -478,46 +627,36 @@
   function showWebAuthModal() {
     return new Promise(function (resolve, reject) {
       _webAuthResolve = resolve;
+      _webAuthReject = reject;
+      saveWebBookingDraft();
 
       const modal = createWebAuthModal();
       modal.style.display = 'flex';
 
-      const tgBtn = document.getElementById('web-auth-tg-btn');
-      if (tgBtn) {
-        tgBtn.onclick = function () {
-          const params = new URLSearchParams({
-            bot_id: tgBotId,
-            origin: window.location.origin,
-            embed: '0',
-            request_access: 'write'
-          });
-          const w = 550, h = 480;
-          const left = Math.round(screen.width / 2 - w / 2);
-          const top = Math.round(screen.height / 2 - h / 2);
-          window.open(
-            'https://oauth.telegram.org/auth?' + params,
-            'tg_auth',
-            'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
-          );
-        };
+      const tgWidget = document.getElementById('web-auth-tg-widget');
+      if (tgWidget) {
+        tgWidget.innerHTML = '';
+        if (tgBotUsername) {
+          const widgetScript = document.createElement('script');
+          widgetScript.src = 'https://telegram.org/js/telegram-widget.js?22';
+          widgetScript.async = true;
+          widgetScript.setAttribute('data-telegram-login', tgBotUsername);
+          widgetScript.setAttribute('data-size', 'large');
+          widgetScript.setAttribute('data-radius', '8');
+          widgetScript.setAttribute('data-request-access', 'write');
+          widgetScript.setAttribute('data-auth-url', buildTelegramWidgetAuthUrl());
+          tgWidget.appendChild(widgetScript);
+        }
       }
 
       const vkBtn = document.getElementById('web-auth-vk-btn');
       if (vkBtn) {
         vkBtn.onclick = function () {
-          const params = new URLSearchParams({
-            client_id: vkAppId,
-            redirect_uri: 'https://oauth.vk.com/blank.html',
-            scope: '0',
-            response_type: 'token',
-            display: 'popup',
-            v: '5.199'
-          });
           const w = 600, h = 600;
           const left = Math.round(screen.width / 2 - w / 2);
           const top = Math.round(screen.height / 2 - h / 2);
           window.open(
-            'https://oauth.vk.com/authorize?' + params,
+            buildVkOAuthUrl(),
             'vk_oauth',
             'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
           );
@@ -526,6 +665,8 @@
 
       document.getElementById('web-auth-cancel').onclick = function () {
         hideWebAuthModal();
+        _webAuthResolve = null;
+        _webAuthReject = null;
         reject(new Error('Авторизация отменена'));
       };
     });
@@ -1330,6 +1471,7 @@
 
       const created = await apiPost('/public/master/' + slug + '/book', body);
       hideLoader();
+      clearWebBookingDraft();
 
       const pricing = created.pricing || {};
       const details = [];
@@ -1543,6 +1685,7 @@
   }
 
   function resetFlow() {
+    clearWebBookingDraft();
     state.flowScreen = 'services';
     screenStack = ['services'];
     state.selectedDate = dateKey(state.rangeStart);
@@ -1722,6 +1865,7 @@
       renderTabs();
       renderScreens();
       renderDock();
+      await restoreWebBookingDraft();
 
     } catch (error) {
       showToast('Не удалось загрузить данные: ' + error.message);

@@ -74,6 +74,10 @@ function applyNoStoreHeaders(res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 }
+
+function applyPopupFriendlyHeaders(res) {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+}
 const noStoreStaticFiles = new Set([
   'booking.html',
   'booking.js',
@@ -185,6 +189,7 @@ app.use('/api/calendar-sync', calendarSyncRouter);
 app.get('/book/:slug', (req, res) => {
   res.removeHeader('X-Frame-Options');
   applyNoStoreHeaders(res);
+  applyPopupFriendlyHeaders(res);
   const html = renderBookingHtml(req.params.slug);
   if (!html) {
     return res.status(500).send('Booking page is unavailable');
