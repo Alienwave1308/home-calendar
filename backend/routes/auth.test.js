@@ -64,6 +64,7 @@ describe('Auth API', () => {
     delete process.env.WEB_BOOKING_ALLOWED_SLUGS;
     delete process.env.VK_OAUTH_REDIRECT_URI;
     delete process.env.VK_OAUTH_STATE_SECRET;
+    delete process.env.VK_APP_ID;
   });
 
   afterAll(() => {
@@ -398,6 +399,28 @@ describe('Auth API', () => {
       return params.toString();
     }
 
+    function buildVkLaunchParamsBase64Sign(userId = 123456, overrides = {}) {
+      const params = new URLSearchParams({
+        vk_user_id: String(userId),
+        vk_app_id: '1234567',
+        vk_ts: String(Math.floor(Date.now() / 1000)),
+        ...overrides
+      });
+
+      const entries = [];
+      params.forEach((value, key) => {
+        if (key.startsWith('vk_')) entries.push([key, value]);
+      });
+      entries.sort(([a], [b]) => a.localeCompare(b));
+      const checkString = entries.map(([k, v]) => `${k}=${v}`).join('&');
+      const sign = crypto.createHmac('sha256', VK_APP_SECRET)
+        .update(checkString)
+        .digest('base64');
+
+      params.set('sign', sign);
+      return params.toString();
+    }
+
     beforeEach(() => {
       jest.clearAllMocks();
       process.env.VK_APP_SECRET = VK_APP_SECRET;
@@ -458,6 +481,34 @@ describe('Auth API', () => {
         .send({ launchParams });
       expect(res.status).toBe(200);
       expect(res.body.token).toBeTruthy();
+    });
+
+    it('принимает sign в обычном base64 формате', async () => {
+      const launchParams = buildVkLaunchParamsBase64Sign(323232);
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 14, username: 'vk_323232', vk_user_id: 323232 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+    });
+
+    it('возвращает явную ошибку при launch params от другого app_id', async () => {
+      process.env.VK_APP_ID = '54478943';
+      const launchParams = buildVkLaunchParams(565656, { vk_app_id: '99999999' });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('VK launch params are from another app');
+      expect(res.body.expected_app_id).toBe('54478943');
+      expect(res.body.launch_app_id).toBe('99999999');
     });
 
     it('возвращает 400 если launchParams отсутствует', async () => {
