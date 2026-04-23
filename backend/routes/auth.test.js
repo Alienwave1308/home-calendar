@@ -588,6 +588,22 @@ describe('Auth API', () => {
         sessionKey: 'guest:abcdef1234567890'
       });
     });
+
+    it('uses VK_OAUTH_REDIRECT_URI when it is explicitly configured', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_OAUTH_REDIRECT_URI = 'https://rova-epil.ru/api/auth/vk-oauth/callback';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth')
+        .query({
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890'
+        })
+        .expect(302);
+
+      const target = new URL(response.headers.location);
+      expect(target.searchParams.get('redirect_uri')).toBe('https://rova-epil.ru/api/auth/vk-oauth/callback');
+    });
   });
 
   describe('GET /book/:slug', () => {
