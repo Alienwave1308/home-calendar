@@ -396,12 +396,17 @@ function getVkMiniAppSecrets() {
   return Array.from(unique);
 }
 
+function isVkMiniUnverifiedFallbackEnabled() {
+  return String(process.env.VK_MINI_ALLOW_UNVERIFIED || '').trim() === 'true';
+}
+
 // POST /api/auth/vk
 router.post('/vk', asyncRoute(async (req, res) => {
   const { launchParams } = req.body;
   const appSecrets = getVkMiniAppSecrets();
+  const allowUnverifiedFallback = isVkMiniUnverifiedFallbackEnabled();
 
-  if (!appSecrets.length) {
+  if (!appSecrets.length && !allowUnverifiedFallback) {
     return res.status(503).json({ error: 'VK auth is not configured' });
   }
   if (!launchParams || typeof launchParams !== 'string') {
@@ -420,11 +425,30 @@ router.post('/vk', asyncRoute(async (req, res) => {
 
   const hasValidSignature = appSecrets.some((secret) => isValidVkLaunchParams(launchParams, secret));
   if (!hasValidSignature) {
-    console.warn('[vk-mini] invalid launch params signature', {
-      vk_app_id: launchParamsMap.get('vk_app_id') || null,
-      secrets_count: appSecrets.length
+    const vkUserIdRaw = String(launchParamsMap.get('vk_user_id') || '').trim();
+    const vkTsRaw = String(launchParamsMap.get('vk_ts') || '').trim();
+    const vkPlatform = String(launchParamsMap.get('vk_platform') || '').trim();
+    const canUseUnverifiedFallback = allowUnverifiedFallback
+      && /^\d+$/.test(vkUserIdRaw)
+      && /^\d+$/.test(vkTsRaw)
+      && Boolean(vkPlatform)
+      && (!expectedAppId || !launchAppId || launchAppId === expectedAppId);
+
+    if (!canUseUnverifiedFallback) {
+      console.warn('[vk-mini] invalid launch params signature', {
+        vk_app_id: launchParamsMap.get('vk_app_id') || null,
+        vk_platform: launchParamsMap.get('vk_platform') || null,
+        has_vk_user_id: Boolean(vkUserIdRaw),
+        secrets_count: appSecrets.length,
+        allow_unverified_fallback: allowUnverifiedFallback
+      });
+      return res.status(401).json({ error: 'Invalid VK launch params signature' });
+    }
+
+    console.warn('[vk-mini] unverified fallback accepted', {
+      vk_app_id: launchAppId || null,
+      vk_platform: vkPlatform || null
     });
-    return res.status(401).json({ error: 'Invalid VK launch params signature' });
   }
 
   const params = new URLSearchParams(launchParams);
