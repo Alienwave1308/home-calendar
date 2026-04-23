@@ -4,6 +4,15 @@
  */
 
 describe('Web booking native auth modal', () => {
+  function defineRuntimeValue(win, key, value) {
+    Object.defineProperty(win, key, {
+      configurable: true,
+      enumerable: true,
+      writable: false,
+      value
+    });
+  }
+
   beforeEach(() => {
     cy.intercept('GET', /\/api\/public\/master\/[^/]+$/, {
       statusCode: 200,
@@ -49,9 +58,9 @@ describe('Web booking native auth modal', () => {
         delete win.Telegram;
         delete win.vkBridge;
         delete win.Cypress;
-        win.__HC_WEB_BOOKING_ENABLED__ = true;
-        win.__TG_BOT_USERNAME__ = 'Rova_Epil_Bot';
-        win.__VK_APP_ID__ = '54478943';
+        defineRuntimeValue(win, '__HC_WEB_BOOKING_ENABLED__', true);
+        defineRuntimeValue(win, '__TG_BOT_USERNAME__', 'Rova_Epil_Bot');
+        defineRuntimeValue(win, '__VK_APP_ID__', '54478943');
       }
     });
 
