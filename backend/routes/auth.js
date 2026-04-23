@@ -296,27 +296,51 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   if (!paramsString || !appSecret) return false;
 
   const url = new URLSearchParams(paramsString);
-  const receivedSign = url.get('sign');
+  const receivedSign = String(url.get('sign') || '').trim();
   if (!receivedSign) return false;
 
-  // Берём только vk_* параметры, сортируем, строим строку проверки
-  const entries = [];
+  const rawPairs = String(paramsString)
+    .split('&')
+    .map((chunk) => {
+      const idx = chunk.indexOf('=');
+      if (idx === -1) return [chunk, ''];
+      return [chunk.slice(0, idx), chunk.slice(idx + 1)];
+    });
+
+  const decodedPairs = [];
   url.forEach((value, key) => {
-    if (key.startsWith('vk_')) entries.push([key, value]);
+    if (key === 'sign') return;
+    decodedPairs.push([key, value]);
   });
-  entries.sort(([a], [b]) => a.localeCompare(b));
-  const checkString = entries.map(([k, v]) => `${k}=${v}`).join('&');
 
-  const computedSign = crypto
-    .createHmac('sha256', appSecret)
-    .update(checkString)
-    .digest('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  const rawPairsWithoutSign = rawPairs.filter(([key]) => key !== 'sign');
+  const rawVkPairs = rawPairsWithoutSign.filter(([key]) => key.startsWith('vk_'));
+  const decodedVkPairs = decodedPairs.filter(([key]) => key.startsWith('vk_'));
 
-  if (computedSign.length !== receivedSign.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(computedSign), Buffer.from(receivedSign));
+  const variants = [
+    rawPairsWithoutSign,
+    rawVkPairs,
+    decodedPairs,
+    decodedVkPairs
+  ]
+    .map((pairs) => pairs.slice().sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join('&'))
+    .filter(Boolean);
+
+  for (const checkString of variants) {
+    const computedSign = crypto
+      .createHmac('sha256', appSecret)
+      .update(checkString)
+      .digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    if (computedSign.length !== receivedSign.length) continue;
+    if (crypto.timingSafeEqual(Buffer.from(computedSign), Buffer.from(receivedSign))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function getVkMiniAppSecrets() {
@@ -814,7 +838,8 @@ function getVkIdAuthorizeUrl() {
 }
 
 function getVkOAuthScope() {
-  return String(process.env.VK_OAUTH_SCOPE || '').trim();
+  const value = String(process.env.VK_OAUTH_SCOPE || '').trim();
+  return value || 'phone email';
 }
 
 function getVkIdTokenUrl() {

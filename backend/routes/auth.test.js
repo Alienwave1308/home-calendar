@@ -628,7 +628,7 @@ describe('Auth API', () => {
       expect(target.origin + target.pathname).toBe('https://id.vk.com/authorize');
       expect(target.searchParams.get('client_id')).toBe('54478943');
       expect(target.searchParams.get('response_type')).toBe('code');
-      expect(target.searchParams.get('scope')).toBeNull();
+      expect(target.searchParams.get('scope')).toBe('phone email');
       expect(target.searchParams.get('code_challenge_method')).toBe('s256');
       expect(target.searchParams.get('code_challenge')).toBeTruthy();
       expect(target.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/vk-oauth\/callback$/);
@@ -659,7 +659,7 @@ describe('Auth API', () => {
       expect(target.searchParams.get('origin')).toBe('https://rova-epil.ru');
     });
 
-    it('adds scope when VK_OAUTH_SCOPE is configured', async () => {
+    it('overrides default scope when VK_OAUTH_SCOPE is configured', async () => {
       process.env.VK_APP_ID = '54478943';
       process.env.VK_OAUTH_SCOPE = 'phone email';
 
@@ -673,6 +673,23 @@ describe('Auth API', () => {
 
       const target = new URL(response.headers.location);
       expect(target.searchParams.get('scope')).toBe('phone email');
+      delete process.env.VK_OAUTH_SCOPE;
+    });
+
+    it('supports custom explicit scope values', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_OAUTH_SCOPE = 'vkid.personal_info';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth')
+        .query({
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890'
+        })
+        .expect(302);
+
+      const target = new URL(response.headers.location);
+      expect(target.searchParams.get('scope')).toBe('vkid.personal_info');
       delete process.env.VK_OAUTH_SCOPE;
     });
 
