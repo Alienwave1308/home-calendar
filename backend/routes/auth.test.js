@@ -403,6 +403,7 @@ describe('Auth API', () => {
       process.env.VK_APP_SECRET = VK_APP_SECRET;
       delete process.env.VK_MINI_APP_SECRET;
       delete process.env.VK_MINI_APP_SECRETS;
+      delete process.env.VK_SECRET;
     });
 
     it('возвращает 503 если VK_APP_SECRET не настроен', async () => {
@@ -420,6 +421,36 @@ describe('Auth API', () => {
 
       pool.query
         .mockResolvedValueOnce({ rows: [{ id: 3, username: 'vk_333333', vk_user_id: 333333 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+    });
+
+    it('принимает подпись из VK_SECRET как fallback', async () => {
+      process.env.VK_APP_SECRET = 'wrong-secret';
+      process.env.VK_SECRET = VK_APP_SECRET;
+      const launchParams = buildVkLaunchParams(454545);
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 11, username: 'vk_454545', vk_user_id: 454545 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+    });
+
+    it('принимает launchParams с ведущим вопросительным знаком', async () => {
+      const launchParams = `?${buildVkLaunchParams(212121)}`;
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 13, username: 'vk_212121', vk_user_id: 212121 }] })
         .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
 
       const res = await request(app)
@@ -733,7 +764,7 @@ describe('Auth API', () => {
 
       expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
       expect(response.text).toContain('window.__TG_BOT_USERNAME__');
-      expect(response.text).toContain('/booking.js?v=20260423-vkbrowser2');
+      expect(response.text).toContain('/booking.js?v=20260423-vklaunchfix1');
     });
   });
 });
