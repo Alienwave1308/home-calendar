@@ -511,6 +511,22 @@ function applyPopupFriendlyHeaders(res) {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
 }
 
+function toBase64Url(input) {
+  return Buffer.from(input).toString('base64url');
+}
+
+function generateVkPkceVerifier() {
+  return crypto.randomBytes(64).toString('base64url');
+}
+
+function buildVkPkceChallenge(verifier) {
+  return crypto.createHash('sha256').update(String(verifier)).digest('base64url');
+}
+
+function getVkOAuthStateSecret() {
+  return process.env.VK_OAUTH_STATE_SECRET || JWT_SECRET || process.env.VK_APP_SECRET || 'vk-oauth-state-secret';
+}
+
 function buildAuthCompletionPage({ token, sessionKey, error, returnTo }) {
   const payload = {
     type: 'web-auth-result',
@@ -706,24 +722,50 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
 
 // --- VK OAuth (server callback flow) ---
 
-function encodeVkOAuthState({ returnTo, sessionKey }) {
-  return Buffer.from(JSON.stringify({
+function encodeVkOAuthState({ returnTo, sessionKey, codeVerifier }) {
+  const payload = {
     returnTo: sanitizeReturnTo(returnTo),
-    sessionKey: sanitizeSessionKey(sessionKey)
-  })).toString('base64url');
+    sessionKey: sanitizeSessionKey(sessionKey),
+    codeVerifier: String(codeVerifier || ''),
+    issuedAt: Date.now()
+  };
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signature = crypto
+    .createHmac('sha256', getVkOAuthStateSecret())
+    .update(encodedPayload)
+    .digest('base64url');
+  return `${encodedPayload}.${signature}`;
 }
 
 function decodeVkOAuthState(rawState) {
-  if (!rawState) return { returnTo: '/', sessionKey: '' };
+  if (!rawState) return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
 
   try {
-    const parsed = JSON.parse(Buffer.from(String(rawState), 'base64url').toString('utf8'));
+    const [encodedPayload, signature] = String(rawState).split('.');
+    if (!encodedPayload || !signature) {
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', getVkOAuthStateSecret())
+      .update(encodedPayload)
+      .digest('base64url');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    const receivedBuffer = Buffer.from(signature, 'utf8');
+    if (expectedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
+    }
+
+    const parsed = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
+    const codeVerifier = String(parsed.codeVerifier || '');
     return {
       returnTo: sanitizeReturnTo(parsed.returnTo),
-      sessionKey: sanitizeSessionKey(parsed.sessionKey)
+      sessionKey: sanitizeSessionKey(parsed.sessionKey),
+      codeVerifier: /^[A-Za-z0-9\-._~]{43,128}$/.test(codeVerifier) ? codeVerifier : '',
+      valid: true
     };
   } catch {
-    return { returnTo: '/', sessionKey: '' };
+    return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
   }
 }
 
@@ -734,87 +776,50 @@ function getVkOAuthRedirectUri(req) {
   return `${proto}://${host}/api/auth/vk-oauth/callback`;
 }
 
-// GET /api/auth/vk-oauth — redirect browser to VK OAuth consent screen
-router.get('/vk-oauth', (req, res) => {
-  const appId = process.env.VK_APP_ID;
-  if (!appId) {
-    applyPopupFriendlyHeaders(res);
-    return res.status(503).type('html').send(buildAuthCompletionPage({
-      error: 'VK OAuth is not configured',
-      returnTo: req.query.return_to,
-      sessionKey: sanitizeSessionKey(req.query.session_key)
-    }));
+function getVkIdAuthorizeUrl() {
+  return process.env.VK_ID_AUTHORIZE_URL || 'https://id.vk.com/authorize';
+}
+
+function getVkIdTokenUrl() {
+  return process.env.VK_ID_TOKEN_URL || 'https://id.vk.com/oauth2/auth';
+}
+
+function getVkIdUserInfoUrl() {
+  return process.env.VK_ID_USER_INFO_URL || 'https://id.vk.com/oauth2/user_info';
+}
+
+function parseVkOAuthCallback(req) {
+  let payload = {};
+  if (typeof req.query.payload === 'string' && req.query.payload.trim()) {
+    try {
+      payload = JSON.parse(req.query.payload);
+    } catch {
+      payload = {};
+    }
   }
 
-  const params = new URLSearchParams({
-    client_id: appId,
-    redirect_uri: getVkOAuthRedirectUri(req),
-    scope: '',
-    response_type: 'code',
-    display: 'popup',
-    v: '5.199',
-    state: encodeVkOAuthState({
-      returnTo: req.query.return_to,
-      sessionKey: req.query.session_key
-    })
-  });
-  res.redirect(`https://oauth.vk.com/authorize?${params}`);
-});
+  const getValue = function (key) {
+    const queryValue = req.query[key];
+    if (queryValue !== undefined && queryValue !== null && String(queryValue).trim() !== '') {
+      return String(queryValue);
+    }
+    const payloadValue = payload && typeof payload === 'object' ? payload[key] : undefined;
+    if (payloadValue !== undefined && payloadValue !== null && String(payloadValue).trim() !== '') {
+      return String(payloadValue);
+    }
+    return '';
+  };
 
-// GET /api/auth/vk-oauth/callback — exchange code, create/find user and complete auth
-router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
-  applyPopupFriendlyHeaders(res);
+  return {
+    code: getValue('code'),
+    deviceId: getValue('device_id'),
+    state: getValue('state'),
+    error: getValue('error'),
+    errorDescription: getValue('error_description')
+  };
+}
 
-  const state = decodeVkOAuthState(req.query.state);
-  const { code, error } = req.query;
-  if (error || !code) {
-    return res.type('html').send(buildAuthCompletionPage({
-      error: 'VK авторизация отменена',
-      returnTo: state.returnTo,
-      sessionKey: state.sessionKey
-    }));
-  }
-
-  const appId = process.env.VK_APP_ID;
-  const appSecret = process.env.VK_APP_SECRET;
-  if (!appId || !appSecret) {
-    return res.type('html').send(buildAuthCompletionPage({
-      error: 'VK OAuth is not configured',
-      returnTo: state.returnTo,
-      sessionKey: state.sessionKey
-    }));
-  }
-
-  const tokenParams = new URLSearchParams({
-    client_id: appId,
-    client_secret: appSecret,
-    redirect_uri: getVkOAuthRedirectUri(req),
-    code: String(code)
-  });
-
-  let tokenData;
-  try {
-    const tokenRes = await fetch(`https://oauth.vk.com/access_token?${tokenParams}`);
-    tokenData = await tokenRes.json();
-  } catch (fetchErr) {
-    console.error('[vk-oauth] token exchange failed:', fetchErr);
-    return res.type('html').send(buildAuthCompletionPage({
-      error: 'Ошибка связи с ВКонтакте',
-      returnTo: state.returnTo,
-      sessionKey: state.sessionKey
-    }));
-  }
-
-  if (tokenData.error || !tokenData.user_id) {
-    console.error('[vk-oauth] token error:', tokenData.error, tokenData.error_description);
-    return res.type('html').send(buildAuthCompletionPage({
-      error: 'Ошибка авторизации ВКонтакте',
-      returnTo: state.returnTo,
-      sessionKey: state.sessionKey
-    }));
-  }
-
-  const vkUserId = Number(tokenData.user_id);
+async function findOrCreateVkUser(vkUserId) {
   const username = `vk_${vkUserId}`;
   let userResult = await pool.query(
     'SELECT id, username, vk_user_id FROM users WHERE vk_user_id = $1 OR username = $2 LIMIT 1',
@@ -830,14 +835,157 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     await pool.query('UPDATE users SET vk_user_id = $1 WHERE id = $2', [vkUserId, userResult.rows[0].id]);
   }
 
+  return userResult.rows[0];
+}
+
+// GET /api/auth/vk-oauth — redirect browser to VK ID consent screen (OAuth 2.1 + PKCE)
+router.get('/vk-oauth', (req, res) => {
+  const appId = process.env.VK_APP_ID;
+  if (!appId) {
+    applyPopupFriendlyHeaders(res);
+    return res.status(503).type('html').send(buildAuthCompletionPage({
+      error: 'VK OAuth is not configured',
+      returnTo: req.query.return_to,
+      sessionKey: sanitizeSessionKey(req.query.session_key)
+    }));
+  }
+
+  const codeVerifier = generateVkPkceVerifier();
+  const params = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: getVkOAuthRedirectUri(req),
+    response_type: 'code',
+    scope: 'vkid.personal_info',
+    code_challenge: buildVkPkceChallenge(codeVerifier),
+    code_challenge_method: 'S256',
+    state: encodeVkOAuthState({
+      returnTo: req.query.return_to,
+      sessionKey: req.query.session_key,
+      codeVerifier
+    })
+  });
+  res.redirect(`${getVkIdAuthorizeUrl()}?${params}`);
+});
+
+// GET /api/auth/vk-oauth/callback — exchange VK ID code, create/find user and complete auth
+router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
+  applyPopupFriendlyHeaders(res);
+
+  const callback = parseVkOAuthCallback(req);
+  const state = decodeVkOAuthState(callback.state);
+  if (!state.valid || !state.codeVerifier) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Некорректное состояние авторизации ВКонтакте',
+      returnTo: req.query.return_to,
+      sessionKey: sanitizeSessionKey(req.query.session_key)
+    }));
+  }
+
+  const { code, deviceId, error, errorDescription } = callback;
+  if (error || !code) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: errorDescription || 'VK авторизация отменена',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  if (!deviceId) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'ВКонтакте не вернул device_id',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const appId = process.env.VK_APP_ID;
+  if (!appId) {
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'VK OAuth is not configured',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const tokenParams = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: appId,
+    redirect_uri: getVkOAuthRedirectUri(req),
+    code_verifier: state.codeVerifier,
+    device_id: deviceId,
+    code: String(code),
+    state: callback.state
+  });
+
+  let tokenData;
+  try {
+    const tokenRes = await fetch(getVkIdTokenUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString()
+    });
+    tokenData = await tokenRes.json();
+  } catch (fetchErr) {
+    console.error('[vk-id] token exchange failed:', fetchErr);
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Ошибка связи с ВКонтакте',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  if (tokenData.error || !tokenData.access_token) {
+    console.error('[vk-id] token error:', tokenData.error, tokenData.error_description);
+    return res.type('html').send(buildAuthCompletionPage({
+      error: tokenData.error_description || 'Ошибка авторизации ВКонтакте',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  let userInfoData;
+  try {
+    const userInfoRes = await fetch(getVkIdUserInfoUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        access_token: String(tokenData.access_token),
+        client_id: appId
+      }).toString()
+    });
+    userInfoData = await userInfoRes.json();
+  } catch (fetchErr) {
+    console.error('[vk-id] user info failed:', fetchErr);
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Не удалось получить профиль ВКонтакте',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const vkUserId = Number(
+    userInfoData?.user?.user_id
+    || userInfoData?.user?.id
+    || tokenData.user_id
+  );
+  if (!vkUserId || !Number.isFinite(vkUserId)) {
+    console.error('[vk-id] invalid user info:', userInfoData);
+    return res.type('html').send(buildAuthCompletionPage({
+      error: 'Не удалось определить пользователя ВКонтакте',
+      returnTo: state.returnTo,
+      sessionKey: state.sessionKey
+    }));
+  }
+
+  const user = await findOrCreateVkUser(vkUserId);
   return res.type('html').send(buildAuthCompletionPage({
-    token: buildToken(userResult.rows[0]),
+    token: buildToken(user),
     sessionKey: state.sessionKey,
     returnTo: state.returnTo
   }));
 }));
 
-// POST /api/auth/vk-oauth-token — receive VK access_token from blank.html popup, verify and return JWT
+// POST /api/auth/vk-oauth-token — legacy implicit-flow endpoint, retained for compatibility
 router.post('/vk-oauth-token', asyncRoute(async (req, res) => {
   const { access_token, user_id } = req.body;
 
@@ -867,22 +1015,7 @@ router.post('/vk-oauth-token', asyncRoute(async (req, res) => {
     return res.status(401).json({ error: 'VK user_id mismatch' });
   }
 
-  const username = `vk_${vkUserId}`;
-  let userResult = await pool.query(
-    'SELECT id, username, vk_user_id FROM users WHERE vk_user_id = $1 OR username = $2 LIMIT 1',
-    [vkUserId, username]
-  );
-
-  if (userResult.rows.length === 0) {
-    userResult = await pool.query(
-      'INSERT INTO users (username, vk_user_id) VALUES ($1, $2) RETURNING id, username',
-      [username, vkUserId]
-    );
-  } else if (!userResult.rows[0].vk_user_id) {
-    await pool.query('UPDATE users SET vk_user_id = $1 WHERE id = $2', [vkUserId, userResult.rows[0].id]);
-  }
-
-  const user = userResult.rows[0];
+  const user = await findOrCreateVkUser(vkUserId);
   res.json({ token: buildToken(user) });
 }));
 
