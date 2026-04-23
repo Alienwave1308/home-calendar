@@ -298,10 +298,6 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   const normalized = String(paramsString).trim().replace(/^[?#]/, '');
   if (!normalized) return false;
 
-  const url = new URLSearchParams(normalized);
-  const receivedSign = String(url.get('sign') || '').trim();
-  if (!receivedSign) return false;
-
   const rawPairs = normalized
     .split('&')
     .filter(Boolean)
@@ -310,6 +306,24 @@ function isValidVkLaunchParams(paramsString, appSecret) {
       if (idx === -1) return [chunk, ''];
       return [chunk.slice(0, idx), chunk.slice(idx + 1)];
     });
+  if (!rawPairs.length) return false;
+
+  const rawSignCandidates = [];
+  for (const [key, value] of rawPairs) {
+    if (key !== 'sign') continue;
+    const rawValue = String(value || '').trim();
+    if (!rawValue) continue;
+    rawSignCandidates.push(rawValue);
+    try {
+      rawSignCandidates.push(decodeURIComponent(rawValue));
+    } catch {
+      // Keep raw value as-is when decodeURIComponent fails.
+    }
+  }
+
+  const url = new URLSearchParams(normalized);
+  const parsedSign = String(url.get('sign') || '').trim();
+  if (parsedSign) rawSignCandidates.push(parsedSign);
 
   const decodedPairs = [];
   url.forEach((value, key) => {
@@ -323,7 +337,11 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   const encodedDecodedPairs = decodedPairs.map(([key, value]) => [key, encodeURIComponent(String(value))]);
   const encodedDecodedVkPairs = encodedDecodedPairs.filter(([key]) => key.startsWith('vk_'));
 
-  const sortPairs = (pairs) => pairs.slice().sort(([aKey, aValue], [bKey, bValue]) => {
+  const sortPairsByKey = (pairs) => pairs.slice().sort(([aKey], [bKey]) => {
+    if (aKey === bKey) return 0;
+    return aKey < bKey ? -1 : 1;
+  });
+  const sortPairsByKeyAndValue = (pairs) => pairs.slice().sort(([aKey, aValue], [bKey, bValue]) => {
     if (aKey === bKey) {
       if (aValue === bValue) return 0;
       return aValue < bValue ? -1 : 1;
@@ -334,7 +352,8 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   const variants = new Set();
   const addVariants = (pairs) => {
     if (!pairs.length) return;
-    variants.add(sortPairs(pairs).map(([k, v]) => `${k}=${v}`).join('&'));
+    variants.add(sortPairsByKey(pairs).map(([k, v]) => `${k}=${v}`).join('&'));
+    variants.add(sortPairsByKeyAndValue(pairs).map(([k, v]) => `${k}=${v}`).join('&'));
     variants.add(pairs.map(([k, v]) => `${k}=${v}`).join('&'));
   };
 
@@ -348,8 +367,12 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   const decodeSignToDigest = (input) => {
     const raw = String(input || '').trim();
     if (!raw) return null;
-    const normalized = raw.replace(/-/g, '+').replace(/_/g, '/').replace(/\s+/g, '');
-    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const normalizedSign = raw
+      .replace(/ /g, '+')
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .replace(/[\r\n\t]/g, '');
+    const padded = normalizedSign + '='.repeat((4 - (normalizedSign.length % 4)) % 4);
     try {
       const digest = Buffer.from(padded, 'base64');
       return digest.length ? digest : null;
@@ -358,8 +381,10 @@ function isValidVkLaunchParams(paramsString, appSecret) {
     }
   };
 
-  const receivedDigest = decodeSignToDigest(receivedSign);
-  if (!receivedDigest) return false;
+  const receivedDigests = Array.from(new Set(rawSignCandidates))
+    .map((candidate) => decodeSignToDigest(candidate))
+    .filter(Boolean);
+  if (!receivedDigests.length) return false;
 
   for (const checkString of variants) {
     if (!checkString) continue;
@@ -368,9 +393,11 @@ function isValidVkLaunchParams(paramsString, appSecret) {
       .update(checkString)
       .digest();
 
-    if (computedDigest.length !== receivedDigest.length) continue;
-    if (crypto.timingSafeEqual(computedDigest, receivedDigest)) {
-      return true;
+    for (const receivedDigest of receivedDigests) {
+      if (computedDigest.length !== receivedDigest.length) continue;
+      if (crypto.timingSafeEqual(computedDigest, receivedDigest)) {
+        return true;
+      }
     }
   }
   return false;
@@ -426,18 +453,15 @@ router.post('/vk', asyncRoute(async (req, res) => {
   const hasValidSignature = appSecrets.some((secret) => isValidVkLaunchParams(launchParams, secret));
   if (!hasValidSignature) {
     const vkUserIdRaw = String(launchParamsMap.get('vk_user_id') || '').trim();
-    const vkTsRaw = String(launchParamsMap.get('vk_ts') || '').trim();
-    const vkPlatform = String(launchParamsMap.get('vk_platform') || '').trim();
+    const vkPlatformRaw = String(launchParamsMap.get('vk_platform') || '').trim();
     const canUseUnverifiedFallback = allowUnverifiedFallback
       && /^\d+$/.test(vkUserIdRaw)
-      && /^\d+$/.test(vkTsRaw)
-      && Boolean(vkPlatform)
       && (!expectedAppId || !launchAppId || launchAppId === expectedAppId);
 
     if (!canUseUnverifiedFallback) {
       console.warn('[vk-mini] invalid launch params signature', {
         vk_app_id: launchParamsMap.get('vk_app_id') || null,
-        vk_platform: launchParamsMap.get('vk_platform') || null,
+        vk_platform: vkPlatformRaw || null,
         has_vk_user_id: Boolean(vkUserIdRaw),
         secrets_count: appSecrets.length,
         allow_unverified_fallback: allowUnverifiedFallback
@@ -447,11 +471,11 @@ router.post('/vk', asyncRoute(async (req, res) => {
 
     console.warn('[vk-mini] unverified fallback accepted', {
       vk_app_id: launchAppId || null,
-      vk_platform: vkPlatform || null
+      vk_platform: vkPlatformRaw || null
     });
   }
 
-  const params = new URLSearchParams(launchParams);
+  const params = launchParamsMap;
   const vkUserId = parseInt(params.get('vk_user_id'), 10);
   if (!vkUserId || vkUserId <= 0) {
     return res.status(400).json({ error: 'vk_user_id missing in launch params' });
@@ -893,21 +917,15 @@ function getVkOAuthRedirectUri(req) {
   return `${proto}://${host}/api/auth/vk-oauth/callback`;
 }
 
-function getVkOAuthOrigin(req) {
-  try {
-    return new URL(getVkOAuthRedirectUri(req)).origin;
-  } catch {
-    return '';
-  }
-}
-
 function getVkIdAuthorizeUrl() {
   return process.env.VK_ID_AUTHORIZE_URL || 'https://id.vk.com/authorize';
 }
 
 function getVkOAuthScope() {
-  const value = String(process.env.VK_OAUTH_SCOPE || '').trim();
-  return value || 'phone email';
+  const value = String(process.env.VK_OAUTH_SCOPE || '').trim().replace(/\s+/g, ' ');
+  if (!value) return 'vkid.personal_info';
+  if (value === 'phone email' || value === 'email phone') return 'vkid.personal_info';
+  return value;
 }
 
 function getVkIdTokenUrl() {
@@ -995,10 +1013,6 @@ router.get('/vk-oauth', (req, res) => {
   });
   const scope = getVkOAuthScope();
   if (scope) params.set('scope', scope);
-  if (String(req.query.auth_mode || '').trim() === 'popup') {
-    const origin = getVkOAuthOrigin(req);
-    if (origin) params.set('origin', origin);
-  }
   res.redirect(`${getVkIdAuthorizeUrl()}?${params}`);
 });
 
