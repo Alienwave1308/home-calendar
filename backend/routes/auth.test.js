@@ -62,6 +62,8 @@ describe('Auth API', () => {
     delete process.env.MASTER_TELEGRAM_USER_ID;
     delete process.env.WEB_BOOKING_ENABLED;
     delete process.env.WEB_BOOKING_ALLOWED_SLUGS;
+    delete process.env.VK_OAUTH_REDIRECT_URI;
+    delete process.env.VK_OAUTH_STATE_SECRET;
   });
 
   afterAll(() => {
@@ -536,27 +538,54 @@ describe('Auth API', () => {
       global.fetch = originalFetch;
     });
 
-    it('exchanges the VK code and returns popup-safe HTML', async () => {
+    it('exchanges the VK ID code and returns popup-safe HTML', async () => {
       process.env.VK_APP_ID = '54478943';
-      process.env.VK_APP_SECRET = 'vk-secret';
-      global.fetch = jest.fn().mockResolvedValue({
-        json: async () => ({ access_token: 'vk-token', user_id: 123456 })
-      });
+      global.fetch = jest.fn()
+        .mockResolvedValueOnce({
+          json: async () => ({ access_token: 'vk-token' })
+        })
+        .mockResolvedValueOnce({
+          json: async () => ({ user: { user_id: 123456, first_name: 'Test' } })
+        });
       pool.query.mockResolvedValueOnce({
         rows: [{ id: 5, username: 'vk_123456', vk_user_id: 123456 }]
       });
 
-      const state = Buffer.from(JSON.stringify({
+      const verifier = crypto.randomBytes(64).toString('base64url');
+      const encodedPayload = Buffer.from(JSON.stringify({
         returnTo: '/book/lera',
-        sessionKey: 'guest:abcdef1234567890'
+        sessionKey: 'guest:abcdef1234567890',
+        codeVerifier: verifier,
+        issuedAt: Date.now()
       })).toString('base64url');
+      const signature = crypto
+        .createHmac('sha256', JWT_SECRET)
+        .update(encodedPayload)
+        .digest('base64url');
+      const state = `${encodedPayload}.${signature}`;
 
       const response = await request(app)
         .get('/api/auth/vk-oauth/callback')
-        .query({ code: 'oauth-code', state })
+        .query({ code: 'oauth-code', device_id: 'device-123', state })
         .expect(200);
 
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('https://oauth.vk.com/access_token?'));
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        1,
+        'https://id.vk.com/oauth2/auth',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: expect.stringContaining('grant_type=authorization_code')
+        })
+      );
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        'https://id.vk.com/oauth2/user_info',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        })
+      );
       expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
       expect(response.text).toContain('"type":"web-auth-result"');
       expect(response.text).toContain('"sessionKey":"guest:abcdef1234567890"');
@@ -565,7 +594,7 @@ describe('Auth API', () => {
   });
 
   describe('GET /api/auth/vk-oauth', () => {
-    it('redirects browser auth to VK with callback state preserved', async () => {
+    it('redirects browser auth to VK ID with PKCE and callback state preserved', async () => {
       process.env.VK_APP_ID = '54478943';
 
       const response = await request(app)
@@ -578,15 +607,19 @@ describe('Auth API', () => {
 
       const location = response.headers.location;
       const target = new URL(location);
-      expect(target.origin + target.pathname).toBe('https://oauth.vk.com/authorize');
+      expect(target.origin + target.pathname).toBe('https://id.vk.com/authorize');
       expect(target.searchParams.get('client_id')).toBe('54478943');
       expect(target.searchParams.get('response_type')).toBe('code');
+      expect(target.searchParams.get('scope')).toBe('vkid.personal_info');
+      expect(target.searchParams.get('code_challenge_method')).toBe('S256');
+      expect(target.searchParams.get('code_challenge')).toBeTruthy();
       expect(target.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/vk-oauth\/callback$/);
-      const state = JSON.parse(Buffer.from(String(target.searchParams.get('state')), 'base64url').toString('utf8'));
-      expect(state).toEqual({
-        returnTo: '/book/lera',
-        sessionKey: 'guest:abcdef1234567890'
-      });
+      const [encodedPayload, signature] = String(target.searchParams.get('state')).split('.');
+      expect(signature).toBeTruthy();
+      const state = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
+      expect(state.returnTo).toBe('/book/lera');
+      expect(state.sessionKey).toBe('guest:abcdef1234567890');
+      expect(state.codeVerifier).toMatch(/^[A-Za-z0-9\-_]{43,128}$/);
     });
 
     it('uses VK_OAUTH_REDIRECT_URI when it is explicitly configured', async () => {
@@ -603,6 +636,21 @@ describe('Auth API', () => {
 
       const target = new URL(response.headers.location);
       expect(target.searchParams.get('redirect_uri')).toBe('https://rova-epil.ru/api/auth/vk-oauth/callback');
+    });
+
+    it('rejects callback with invalid signed state', async () => {
+      process.env.VK_APP_ID = '54478943';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth/callback')
+        .query({
+          code: 'oauth-code',
+          device_id: 'device-123',
+          state: 'broken.state'
+        })
+        .expect(200);
+
+      expect(response.text).toContain('Некорректное состояние авторизации ВКонтакте');
     });
   });
 
