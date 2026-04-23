@@ -295,12 +295,16 @@ router.post('/reset-password', asyncRoute(async (req, res) => {
 function isValidVkLaunchParams(paramsString, appSecret) {
   if (!paramsString || !appSecret) return false;
 
-  const url = new URLSearchParams(paramsString);
+  const normalized = String(paramsString).trim().replace(/^[?#]/, '');
+  if (!normalized) return false;
+
+  const url = new URLSearchParams(normalized);
   const receivedSign = String(url.get('sign') || '').trim();
   if (!receivedSign) return false;
 
-  const rawPairs = String(paramsString)
+  const rawPairs = normalized
     .split('&')
+    .filter(Boolean)
     .map((chunk) => {
       const idx = chunk.indexOf('=');
       if (idx === -1) return [chunk, ''];
@@ -316,17 +320,33 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   const rawPairsWithoutSign = rawPairs.filter(([key]) => key !== 'sign');
   const rawVkPairs = rawPairsWithoutSign.filter(([key]) => key.startsWith('vk_'));
   const decodedVkPairs = decodedPairs.filter(([key]) => key.startsWith('vk_'));
+  const encodedDecodedPairs = decodedPairs.map(([key, value]) => [key, encodeURIComponent(String(value))]);
+  const encodedDecodedVkPairs = encodedDecodedPairs.filter(([key]) => key.startsWith('vk_'));
 
-  const variants = [
-    rawPairsWithoutSign,
-    rawVkPairs,
-    decodedPairs,
-    decodedVkPairs
-  ]
-    .map((pairs) => pairs.slice().sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join('&'))
-    .filter(Boolean);
+  const sortPairs = (pairs) => pairs.slice().sort(([aKey, aValue], [bKey, bValue]) => {
+    if (aKey === bKey) {
+      if (aValue === bValue) return 0;
+      return aValue < bValue ? -1 : 1;
+    }
+    return aKey < bKey ? -1 : 1;
+  });
+
+  const variants = new Set();
+  const addVariants = (pairs) => {
+    if (!pairs.length) return;
+    variants.add(sortPairs(pairs).map(([k, v]) => `${k}=${v}`).join('&'));
+    variants.add(pairs.map(([k, v]) => `${k}=${v}`).join('&'));
+  };
+
+  addVariants(rawVkPairs);
+  addVariants(rawPairsWithoutSign);
+  addVariants(decodedVkPairs);
+  addVariants(decodedPairs);
+  addVariants(encodedDecodedVkPairs);
+  addVariants(encodedDecodedPairs);
 
   for (const checkString of variants) {
+    if (!checkString) continue;
     const computedSign = crypto
       .createHmac('sha256', appSecret)
       .update(checkString)
@@ -347,6 +367,7 @@ function getVkMiniAppSecrets() {
   const rawValues = [
     process.env.VK_MINI_APP_SECRET,
     process.env.VK_APP_SECRET,
+    process.env.VK_SECRET,
     process.env.VK_MINI_APP_SECRETS
   ];
 

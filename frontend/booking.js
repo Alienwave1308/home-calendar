@@ -14,14 +14,54 @@
   const urlParams = new URLSearchParams(window.location.search);
   const hasVkSession = Boolean(window.vkBridge && urlParams.get('vk_user_id'));
   const isWebBrowser = !hasTelegramSession && !hasVkSession && !isCypress;
-  const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(String((window.navigator && window.navigator.userAgent) || ''));
   const webBookingLaunchEnabled = Boolean(window.__HC_WEB_BOOKING_ENABLED__);
   const tgBotUsername = String(window.__TG_BOT_USERNAME__ || 'Rova_Epil_Bot').trim();
   const vkGroupId = String(window.__VK_GROUP_ID__ || '').trim();
   const vkAppId = String(window.__VK_APP_ID__ || '').trim();
   const vkWebAuthEnabled = Boolean(vkAppId);
-  const vkWebAuthUsesRedirect = isMobileBrowser;
+  const vkWebAuthUsesRedirect = false;
   const WEB_AUTH_DRAFT_KEY = 'bookingWebAuthDraft';
+  let vkLaunchParamsString = String(window.location.search || '').replace(/^[?#]/, '');
+  let vkLaunchParamsPromise = null;
+
+  function getVkLaunchParamsFromUrl() {
+    return String(window.location.search || '').replace(/^[?#]/, '');
+  }
+
+  function serializeVkLaunchParams(params) {
+    if (!params || typeof params !== 'object') return '';
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(function (key) {
+      if (key === '__proto__') return;
+      const value = params[key];
+      if (value === undefined || value === null) return;
+      searchParams.set(key, String(value));
+    });
+    return searchParams.toString();
+  }
+
+  function loadVkLaunchParams() {
+    if (!hasVkSession) return Promise.resolve('');
+    if (!window.vkBridge || typeof window.vkBridge.send !== 'function') {
+      return Promise.resolve(getVkLaunchParamsFromUrl());
+    }
+
+    if (!vkLaunchParamsPromise) {
+      vkLaunchParamsPromise = window.vkBridge.send('VKWebAppGetLaunchParams')
+        .then(function (payload) {
+          const serialized = serializeVkLaunchParams(payload);
+          if (serialized) {
+            vkLaunchParamsString = serialized;
+            return serialized;
+          }
+          return getVkLaunchParamsFromUrl();
+        })
+        .catch(function () {
+          return getVkLaunchParamsFromUrl();
+        });
+    }
+    return vkLaunchParamsPromise;
+  }
 
   function renderWebBookingDisabled() {
     const telegramBotLink = tgBotUsername
@@ -52,6 +92,7 @@
   if (hasVkSession) {
     try {
       window.vkBridge.send('VKWebAppInit');
+      void loadVkLaunchParams();
     } catch (error) {
       void error;
     }
@@ -731,16 +772,45 @@
     }
 
     if (hasVkSession) {
-      const data = await requestJson('/auth/vk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ launchParams: window.location.search.slice(1) })
-      });
-      if (data.token) {
-        saveAuthToken(data.token);
-        return true;
+      const candidates = [];
+      const pushCandidate = function (value) {
+        const launchParams = String(value || '').replace(/^[?#]/, '');
+        if (!launchParams || candidates.includes(launchParams)) return;
+        candidates.push(launchParams);
+      };
+
+      pushCandidate(await loadVkLaunchParams());
+      pushCandidate(vkLaunchParamsString);
+      pushCandidate(getVkLaunchParamsFromUrl());
+
+      if (!candidates.length) {
+        throw new Error('Не удалось получить launch params ВКонтакте');
       }
-      throw new Error('Ошибка авторизации ВКонтакте');
+
+      let lastError = null;
+      for (let i = 0; i < candidates.length; i++) {
+        const launchParams = candidates[i];
+        try {
+          const data = await requestJson('/auth/vk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ launchParams })
+          });
+          if (data.token) {
+            saveAuthToken(data.token);
+            return true;
+          }
+        } catch (error) {
+          lastError = error;
+          const message = error && error.message ? error.message : '';
+          const isSignatureError = /launch params signature/i.test(message);
+          if (!isSignatureError || i === candidates.length - 1) {
+            throw error;
+          }
+        }
+      }
+
+      throw lastError || new Error('Ошибка авторизации ВКонтакте');
     }
 
     if (isWebBrowser) {
