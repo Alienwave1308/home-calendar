@@ -319,18 +319,43 @@ function isValidVkLaunchParams(paramsString, appSecret) {
   return crypto.timingSafeEqual(Buffer.from(computedSign), Buffer.from(receivedSign));
 }
 
+function getVkMiniAppSecrets() {
+  const rawValues = [
+    process.env.VK_MINI_APP_SECRET,
+    process.env.VK_APP_SECRET,
+    process.env.VK_MINI_APP_SECRETS
+  ];
+
+  const unique = new Set();
+  for (const raw of rawValues) {
+    if (!raw) continue;
+    const chunks = String(raw).split(/[\n,;]/g);
+    for (const chunk of chunks) {
+      const value = String(chunk || '').trim();
+      if (value) unique.add(value);
+    }
+  }
+  return Array.from(unique);
+}
+
 // POST /api/auth/vk
 router.post('/vk', asyncRoute(async (req, res) => {
   const { launchParams } = req.body;
-  const appSecret = process.env.VK_APP_SECRET;
+  const appSecrets = getVkMiniAppSecrets();
 
-  if (!appSecret) {
+  if (!appSecrets.length) {
     return res.status(503).json({ error: 'VK auth is not configured' });
   }
   if (!launchParams || typeof launchParams !== 'string') {
     return res.status(400).json({ error: 'launchParams is required' });
   }
-  if (!isValidVkLaunchParams(launchParams, appSecret)) {
+  const hasValidSignature = appSecrets.some((secret) => isValidVkLaunchParams(launchParams, secret));
+  if (!hasValidSignature) {
+    const launchParamsMap = new URLSearchParams(launchParams);
+    console.warn('[vk-mini] invalid launch params signature', {
+      vk_app_id: launchParamsMap.get('vk_app_id') || null,
+      secrets_count: appSecrets.length
+    });
     return res.status(401).json({ error: 'Invalid VK launch params signature' });
   }
 
@@ -788,6 +813,10 @@ function getVkIdAuthorizeUrl() {
   return process.env.VK_ID_AUTHORIZE_URL || 'https://id.vk.com/authorize';
 }
 
+function getVkOAuthScope() {
+  return String(process.env.VK_OAUTH_SCOPE || '').trim();
+}
+
 function getVkIdTokenUrl() {
   return process.env.VK_ID_TOKEN_URL || 'https://id.vk.com/oauth2/auth';
 }
@@ -863,7 +892,6 @@ router.get('/vk-oauth', (req, res) => {
     client_id: appId,
     redirect_uri: getVkOAuthRedirectUri(req),
     response_type: 'code',
-    scope: 'vkid.personal_info',
     code_challenge: buildVkPkceChallenge(codeVerifier),
     code_challenge_method: 's256',
     state: encodeVkOAuthState({
@@ -872,6 +900,8 @@ router.get('/vk-oauth', (req, res) => {
       codeVerifier
     })
   });
+  const scope = getVkOAuthScope();
+  if (scope) params.set('scope', scope);
   if (String(req.query.auth_mode || '').trim() === 'popup') {
     const origin = getVkOAuthOrigin(req);
     if (origin) params.set('origin', origin);
