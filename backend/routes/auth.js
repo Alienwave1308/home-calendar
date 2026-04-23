@@ -776,6 +776,14 @@ function getVkOAuthRedirectUri(req) {
   return `${proto}://${host}/api/auth/vk-oauth/callback`;
 }
 
+function getVkOAuthOrigin(req) {
+  try {
+    return new URL(getVkOAuthRedirectUri(req)).origin;
+  } catch {
+    return '';
+  }
+}
+
 function getVkIdAuthorizeUrl() {
   return process.env.VK_ID_AUTHORIZE_URL || 'https://id.vk.com/authorize';
 }
@@ -857,13 +865,17 @@ router.get('/vk-oauth', (req, res) => {
     response_type: 'code',
     scope: 'vkid.personal_info',
     code_challenge: buildVkPkceChallenge(codeVerifier),
-    code_challenge_method: 'S256',
+    code_challenge_method: 's256',
     state: encodeVkOAuthState({
       returnTo: req.query.return_to,
       sessionKey: req.query.session_key,
       codeVerifier
     })
   });
+  if (String(req.query.auth_mode || '').trim() === 'popup') {
+    const origin = getVkOAuthOrigin(req);
+    if (origin) params.set('origin', origin);
+  }
   res.redirect(`${getVkIdAuthorizeUrl()}?${params}`);
 });
 
