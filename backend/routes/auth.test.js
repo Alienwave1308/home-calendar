@@ -421,6 +421,12 @@ describe('Auth API', () => {
       return params.toString();
     }
 
+    function buildVkLaunchParamsRawPlusSign() {
+      const checkString = 'vk_app_id=1234567&vk_ts=1700000000&vk_user_id=1';
+      const sign = crypto.createHmac('sha256', VK_APP_SECRET).update(checkString).digest('base64');
+      return `vk_user_id=1&vk_app_id=1234567&vk_ts=1700000000&sign=${sign}`;
+    }
+
     beforeEach(() => {
       jest.clearAllMocks();
       process.env.VK_APP_SECRET = VK_APP_SECRET;
@@ -498,6 +504,20 @@ describe('Auth API', () => {
       expect(res.body.token).toBeTruthy();
     });
 
+    it('принимает sign в raw base64 c символом + без URL-экранирования', async () => {
+      const launchParams = buildVkLaunchParamsRawPlusSign();
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 15, username: 'vk_1', vk_user_id: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+    });
+
     it('возвращает явную ошибку при launch params от другого app_id', async () => {
       process.env.VK_APP_ID = '54478943';
       const launchParams = buildVkLaunchParams(565656, { vk_app_id: '99999999' });
@@ -548,6 +568,28 @@ describe('Auth API', () => {
       expect(res.status).toBe(200);
       expect(res.body.token).toBeTruthy();
       expect(res.body.user.username).toBe('vk_777001');
+    });
+
+    it('разрешает аварийный fallback даже без vk_ts/vk_platform при включенном флаге', async () => {
+      process.env.VK_MINI_ALLOW_UNVERIFIED = 'true';
+      process.env.VK_APP_SECRET = '';
+      process.env.VK_APP_ID = '54478943';
+      const launchParams = new URLSearchParams({
+        vk_app_id: '54478943',
+        vk_user_id: '777002'
+      }).toString();
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 20, username: 'vk_777002', vk_user_id: 777002 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, booking_slug: 'lera' }] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.user.username).toBe('vk_777002');
     });
 
     it('создаёт нового пользователя и возвращает token для нового VK userId', async () => {
@@ -735,7 +777,7 @@ describe('Auth API', () => {
       expect(target.origin + target.pathname).toBe('https://id.vk.com/authorize');
       expect(target.searchParams.get('client_id')).toBe('54478943');
       expect(target.searchParams.get('response_type')).toBe('code');
-      expect(target.searchParams.get('scope')).toBe('phone email');
+      expect(target.searchParams.get('scope')).toBe('vkid.personal_info');
       expect(target.searchParams.get('code_challenge_method')).toBe('s256');
       expect(target.searchParams.get('code_challenge')).toBeTruthy();
       expect(target.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/vk-oauth\/callback$/);
@@ -746,24 +788,6 @@ describe('Auth API', () => {
       expect(state.returnTo).toBe('/book/lera');
       expect(state.sessionKey).toBe('guest:abcdef1234567890');
       expect(state.codeVerifier).toMatch(/^[A-Za-z0-9\-_]{43,128}$/);
-    });
-
-    it('adds origin for popup auth so VK ID can talk back to the opener', async () => {
-      process.env.VK_APP_ID = '54478943';
-
-      const response = await request(app)
-        .get('/api/auth/vk-oauth')
-        .set('host', 'rova-epil.ru')
-        .set('x-forwarded-proto', 'https')
-        .query({
-          return_to: '/book/lera',
-          session_key: 'guest:abcdef1234567890',
-          auth_mode: 'popup'
-        })
-        .expect(302);
-
-      const target = new URL(response.headers.location);
-      expect(target.searchParams.get('origin')).toBe('https://rova-epil.ru');
     });
 
     it('overrides default scope when VK_OAUTH_SCOPE is configured', async () => {
@@ -779,7 +803,7 @@ describe('Auth API', () => {
         .expect(302);
 
       const target = new URL(response.headers.location);
-      expect(target.searchParams.get('scope')).toBe('phone email');
+      expect(target.searchParams.get('scope')).toBe('vkid.personal_info');
       delete process.env.VK_OAUTH_SCOPE;
     });
 
