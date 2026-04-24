@@ -65,6 +65,8 @@ describe('Auth API', () => {
     delete process.env.VK_OAUTH_REDIRECT_URI;
     delete process.env.VK_OAUTH_STATE_SECRET;
     delete process.env.VK_APP_ID;
+    delete process.env.VK_MINI_APP_ID;
+    delete process.env.VK_WEB_APP_ID;
   });
 
   afterAll(() => {
@@ -644,6 +646,38 @@ describe('Auth API', () => {
       const decoded = jwt.verify(res.body.token, JWT_SECRET);
       expect(decoded.id).toBe(99);
     });
+
+    it('приоритетно использует VK_MINI_APP_ID для проверки vk_app_id launch params', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_MINI_APP_ID = '54560036';
+      const launchParams = buildVkLaunchParams(888889, { vk_app_id: '54560036' });
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ id: 100, username: 'vk_888889', vk_user_id: 888889 }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+    });
+
+    it('возвращает expected_app_id из VK_MINI_APP_ID при несовпадении vk_app_id', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_MINI_APP_ID = '54560036';
+      const launchParams = buildVkLaunchParams(999001, { vk_app_id: '54478943' });
+
+      const res = await request(app)
+        .post('/api/auth/vk')
+        .send({ launchParams });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('VK launch params are from another app');
+      expect(res.body.expected_app_id).toBe('54560036');
+      expect(res.body.launch_app_id).toBe('54478943');
+    });
   });
 
   describe('POST /api/auth/guest', () => {
@@ -758,6 +792,44 @@ describe('Auth API', () => {
       expect(response.text).toContain('"sessionKey":"guest:abcdef1234567890"');
       expect(response.text).toContain('window.opener.postMessage');
     });
+
+    it('uses VK_WEB_APP_ID for VK ID code exchange when configured', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_WEB_APP_ID = '54560036';
+      global.fetch = jest.fn()
+        .mockResolvedValueOnce({
+          json: async () => ({ access_token: 'vk-token' })
+        })
+        .mockResolvedValueOnce({
+          json: async () => ({ user: { user_id: 123457 } })
+        });
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id: 6, username: 'vk_123457', vk_user_id: 123457 }]
+      });
+
+      const verifier = crypto.randomBytes(64).toString('base64url');
+      const encodedPayload = Buffer.from(JSON.stringify({
+        returnTo: '/book/lera',
+        sessionKey: 'guest:abcdef1234567890',
+        codeVerifier: verifier,
+        issuedAt: Date.now()
+      })).toString('base64url');
+      const signature = crypto
+        .createHmac('sha256', JWT_SECRET)
+        .update(encodedPayload)
+        .digest('base64url');
+      const state = `${encodedPayload}.${signature}`;
+
+      await request(app)
+        .get('/api/auth/vk-oauth/callback')
+        .query({ code: 'oauth-code', device_id: 'device-123', state })
+        .expect(200);
+
+      const tokenBody = global.fetch.mock.calls[0][1].body;
+      const userInfoBody = global.fetch.mock.calls[1][1].body;
+      expect(tokenBody).toContain('client_id=54560036');
+      expect(userInfoBody).toContain('client_id=54560036');
+    });
   });
 
   describe('GET /api/auth/vk-oauth', () => {
@@ -838,6 +910,22 @@ describe('Auth API', () => {
 
       const target = new URL(response.headers.location);
       expect(target.searchParams.get('redirect_uri')).toBe('https://rova-epil.ru/api/auth/vk-oauth/callback');
+    });
+
+    it('uses VK_WEB_APP_ID for browser OAuth client_id when configured', async () => {
+      process.env.VK_APP_ID = '54478943';
+      process.env.VK_WEB_APP_ID = '54560036';
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth')
+        .query({
+          return_to: '/book/lera',
+          session_key: 'guest:abcdef1234567890'
+        })
+        .expect(302);
+
+      const target = new URL(response.headers.location);
+      expect(target.searchParams.get('client_id')).toBe('54560036');
     });
 
     it('rejects callback with invalid signed state', async () => {
