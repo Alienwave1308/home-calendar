@@ -840,7 +840,8 @@ describe('Auth API', () => {
         .get('/api/auth/vk-oauth')
         .query({
           return_to: '/book/lera',
-          session_key: 'guest:abcdef1234567890'
+          session_key: 'guest:abcdef1234567890',
+          auth_mode: 'popup'
         })
         .expect(302);
 
@@ -859,6 +860,7 @@ describe('Auth API', () => {
       const state = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
       expect(state.returnTo).toBe('/book/lera');
       expect(state.sessionKey).toBe('guest:abcdef1234567890');
+      expect(state.authMode).toBe('popup');
       expect(state.codeVerifier).toMatch(/^[A-Za-z0-9\-_]{43,128}$/);
     });
 
@@ -941,6 +943,7 @@ describe('Auth API', () => {
         .expect(200);
 
       expect(response.text).toContain('Некорректное состояние авторизации ВКонтакте');
+      expect(response.text).toContain('bookingWebAuthResult');
     });
   });
 
@@ -952,7 +955,7 @@ describe('Auth API', () => {
 
       expect(response.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
       expect(response.text).toContain('window.__TG_BOT_USERNAME__');
-      expect(response.text).toContain('/booking.js?v=20260423-vklaunchfix1');
+      expect(response.text).toContain('/booking.js?v=20260424-webauthfix3');
     });
   });
 });

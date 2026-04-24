@@ -21,6 +21,7 @@
   const vkWebAuthEnabled = Boolean(vkAppId);
   const vkWebAuthUsesRedirect = false;
   const WEB_AUTH_DRAFT_KEY = 'bookingWebAuthDraft';
+  const WEB_AUTH_RESULT_KEY = 'bookingWebAuthResult';
   let vkLaunchParamsString = String(window.location.search || '').replace(/^[?#]/, '');
   let vkLaunchParamsPromise = null;
   let webAuthFallbackPollId = null;
@@ -460,7 +461,9 @@
   }
 
   function buildTelegramWidgetAuthUrl() {
-    return window.location.origin + '/api/auth/telegram-widget/callback?' + buildWebAuthContextParams().toString();
+    const params = buildWebAuthContextParams();
+    params.set('auth_mode', 'popup');
+    return window.location.origin + '/api/auth/telegram-widget/callback?' + params.toString();
   }
 
   function buildVkOAuthUrl() {
@@ -610,13 +613,56 @@
     webAuthVkPopupRef = null;
   }
 
+  function readWebAuthResult() {
+    try {
+      const raw = localStorage.getItem(WEB_AUTH_RESULT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        token: String(parsed.token || ''),
+        sessionKey: String(parsed.sessionKey || ''),
+        error: String(parsed.error || ''),
+        timestamp: Number(parsed.timestamp || 0)
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function clearWebAuthResult() {
+    try {
+      localStorage.removeItem(WEB_AUTH_RESULT_KEY);
+    } catch {
+      // Ignore storage failures in privacy mode.
+    }
+  }
+
   function tryFinishWebAuthFromStoredToken() {
     if (!_webAuthResolve && !_webAuthReject) return false;
+    const currentSessionKey = getCurrentAuthSessionKey();
+    const result = readWebAuthResult();
+    if (result && result.timestamp > 0 && Date.now() - result.timestamp < 15 * 60 * 1000) {
+      const matchesSession = !result.sessionKey || result.sessionKey === currentSessionKey;
+      if (matchesSession && result.error) {
+        clearWebAuthResult();
+        finishWebAuth({ error: result.error });
+        return true;
+      }
+      if (matchesSession && result.token) {
+        clearWebAuthResult();
+        finishWebAuth({
+          token: result.token,
+          sessionKey: result.sessionKey || currentSessionKey
+        });
+        return true;
+      }
+    }
     const storedToken = localStorage.getItem('token');
     if (!storedToken || isGuestToken(storedToken)) return false;
     finishWebAuth({
       token: storedToken,
-      sessionKey: localStorage.getItem('bookingAuthSession') || getCurrentAuthSessionKey()
+      sessionKey: localStorage.getItem('bookingAuthSession') || currentSessionKey
     });
     return true;
   }
@@ -624,7 +670,7 @@
   function startWebAuthFallbackWatcher() {
     clearWebAuthFallbackWatcher();
     webAuthFallbackStorageHandler = function (event) {
-      if (!event || (event.key && event.key !== 'token' && event.key !== 'bookingAuthSession')) return;
+      if (!event || (event.key && event.key !== 'token' && event.key !== 'bookingAuthSession' && event.key !== WEB_AUTH_RESULT_KEY)) return;
       tryFinishWebAuthFromStoredToken();
     };
     window.addEventListener('storage', webAuthFallbackStorageHandler);
@@ -644,6 +690,7 @@
     if (!result) return;
 
     if (result.error) {
+      clearWebAuthResult();
       clearWebAuthFallbackWatcher();
       hideWebAuthModal();
       if (_webAuthReject) {
@@ -660,6 +707,7 @@
     if (!result.token) return;
 
     saveAuthToken(result.token, result.sessionKey);
+    clearWebAuthResult();
     clearWebAuthFallbackWatcher();
     hideWebAuthModal();
     if (_webAuthResolve) {
@@ -738,6 +786,7 @@
       _webAuthResolve = resolve;
       _webAuthReject = reject;
       saveWebBookingDraft();
+      clearWebAuthResult();
 
       const modal = createWebAuthModal();
       modal.style.display = 'flex';

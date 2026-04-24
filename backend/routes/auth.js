@@ -676,14 +676,22 @@ function getVkOAuthStateSecret() {
   return process.env.VK_OAUTH_STATE_SECRET || JWT_SECRET || process.env.VK_APP_SECRET || 'vk-oauth-state-secret';
 }
 
-function buildAuthCompletionPage({ token, sessionKey, error, returnTo }) {
+function sanitizeAuthMode(value) {
+  return String(value || '').trim() === 'popup' ? 'popup' : '';
+}
+
+function buildAuthCompletionPage({ token, sessionKey, error, returnTo, authMode }) {
   const payload = {
     type: 'web-auth-result',
     token: token || '',
     sessionKey: sessionKey || '',
-    error: error || ''
+    error: error || '',
+    authMode: sanitizeAuthMode(authMode)
   };
   const safeReturnTo = sanitizeReturnTo(returnTo);
+  const closeMessage = payload.error
+    ? 'Авторизация не завершена. Закройте это окно и попробуйте снова.'
+    : 'Авторизация завершена. Можно закрыть это окно.';
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -696,6 +704,8 @@ function buildAuthCompletionPage({ token, sessionKey, error, returnTo }) {
     (function () {
       var payload = ${JSON.stringify(payload)};
       var returnTo = ${JSON.stringify(safeReturnTo)};
+      var authResultKey = 'bookingWebAuthResult';
+      var closeMessage = ${JSON.stringify(closeMessage)};
 
       try {
         if (payload.token) {
@@ -704,6 +714,13 @@ function buildAuthCompletionPage({ token, sessionKey, error, returnTo }) {
             localStorage.setItem('bookingAuthSession', payload.sessionKey);
           }
         }
+        localStorage.setItem(authResultKey, JSON.stringify({
+          token: payload.token || '',
+          sessionKey: payload.sessionKey || '',
+          error: payload.error || '',
+          authMode: payload.authMode || '',
+          timestamp: Date.now()
+        }));
       } catch (error) {
         void error;
       }
@@ -716,6 +733,21 @@ function buildAuthCompletionPage({ token, sessionKey, error, returnTo }) {
         }
       } catch (error) {
         void error;
+      }
+
+      if (payload.authMode === 'popup') {
+        try {
+          window.close();
+        } catch (error) {
+          void error;
+        }
+        document.body.textContent = closeMessage;
+        return;
+      }
+
+      if (payload.error) {
+        document.body.textContent = payload.error;
+        return;
       }
 
       if (returnTo) {
@@ -803,7 +835,8 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
   if (!botToken) {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Telegram auth is not configured',
-      returnTo: req.query.return_to
+      returnTo: req.query.return_to,
+      authMode: req.query.auth_mode
     }));
   }
 
@@ -816,7 +849,8 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Invalid Telegram widget data',
       returnTo: req.query.return_to,
-      sessionKey: sanitizeSessionKey(req.query.session_key)
+      sessionKey: sanitizeSessionKey(req.query.session_key),
+      authMode: req.query.auth_mode
     }));
   }
 
@@ -826,7 +860,8 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Telegram widget data expired',
       returnTo: req.query.return_to,
-      sessionKey: sanitizeSessionKey(req.query.session_key)
+      sessionKey: sanitizeSessionKey(req.query.session_key),
+      authMode: req.query.auth_mode
     }));
   }
 
@@ -834,7 +869,8 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Invalid Telegram widget signature',
       returnTo: req.query.return_to,
-      sessionKey: sanitizeSessionKey(req.query.session_key)
+      sessionKey: sanitizeSessionKey(req.query.session_key),
+      authMode: req.query.auth_mode
     }));
   }
 
@@ -865,17 +901,19 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
   return res.type('html').send(buildAuthCompletionPage({
     token: buildToken(user),
     sessionKey: sanitizeSessionKey(req.query.session_key),
-    returnTo: req.query.return_to
+    returnTo: req.query.return_to,
+    authMode: req.query.auth_mode
   }));
 }));
 
 // --- VK OAuth (server callback flow) ---
 
-function encodeVkOAuthState({ returnTo, sessionKey, codeVerifier }) {
+function encodeVkOAuthState({ returnTo, sessionKey, codeVerifier, authMode }) {
   const payload = {
     returnTo: sanitizeReturnTo(returnTo),
     sessionKey: sanitizeSessionKey(sessionKey),
     codeVerifier: String(codeVerifier || ''),
+    authMode: sanitizeAuthMode(authMode),
     issuedAt: Date.now()
   };
   const encodedPayload = toBase64Url(JSON.stringify(payload));
@@ -887,12 +925,12 @@ function encodeVkOAuthState({ returnTo, sessionKey, codeVerifier }) {
 }
 
 function decodeVkOAuthState(rawState) {
-  if (!rawState) return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
+  if (!rawState) return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
 
   try {
     const [encodedPayload, signature] = String(rawState).split('.');
     if (!encodedPayload || !signature) {
-      return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
     }
 
     const expectedSignature = crypto
@@ -902,19 +940,20 @@ function decodeVkOAuthState(rawState) {
     const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
     const receivedBuffer = Buffer.from(signature, 'utf8');
     if (expectedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
-      return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
     }
 
     const parsed = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
     const codeVerifier = String(parsed.codeVerifier || '');
-    return {
-      returnTo: sanitizeReturnTo(parsed.returnTo),
-      sessionKey: sanitizeSessionKey(parsed.sessionKey),
-      codeVerifier: /^[A-Za-z0-9\-._~]{43,128}$/.test(codeVerifier) ? codeVerifier : '',
-      valid: true
-    };
-  } catch {
-    return { returnTo: '/', sessionKey: '', codeVerifier: '', valid: false };
+      return {
+        returnTo: sanitizeReturnTo(parsed.returnTo),
+        sessionKey: sanitizeSessionKey(parsed.sessionKey),
+        codeVerifier: /^[A-Za-z0-9\-._~]{43,128}$/.test(codeVerifier) ? codeVerifier : '',
+        authMode: sanitizeAuthMode(parsed.authMode),
+        valid: true
+      };
+    } catch {
+    return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
   }
 }
 
@@ -1016,7 +1055,8 @@ router.get('/vk-oauth', (req, res) => {
     state: encodeVkOAuthState({
       returnTo: req.query.return_to,
       sessionKey: req.query.session_key,
-      codeVerifier
+      codeVerifier,
+      authMode: req.query.auth_mode
     })
   });
   const scope = getVkOAuthScope();
@@ -1034,7 +1074,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Некорректное состояние авторизации ВКонтакте',
       returnTo: req.query.return_to,
-      sessionKey: sanitizeSessionKey(req.query.session_key)
+      sessionKey: sanitizeSessionKey(req.query.session_key),
+      authMode: 'popup'
     }));
   }
 
@@ -1043,7 +1084,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: errorDescription || 'VK авторизация отменена',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1051,7 +1093,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'ВКонтакте не вернул device_id',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1060,7 +1103,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'VK OAuth is not configured',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1087,7 +1131,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Ошибка связи с ВКонтакте',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1096,7 +1141,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: tokenData.error_description || 'Ошибка авторизации ВКонтакте',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1116,7 +1162,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Не удалось получить профиль ВКонтакте',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1130,7 +1177,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Не удалось определить пользователя ВКонтакте',
       returnTo: state.returnTo,
-      sessionKey: state.sessionKey
+      sessionKey: state.sessionKey,
+      authMode: state.authMode
     }));
   }
 
@@ -1138,7 +1186,8 @@ router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
   return res.type('html').send(buildAuthCompletionPage({
     token: buildToken(user),
     sessionKey: state.sessionKey,
-    returnTo: state.returnTo
+    returnTo: state.returnTo,
+    authMode: state.authMode
   }));
 }));
 

@@ -147,6 +147,25 @@ describe('Web booking native auth modal', () => {
     cy.get('#screen-done').should('have.class', 'active');
   });
 
+  it('показывает ошибку, если callback записал web auth result с ошибкой', () => {
+    selectServiceAndSlot();
+    cy.get('#confirmSubmit').click();
+    cy.get('#web-auth-modal').should('be.visible');
+
+    cy.window().then((win) => {
+      const currentSession = win.localStorage.getItem('bookingAuthSession') || `guest:${win.localStorage.getItem('guest_id') || 'test'}`;
+      win.localStorage.setItem('bookingWebAuthResult', JSON.stringify({
+        error: 'Некорректное состояние авторизации ВКонтакте',
+        sessionKey: currentSession,
+        timestamp: Date.now()
+      }));
+    });
+
+    cy.get('#web-auth-modal').should('not.be.visible');
+    cy.get('#toast').should('contain.text', 'Некорректное состояние авторизации ВКонтакте');
+    cy.get('#screen-confirm').should('have.class', 'active');
+  });
+
   it('в Mini App Telegram модал не показывается — submitBooking вызывается напрямую', () => {
     cy.intercept('POST', /\/api\/auth\/telegram/, {
       statusCode: 200,
