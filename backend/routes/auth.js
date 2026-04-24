@@ -683,6 +683,89 @@ function getVkOAuthStateSecret() {
   return process.env.VK_OAUTH_STATE_SECRET || JWT_SECRET || process.env.VK_APP_SECRET || 'vk-oauth-state-secret';
 }
 
+const VK_OAUTH_CONTEXT_COOKIE = 'hc_vk_oauth_ctx';
+
+function parseCookies(header) {
+  const cookieHeader = String(header || '');
+  if (!cookieHeader) return {};
+  return cookieHeader.split(';').reduce((acc, part) => {
+    const index = part.indexOf('=');
+    if (index < 0) return acc;
+    const key = decodeURIComponent(part.slice(0, index).trim());
+    const value = decodeURIComponent(part.slice(index + 1).trim());
+    if (key) acc[key] = value;
+    return acc;
+  }, {});
+}
+
+function signVkOAuthValue(encodedPayload) {
+  return crypto
+    .createHmac('sha256', getVkOAuthStateSecret())
+    .update(String(encodedPayload || ''))
+    .digest('base64url');
+}
+
+function setVkOAuthContextCookie(res, value) {
+  const encodedValue = encodeURIComponent(String(value || ''));
+  res.append('Set-Cookie', `${VK_OAUTH_CONTEXT_COOKIE}=${encodedValue}; Max-Age=900; Path=/api/auth/vk-oauth/callback; HttpOnly; Secure; SameSite=Lax`);
+}
+
+function clearVkOAuthContextCookie(res) {
+  res.append('Set-Cookie', `${VK_OAUTH_CONTEXT_COOKIE}=; Max-Age=0; Path=/api/auth/vk-oauth/callback; HttpOnly; Secure; SameSite=Lax`);
+}
+
+function encodeVkOAuthContextCookie({ returnTo, sessionKey, authMode, codeVerifier }) {
+  const payload = {
+    returnTo: sanitizeReturnTo(returnTo),
+    sessionKey: sanitizeSessionKey(sessionKey),
+    authMode: sanitizeAuthMode(authMode),
+    codeVerifier: String(codeVerifier || ''),
+    issuedAt: Date.now(),
+    nonce: crypto.randomBytes(12).toString('base64url')
+  };
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signature = signVkOAuthValue(encodedPayload);
+  return `${encodedPayload}.${signature}`;
+}
+
+function decodeVkOAuthContextCookie(rawValue) {
+  if (!rawValue) {
+    return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
+  }
+
+  try {
+    const [encodedPayload, signature] = String(rawValue).split('.');
+    if (!encodedPayload || !signature) {
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
+    }
+    const expectedSignature = signVkOAuthValue(encodedPayload);
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    const receivedBuffer = Buffer.from(signature, 'utf8');
+    if (expectedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
+    }
+
+    const parsed = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
+    const issuedAt = Number(parsed.issuedAt || 0);
+    const codeVerifier = String(parsed.codeVerifier || '');
+    const isFresh = issuedAt > 0 && Date.now() - issuedAt <= 15 * 60 * 1000;
+    const isVerifierValid = /^[A-Za-z0-9\-._~]{43,128}$/.test(codeVerifier);
+    if (!isFresh || !isVerifierValid) {
+      return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
+    }
+
+    return {
+      returnTo: sanitizeReturnTo(parsed.returnTo),
+      sessionKey: sanitizeSessionKey(parsed.sessionKey),
+      codeVerifier,
+      authMode: sanitizeAuthMode(parsed.authMode),
+      valid: true
+    };
+  } catch {
+    return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
+  }
+}
+
 function sanitizeAuthMode(value) {
   return String(value || '').trim() === 'popup' ? 'popup' : '';
 }
@@ -927,10 +1010,7 @@ function encodeVkOAuthState({ returnTo, sessionKey, authMode }) {
     payload.sessionKey = sanitizeSessionKey(sessionKey);
   }
   const encodedPayload = toBase64Url(JSON.stringify(payload));
-  const signature = crypto
-    .createHmac('sha256', getVkOAuthStateSecret())
-    .update(encodedPayload)
-    .digest('base64url');
+  const signature = signVkOAuthValue(encodedPayload);
   return {
     state: `${encodedPayload}.${signature}`,
     codeVerifier: deriveVkPkceVerifier(pkceSeed)
@@ -946,10 +1026,7 @@ function decodeVkOAuthState(rawState) {
       return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
     }
 
-    const expectedSignature = crypto
-      .createHmac('sha256', getVkOAuthStateSecret())
-      .update(encodedPayload)
-      .digest('base64url');
+    const expectedSignature = signVkOAuthValue(encodedPayload);
     const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
     const receivedBuffer = Buffer.from(signature, 'utf8');
     if (expectedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
@@ -1071,6 +1148,12 @@ router.get('/vk-oauth', (req, res) => {
     sessionKey: req.query.session_key,
     authMode: req.query.auth_mode
   });
+  setVkOAuthContextCookie(res, encodeVkOAuthContextCookie({
+    returnTo: req.query.return_to,
+    sessionKey: req.query.session_key,
+    authMode: req.query.auth_mode,
+    codeVerifier: state.codeVerifier
+  }));
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: getVkOAuthRedirectUri(req),
@@ -1087,9 +1170,25 @@ router.get('/vk-oauth', (req, res) => {
 // GET /api/auth/vk-oauth/callback — exchange VK ID code, create/find user and complete auth
 router.get('/vk-oauth/callback', asyncRoute(async (req, res) => {
   applyPopupFriendlyHeaders(res);
+  const cookies = parseCookies(req.headers.cookie || '');
+  const cookieContext = decodeVkOAuthContextCookie(cookies[VK_OAUTH_CONTEXT_COOKIE]);
+  clearVkOAuthContextCookie(res);
 
   const callback = parseVkOAuthCallback(req);
-  const state = decodeVkOAuthState(callback.state);
+  let state = decodeVkOAuthState(callback.state);
+  if ((!state.valid || !state.codeVerifier) && cookieContext.valid) {
+    state = cookieContext;
+  } else if (state.valid && cookieContext.valid) {
+    if ((!state.returnTo || state.returnTo === '/') && cookieContext.returnTo) {
+      state.returnTo = cookieContext.returnTo;
+    }
+    if (!state.sessionKey && cookieContext.sessionKey) {
+      state.sessionKey = cookieContext.sessionKey;
+    }
+    if (!state.authMode && cookieContext.authMode) {
+      state.authMode = cookieContext.authMode;
+    }
+  }
   if (!state.valid || !state.codeVerifier) {
     return res.type('html').send(buildAuthCompletionPage({
       error: 'Некорректное состояние авторизации ВКонтакте',

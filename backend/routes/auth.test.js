@@ -830,6 +830,45 @@ describe('Auth API', () => {
       expect(tokenBody).toContain('client_id=54560036');
       expect(userInfoBody).toContain('client_id=54560036');
     });
+
+    it('accepts callback when state is broken but signed oauth context cookie is present', async () => {
+      process.env.VK_APP_ID = '54478943';
+      const verifier = crypto.randomBytes(32).toString('base64url');
+      const encodedContext = Buffer.from(JSON.stringify({
+        returnTo: '/book/lera',
+        sessionKey: 'guest:abcdef1234567890',
+        authMode: 'popup',
+        codeVerifier: verifier,
+        issuedAt: Date.now(),
+        nonce: crypto.randomBytes(12).toString('base64url')
+      })).toString('base64url');
+      const contextSignature = crypto
+        .createHmac('sha256', JWT_SECRET)
+        .update(encodedContext)
+        .digest('base64url');
+      const contextCookieValue = encodeURIComponent(`${encodedContext}.${contextSignature}`);
+
+      global.fetch = jest.fn()
+        .mockResolvedValueOnce({
+          json: async () => ({ access_token: 'vk-token' })
+        })
+        .mockResolvedValueOnce({
+          json: async () => ({ user: { user_id: 123458 } })
+        });
+      pool.query.mockResolvedValueOnce({
+        rows: [{ id: 7, username: 'vk_123458', vk_user_id: 123458 }]
+      });
+
+      const response = await request(app)
+        .get('/api/auth/vk-oauth/callback')
+        .set('Cookie', `hc_vk_oauth_ctx=${contextCookieValue}`)
+        .query({ code: 'oauth-code', device_id: 'device-123', state: 'broken.state' })
+        .expect(200);
+
+      expect(response.text).toContain('"type":"web-auth-result"');
+      expect(response.text).toContain('"sessionKey":"guest:abcdef1234567890"');
+      expect(response.text).not.toContain('Некорректное состояние авторизации ВКонтакте');
+    });
   });
 
   describe('GET /api/auth/vk-oauth', () => {
