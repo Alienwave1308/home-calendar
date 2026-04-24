@@ -23,6 +23,9 @@
   const WEB_AUTH_DRAFT_KEY = 'bookingWebAuthDraft';
   let vkLaunchParamsString = String(window.location.search || '').replace(/^[?#]/, '');
   let vkLaunchParamsPromise = null;
+  let webAuthFallbackPollId = null;
+  let webAuthFallbackStorageHandler = null;
+  let webAuthVkPopupRef = null;
 
   function getVkLaunchParamsFromUrl() {
     return String(window.location.search || '').replace(/^[?#]/, '');
@@ -470,14 +473,14 @@
     const url = buildVkOAuthUrl();
     if (vkWebAuthUsesRedirect) {
       window.location.assign(url);
-      return;
+      return null;
     }
 
     const w = 600;
     const h = 600;
     const left = Math.round(screen.width / 2 - w / 2);
     const top = Math.round(screen.height / 2 - h / 2);
-    window.open(
+    return window.open(
       url,
       'vk_oauth',
       'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes'
@@ -595,10 +598,53 @@
   let _webAuthResolve = null;
   let _webAuthReject = null;
 
+  function clearWebAuthFallbackWatcher() {
+    if (webAuthFallbackPollId) {
+      clearInterval(webAuthFallbackPollId);
+      webAuthFallbackPollId = null;
+    }
+    if (webAuthFallbackStorageHandler) {
+      window.removeEventListener('storage', webAuthFallbackStorageHandler);
+      webAuthFallbackStorageHandler = null;
+    }
+    webAuthVkPopupRef = null;
+  }
+
+  function tryFinishWebAuthFromStoredToken() {
+    if (!_webAuthResolve && !_webAuthReject) return false;
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken || isGuestToken(storedToken)) return false;
+    finishWebAuth({
+      token: storedToken,
+      sessionKey: localStorage.getItem('bookingAuthSession') || getCurrentAuthSessionKey()
+    });
+    return true;
+  }
+
+  function startWebAuthFallbackWatcher() {
+    clearWebAuthFallbackWatcher();
+    webAuthFallbackStorageHandler = function (event) {
+      if (!event || (event.key && event.key !== 'token' && event.key !== 'bookingAuthSession')) return;
+      tryFinishWebAuthFromStoredToken();
+    };
+    window.addEventListener('storage', webAuthFallbackStorageHandler);
+    webAuthFallbackPollId = setInterval(function () {
+      if (!_webAuthResolve && !_webAuthReject) {
+        clearWebAuthFallbackWatcher();
+        return;
+      }
+      if (webAuthVkPopupRef && webAuthVkPopupRef.closed) {
+        webAuthVkPopupRef = null;
+      }
+      tryFinishWebAuthFromStoredToken();
+    }, 400);
+  }
+
   function finishWebAuth(result) {
     if (!result) return;
 
     if (result.error) {
+      clearWebAuthFallbackWatcher();
       hideWebAuthModal();
       if (_webAuthReject) {
         const reject = _webAuthReject;
@@ -614,6 +660,7 @@
     if (!result.token) return;
 
     saveAuthToken(result.token, result.sessionKey);
+    clearWebAuthFallbackWatcher();
     hideWebAuthModal();
     if (_webAuthResolve) {
       const resolve = _webAuthResolve;
@@ -694,6 +741,8 @@
 
       const modal = createWebAuthModal();
       modal.style.display = 'flex';
+      startWebAuthFallbackWatcher();
+      if (tryFinishWebAuthFromStoredToken()) return;
 
       const tgWidget = document.getElementById('web-auth-tg-widget');
       if (tgWidget) {
@@ -714,11 +763,12 @@
       const vkBtn = document.getElementById('web-auth-vk-btn');
       if (vkBtn) {
         vkBtn.onclick = function () {
-          startVkWebAuth();
+          webAuthVkPopupRef = startVkWebAuth();
         };
       }
 
       document.getElementById('web-auth-cancel').onclick = function () {
+        clearWebAuthFallbackWatcher();
         hideWebAuthModal();
         _webAuthResolve = null;
         _webAuthReject = null;

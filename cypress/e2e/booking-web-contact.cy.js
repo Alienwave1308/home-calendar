@@ -131,6 +131,22 @@ describe('Web booking native auth modal', () => {
     cy.get('#screen-done').should('have.class', 'active');
   });
 
+  it('если popup не прислал postMessage, запись завершается по токену из localStorage', () => {
+    selectServiceAndSlot();
+    cy.get('#confirmSubmit').click();
+    cy.get('#web-auth-modal').should('be.visible');
+
+    cy.window().then((win) => {
+      const currentSession = win.localStorage.getItem('bookingAuthSession') || `guest:${win.localStorage.getItem('guest_id') || 'test'}`;
+      win.localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InZrXzEiLCJpZCI6Mn0.fakesig');
+      win.localStorage.setItem('bookingAuthSession', currentSession);
+    });
+
+    cy.get('#web-auth-modal').should('not.be.visible');
+    cy.wait('@postBook');
+    cy.get('#screen-done').should('have.class', 'active');
+  });
+
   it('в Mini App Telegram модал не показывается — submitBooking вызывается напрямую', () => {
     cy.intercept('POST', /\/api\/auth\/telegram/, {
       statusCode: 200,
