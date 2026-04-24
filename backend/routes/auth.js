@@ -664,12 +664,19 @@ function toBase64Url(input) {
   return Buffer.from(input).toString('base64url');
 }
 
-function generateVkPkceVerifier() {
-  return crypto.randomBytes(64).toString('base64url');
-}
-
 function buildVkPkceChallenge(verifier) {
   return crypto.createHash('sha256').update(String(verifier)).digest('base64url');
+}
+
+function generateVkPkceSeed() {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
+function deriveVkPkceVerifier(seed) {
+  return crypto
+    .createHmac('sha256', getVkOAuthStateSecret())
+    .update(`vk-pkce:${String(seed || '')}`)
+    .digest('base64url');
 }
 
 function getVkOAuthStateSecret() {
@@ -908,20 +915,26 @@ router.get('/telegram-widget/callback', asyncRoute(async (req, res) => {
 
 // --- VK OAuth (server callback flow) ---
 
-function encodeVkOAuthState({ returnTo, sessionKey, codeVerifier, authMode }) {
+function encodeVkOAuthState({ returnTo, sessionKey, authMode }) {
+  const mode = sanitizeAuthMode(authMode);
+  const pkceSeed = generateVkPkceSeed();
   const payload = {
-    returnTo: sanitizeReturnTo(returnTo),
-    sessionKey: sanitizeSessionKey(sessionKey),
-    codeVerifier: String(codeVerifier || ''),
-    authMode: sanitizeAuthMode(authMode),
-    issuedAt: Date.now()
+    authMode: mode,
+    pkceSeed
   };
+  if (mode !== 'popup') {
+    payload.returnTo = sanitizeReturnTo(returnTo);
+    payload.sessionKey = sanitizeSessionKey(sessionKey);
+  }
   const encodedPayload = toBase64Url(JSON.stringify(payload));
   const signature = crypto
     .createHmac('sha256', getVkOAuthStateSecret())
     .update(encodedPayload)
     .digest('base64url');
-  return `${encodedPayload}.${signature}`;
+  return {
+    state: `${encodedPayload}.${signature}`,
+    codeVerifier: deriveVkPkceVerifier(pkceSeed)
+  };
 }
 
 function decodeVkOAuthState(rawState) {
@@ -944,15 +957,23 @@ function decodeVkOAuthState(rawState) {
     }
 
     const parsed = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
-    const codeVerifier = String(parsed.codeVerifier || '');
-      return {
-        returnTo: sanitizeReturnTo(parsed.returnTo),
-        sessionKey: sanitizeSessionKey(parsed.sessionKey),
-        codeVerifier: /^[A-Za-z0-9\-._~]{43,128}$/.test(codeVerifier) ? codeVerifier : '',
-        authMode: sanitizeAuthMode(parsed.authMode),
-        valid: true
-      };
-    } catch {
+    const legacyCodeVerifier = String(parsed.codeVerifier || '');
+    const seed = String(parsed.pkceSeed || '');
+    let codeVerifier = '';
+    if (/^[A-Za-z0-9\-._~]{43,128}$/.test(legacyCodeVerifier)) {
+      codeVerifier = legacyCodeVerifier;
+    } else if (/^[A-Za-z0-9\-_]{16,128}$/.test(seed)) {
+      codeVerifier = deriveVkPkceVerifier(seed);
+    }
+
+    return {
+      returnTo: sanitizeReturnTo(parsed.returnTo),
+      sessionKey: sanitizeSessionKey(parsed.sessionKey),
+      codeVerifier,
+      authMode: sanitizeAuthMode(parsed.authMode),
+      valid: Boolean(codeVerifier)
+    };
+  } catch {
     return { returnTo: '/', sessionKey: '', codeVerifier: '', authMode: '', valid: false };
   }
 }
@@ -1045,19 +1066,18 @@ router.get('/vk-oauth', (req, res) => {
     }));
   }
 
-  const codeVerifier = generateVkPkceVerifier();
+  const state = encodeVkOAuthState({
+    returnTo: req.query.return_to,
+    sessionKey: req.query.session_key,
+    authMode: req.query.auth_mode
+  });
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: getVkOAuthRedirectUri(req),
     response_type: 'code',
-    code_challenge: buildVkPkceChallenge(codeVerifier),
+    code_challenge: buildVkPkceChallenge(state.codeVerifier),
     code_challenge_method: 's256',
-    state: encodeVkOAuthState({
-      returnTo: req.query.return_to,
-      sessionKey: req.query.session_key,
-      codeVerifier,
-      authMode: req.query.auth_mode
-    })
+    state: state.state
   });
   const scope = getVkOAuthScope();
   if (scope) params.set('scope', scope);

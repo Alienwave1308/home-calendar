@@ -858,10 +858,11 @@ describe('Auth API', () => {
       const [encodedPayload, signature] = String(target.searchParams.get('state')).split('.');
       expect(signature).toBeTruthy();
       const state = JSON.parse(Buffer.from(String(encodedPayload), 'base64url').toString('utf8'));
-      expect(state.returnTo).toBe('/book/lera');
-      expect(state.sessionKey).toBe('guest:abcdef1234567890');
+      expect(String(target.searchParams.get('state')).length).toBeLessThan(240);
       expect(state.authMode).toBe('popup');
-      expect(state.codeVerifier).toMatch(/^[A-Za-z0-9\-_]{43,128}$/);
+      expect(state.pkceSeed).toMatch(/^[A-Za-z0-9\-_]{16,128}$/);
+      expect(state.returnTo).toBeUndefined();
+      expect(state.sessionKey).toBeUndefined();
     });
 
     it('overrides default scope when VK_OAUTH_SCOPE is configured', async () => {
