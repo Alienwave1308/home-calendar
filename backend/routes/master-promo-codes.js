@@ -8,11 +8,45 @@ function normalizePromoCode(code) {
   return String(code || '').trim().toUpperCase();
 }
 
+function isComplexServiceRow(service) {
+  const name = String(service && service.name ? service.name : '');
+  const description = String(service && service.description ? service.description : '');
+  return /комплекс/i.test(name) || /комплекс/i.test(description);
+}
+
+async function loadGiftServiceForPromo(masterId, serviceId) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, master_id, name, description, is_active
+       FROM services
+       WHERE id = $1 AND master_id = $2
+       LIMIT 1`,
+      [serviceId, masterId]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    const fallback = await pool.query(
+      `SELECT id, master_id, name, description
+       FROM services
+       WHERE id = $1 AND master_id = $2
+       LIMIT 1`,
+      [serviceId, masterId]
+    );
+    if (!fallback.rows.length) return null;
+    return {
+      ...fallback.rows[0],
+      is_active: true
+    };
+  }
+}
+
 // GET /api/master/promo-codes
 router.get('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
+      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.fixed_amount_rub,
+              p.gift_service_id, p.gift_complex_discount_rub,
               p.usage_mode, p.uses_count,
               p.is_active, p.created_at, p.updated_at,
               s.name AS gift_service_name,
@@ -34,18 +68,36 @@ router.get('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
     }
     if (error.code === '42703') {
       try {
-        const fallback = await pool.query(
-          `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
-                  p.is_active, p.created_at, p.updated_at,
-                  s.name AS gift_service_name
-           FROM master_promo_codes p
-           LEFT JOIN services s ON s.id = p.gift_service_id
-           WHERE p.master_id = $1
-           ORDER BY p.created_at DESC, p.id DESC`,
-          [req.master.id]
-        );
+        let fallback;
+        try {
+          fallback = await pool.query(
+            `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.fixed_amount_rub,
+                    p.gift_service_id, p.gift_complex_discount_rub,
+                    p.is_active, p.created_at, p.updated_at,
+                    s.name AS gift_service_name
+             FROM master_promo_codes p
+             LEFT JOIN services s ON s.id = p.gift_service_id
+             WHERE p.master_id = $1
+             ORDER BY p.created_at DESC, p.id DESC`,
+            [req.master.id]
+          );
+        } catch (legacyColumnError) {
+          if (legacyColumnError.code !== '42703') throw legacyColumnError;
+          fallback = await pool.query(
+            `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id,
+                    p.is_active, p.created_at, p.updated_at,
+                    s.name AS gift_service_name
+             FROM master_promo_codes p
+             LEFT JOIN services s ON s.id = p.gift_service_id
+             WHERE p.master_id = $1
+             ORDER BY p.created_at DESC, p.id DESC`,
+            [req.master.id]
+          );
+        }
         return res.json(fallback.rows.map((row) => ({
           ...row,
+          fixed_amount_rub: row.fixed_amount_rub === undefined ? null : row.fixed_amount_rub,
+          gift_complex_discount_rub: row.gift_complex_discount_rub === undefined ? null : row.gift_complex_discount_rub,
           usage_mode: 'always',
           uses_count: 0
         })));
@@ -74,8 +126,8 @@ router.post('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
   if (!/^[A-Z0-9_-]+$/.test(rawCode)) {
     return res.status(400).json({ error: 'Промокод может содержать только латинские буквы A-Z, цифры, "_" и "-"' });
   }
-  if (!['percent', 'gift_service'].includes(rewardType)) {
-    return res.status(400).json({ error: 'reward_type must be percent or gift_service' });
+  if (!['percent', 'fixed_amount', 'gift_service'].includes(rewardType)) {
+    return res.status(400).json({ error: 'reward_type must be percent, fixed_amount or gift_service' });
   }
   if (!['always', 'single_use'].includes(usageMode)) {
     return res.status(400).json({ error: 'usage_mode must be always or single_use' });
@@ -83,11 +135,39 @@ router.post('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
 
   let discountPercent = null;
   let giftServiceId = null;
+  let fixedAmountRub = null;
+  let giftComplexDiscountRub = null;
 
   if (rewardType === 'percent') {
     discountPercent = Number(req.body.discount_percent);
     if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 100) {
       return res.status(400).json({ error: 'discount_percent must be integer between 1 and 100' });
+    }
+  } else if (rewardType === 'fixed_amount') {
+    fixedAmountRub = Number(req.body.fixed_amount_rub);
+    if (!Number.isInteger(fixedAmountRub) || fixedAmountRub < 1 || fixedAmountRub > 1000000) {
+      return res.status(400).json({ error: 'fixed_amount_rub must be integer between 1 and 1000000' });
+    }
+  } else if (rewardType === 'gift_service') {
+    giftServiceId = Number(req.body.gift_service_id);
+    if (!Number.isInteger(giftServiceId) || giftServiceId <= 0) {
+      return res.status(400).json({ error: 'gift_service_id must be a positive integer' });
+    }
+    const giftService = await loadGiftServiceForPromo(req.master.id, giftServiceId);
+    if (!giftService || !giftService.is_active) {
+      return res.status(400).json({ error: 'gift service is not available' });
+    }
+    if (isComplexServiceRow(giftService)) {
+      return res.status(400).json({ error: 'gift service must be an epilation zone, not a complex' });
+    }
+    const complexDiscountRaw = req.body.gift_complex_discount_rub;
+    if (complexDiscountRaw === undefined || complexDiscountRaw === null || complexDiscountRaw === '') {
+      giftComplexDiscountRub = 0;
+    } else {
+      giftComplexDiscountRub = Number(complexDiscountRaw);
+    }
+    if (!Number.isInteger(giftComplexDiscountRub) || giftComplexDiscountRub < 0 || giftComplexDiscountRub > 1000000) {
+      return res.status(400).json({ error: 'gift_complex_discount_rub must be integer between 0 and 1000000' });
     }
   }
 
@@ -95,21 +175,53 @@ router.post('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
   try {
     result = await pool.query(
       `INSERT INTO master_promo_codes
-         (master_id, code, reward_type, discount_percent, gift_service_id, usage_mode, uses_count, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, 0, true)
+         (master_id, code, reward_type, discount_percent, fixed_amount_rub, gift_service_id, gift_complex_discount_rub, usage_mode, uses_count, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, true)
        RETURNING *`,
-      [req.master.id, rawCode, rewardType, discountPercent, giftServiceId, usageMode]
+      [
+        req.master.id,
+        rawCode,
+        rewardType,
+        discountPercent,
+        fixedAmountRub,
+        giftServiceId,
+        giftComplexDiscountRub,
+        usageMode
+      ]
     );
   } catch (insertError) {
     if (insertError.code !== '42703') throw insertError;
-    result = await pool.query(
-      `INSERT INTO master_promo_codes
-         (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)
-       RETURNING *`,
-      [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
-    );
+    try {
+      result = await pool.query(
+        `INSERT INTO master_promo_codes
+           (master_id, code, reward_type, discount_percent, fixed_amount_rub, gift_service_id, gift_complex_discount_rub, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+         RETURNING *`,
+        [
+          req.master.id,
+          rawCode,
+          rewardType,
+          discountPercent,
+          fixedAmountRub,
+          giftServiceId,
+          giftComplexDiscountRub
+        ]
+      );
+    } catch (legacyInsertError) {
+      if (legacyInsertError.code !== '42703') throw legacyInsertError;
+      result = await pool.query(
+        `INSERT INTO master_promo_codes
+           (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)
+         RETURNING *`,
+        [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
+      );
+    }
     if (result.rows[0]) {
+      if (result.rows[0].fixed_amount_rub === undefined) result.rows[0].fixed_amount_rub = fixedAmountRub;
+      if (result.rows[0].gift_complex_discount_rub === undefined) {
+        result.rows[0].gift_complex_discount_rub = giftComplexDiscountRub;
+      }
       result.rows[0].usage_mode = 'always';
       result.rows[0].uses_count = 0;
     }

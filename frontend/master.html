@@ -338,11 +338,12 @@
       </div>
       <div class="settings-card">
         <h3>Промокоды</h3>
-        <p class="settings-hint">Промокод может давать процент скидки или «зону в подарок». Зону и материал выбирает клиент при записи.</p>
+        <p class="settings-hint">Промокод может давать скидку в %, фиксированную сумму или «зону в подарок». Для подарочной зоны можно задать отдельную скидку для комплексов.</p>
         <div class="availability-form">
           <input id="promoCodeValue" type="text" maxlength="64" placeholder="Код, например SPRING30">
           <select id="promoRewardType" onchange="MasterApp.onPromoRewardTypeChange()">
             <option value="percent">Скидка, %</option>
+            <option value="fixed_amount">Скидка, ₽</option>
             <option value="gift_service">Зона в подарок</option>
           </select>
           <select id="promoUsageMode">
@@ -350,6 +351,9 @@
             <option value="single_use">Одноразовый</option>
           </select>
           <input id="promoDiscountPercent" type="number" min="1" max="100" value="10" placeholder="Скидка, %">
+          <input id="promoFixedAmountRub" type="number" min="1" max="1000000" value="500" placeholder="Скидка, ₽" style="display:none">
+          <select id="promoGiftServiceId" style="display:none"></select>
+          <input id="promoGiftComplexDiscountRub" type="number" min="0" max="1000000" value="500" placeholder="Скидка на комплекс, ₽" style="display:none">
           <button class="btn-secondary" onclick="MasterApp.createPromoCode()">Создать промокод</button>
         </div>
         <div id="promoCodesList" class="settings-list"></div>

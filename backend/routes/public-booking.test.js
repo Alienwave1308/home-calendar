@@ -217,6 +217,114 @@ describe('Public Booking API', () => {
     expect(res.body.pricing.promo_reward_type).toBe('percent');
   });
 
+  it('should return pricing preview for fixed-amount promo code', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Шугаринг', duration_minutes: 60, price: 1000, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 901, master_id: 3, code: 'SAVE500', reward_type: 'fixed_amount', fixed_amount_rub: 500, usage_mode: 'always' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/pricing-preview')
+      .send({ service_id: 11, promo_code: 'save500' })
+      .expect(200);
+
+    expect(res.body.pricing.base_price).toBe(1000);
+    expect(res.body.pricing.final_price).toBe(500);
+    expect(res.body.pricing.discount_amount).toBe(500);
+    expect(res.body.pricing.promo_reward_type).toBe('fixed_amount');
+    expect(res.body.pricing.promo_fixed_amount_rub).toBe(500);
+  });
+
+  it('should return pricing preview for gift promo with auto-added zone', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Сахар: Ноги', duration_minutes: 60, price: 900, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 902,
+          master_id: 3,
+          code: 'GIFTLEG',
+          reward_type: 'gift_service',
+          discount_percent: null,
+          gift_service_id: 22,
+          gift_complex_discount_rub: 400,
+          usage_mode: 'always',
+          gift_id: 22,
+          gift_master_id: 3,
+          gift_name: 'Сахар: Бёдра',
+          gift_duration_minutes: 30,
+          gift_price: 700,
+          gift_description: '',
+          gift_buffer_before_minutes: 0,
+          gift_buffer_after_minutes: 0,
+          gift_is_active: true
+        }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/pricing-preview')
+      .send({ service_id: 11, promo_code: 'giftleg' })
+      .expect(200);
+
+    expect(res.body.service_ids).toEqual([11, 22]);
+    expect(res.body.pricing.base_price).toBe(1600);
+    expect(res.body.pricing.final_price).toBe(900);
+    expect(res.body.pricing.discount_amount).toBe(700);
+    expect(res.body.pricing.promo_gift_service_added).toBe(true);
+  });
+
+  it('should return pricing preview with complex discount for gift promo', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 31, master_id: 3, name: 'Сахар: Глубокое бикини + Бёдра', duration_minutes: 120, price: 1700, description: 'Комплекс', is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 903,
+          master_id: 3,
+          code: 'COMPLEXGIFT',
+          reward_type: 'gift_service',
+          discount_percent: null,
+          gift_service_id: 22,
+          gift_complex_discount_rub: 500,
+          usage_mode: 'always',
+          gift_id: 22,
+          gift_master_id: 3,
+          gift_name: 'Сахар: Бёдра',
+          gift_duration_minutes: 30,
+          gift_price: 700,
+          gift_description: '',
+          gift_buffer_before_minutes: 0,
+          gift_buffer_after_minutes: 0,
+          gift_is_active: true
+        }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/pricing-preview')
+      .send({ service_id: 31, promo_code: 'complexgift' })
+      .expect(200);
+
+    expect(res.body.pricing.base_price).toBe(1700);
+    expect(res.body.pricing.final_price).toBe(1200);
+    expect(res.body.pricing.discount_amount).toBe(500);
+    expect(res.body.pricing.promo_gift_applied_to_complex).toBe(true);
+    expect(res.body.pricing.promo_gift_complex_discount_rub).toBe(500);
+  });
+
   it('should return pricing preview for legacy promo schema without usage columns', async () => {
     const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
     pool.query
@@ -622,6 +730,40 @@ describe('Public Booking API', () => {
     expect(res.body.pricing.promo_reward_type).toBe('percent');
   });
 
+  it('should apply fixed-amount promo code to booking price', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Сахар: Бёдра', duration_minutes: 40, price: 1000, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 510, master_id: 3, code: 'SAVE500', reward_type: 'fixed_amount', fixed_amount_rub: 500, usage_mode: 'always', uses_count: 0 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 116, master_id: 3, client_id: 42, service_id: 11, extra_service_ids: '[]', start_at: startAt, status: 'confirmed' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, promo_code: 'save500' })
+      .expect(201);
+
+    expect(res.body.pricing.base_price).toBe(1000);
+    expect(res.body.pricing.final_price).toBe(500);
+    expect(res.body.pricing.discount_amount).toBe(500);
+    expect(res.body.pricing.promo_reward_type).toBe('fixed_amount');
+    expect(res.body.pricing.promo_fixed_amount_rub).toBe(500);
+  });
+
   it('should allow single-use promo code exactly once', async () => {
     const startAt = futureDate();
     pool.query
@@ -701,7 +843,18 @@ describe('Public Booking API', () => {
           master_id: 3,
           code: 'GIFTLEG',
           reward_type: 'gift_service',
-          discount_percent: null
+          discount_percent: null,
+          gift_service_id: 11,
+          gift_complex_discount_rub: 500,
+          gift_id: 11,
+          gift_master_id: 3,
+          gift_name: 'Сахар: Бёдра',
+          gift_duration_minutes: 40,
+          gift_price: 900,
+          gift_description: '',
+          gift_buffer_before_minutes: 0,
+          gift_buffer_after_minutes: 0,
+          gift_is_active: true
         }]
       })
       .mockResolvedValueOnce({
@@ -725,6 +878,58 @@ describe('Public Booking API', () => {
     expect(res.body.pricing.promo_reward_type).toBe('gift_service');
     expect(res.body.pricing.promo_gift_service_name).toBe('Сахар: Бёдра');
     expect(res.body.pricing.promo_gift_service_added).toBe(false);
+  });
+
+  it('should auto-add gift zone for gift-service promo code in booking flow', async () => {
+    const startAt = futureDate();
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: 3, display_name: 'Лера', timezone: 'Asia/Novosibirsk', booking_slug: 'master-slug', cancel_policy_hours: 24 }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 11, master_id: 3, name: 'Сахар: Ноги', duration_minutes: 60, price: 900, is_active: true }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 512,
+          master_id: 3,
+          code: 'GIFTLEG',
+          reward_type: 'gift_service',
+          discount_percent: null,
+          gift_service_id: 22,
+          gift_complex_discount_rub: 400,
+          usage_mode: 'always',
+          uses_count: 0,
+          gift_id: 22,
+          gift_master_id: 3,
+          gift_name: 'Сахар: Бёдра',
+          gift_duration_minutes: 30,
+          gift_price: 700,
+          gift_description: '',
+          gift_buffer_before_minutes: 0,
+          gift_buffer_after_minutes: 0,
+          gift_is_active: true
+        }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ reminder_hours: [24, 2], min_booking_notice_minutes: 60 }]
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ active_count: 0 }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 117, master_id: 3, client_id: 42, service_id: 11, extra_service_ids: '[22]', start_at: startAt, status: 'confirmed' }]
+      });
+
+    const res = await request(app)
+      .post('/api/public/master/master-slug/book')
+      .set('Authorization', authHeader)
+      .send({ service_id: 11, start_at: startAt, promo_code: 'giftleg' })
+      .expect(201);
+
+    expect(res.body.pricing.base_price).toBe(1600);
+    expect(res.body.pricing.final_price).toBe(900);
+    expect(res.body.pricing.discount_amount).toBe(700);
+    expect(res.body.pricing.promo_gift_service_added).toBe(true);
   });
 
   it('should return 400 for invalid promo code', async () => {

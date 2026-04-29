@@ -1511,6 +1511,10 @@
         promoCode: null,
         rewardType: null,
         discountPercent: null,
+        fixedAmountRub: null,
+        giftComplexDiscountRub: null,
+        giftAppliedToComplex: false,
+        giftComplexServiceName: null,
         giftServiceName: null,
         giftAdded: false
       };
@@ -1523,6 +1527,10 @@
       promoCode: state.promoPreview.promo_code || state.promoCode,
       rewardType: state.promoPreview.promo_reward_type || null,
       discountPercent: Number(state.promoPreview.promo_discount_percent || 0) || null,
+      fixedAmountRub: Number(state.promoPreview.promo_fixed_amount_rub || 0) || null,
+      giftComplexDiscountRub: Number(state.promoPreview.promo_gift_complex_discount_rub || 0) || null,
+      giftAppliedToComplex: Boolean(state.promoPreview.promo_gift_applied_to_complex),
+      giftComplexServiceName: state.promoPreview.promo_gift_complex_service_name || null,
       giftServiceName: state.promoPreview.promo_gift_service_name || null,
       giftAdded: Boolean(state.promoPreview.promo_gift_service_added)
     };
@@ -1594,8 +1602,16 @@
       state.promoPreview = preview.pricing || null;
       if (state.promoPreview && state.promoPreview.promo_reward_type === 'percent') {
         state.promoHint = 'Применено: скидка ' + Number(state.promoPreview.promo_discount_percent || 0) + '%';
+      } else if (state.promoPreview && state.promoPreview.promo_reward_type === 'fixed_amount') {
+        state.promoHint = 'Применено: скидка ' + Number(state.promoPreview.promo_fixed_amount_rub || 0) + ' ₽';
       } else if (state.promoPreview && state.promoPreview.promo_reward_type === 'gift_service') {
-        state.promoHint = 'Применено: зона в подарок';
+        if (state.promoPreview.promo_gift_applied_to_complex) {
+          state.promoHint = 'Применено: скидка на комплекс';
+        } else if (state.promoPreview.promo_gift_service_added) {
+          state.promoHint = 'Применено: зона в подарок добавлена';
+        } else {
+          state.promoHint = 'Применено: зона в подарок';
+        }
       } else {
         state.promoHint = 'Промокод применен';
       }
@@ -1665,8 +1681,16 @@
         if (pricing.promo_reward_type === 'percent' && pricing.promo_discount_percent) {
           promoLine += ' (скидка ' + pricing.promo_discount_percent + '%)';
         }
+        if (pricing.promo_reward_type === 'fixed_amount' && pricing.promo_fixed_amount_rub) {
+          promoLine += ' (скидка ' + pricing.promo_fixed_amount_rub + ' ₽)';
+        }
         if (pricing.promo_reward_type === 'gift_service' && pricing.promo_gift_service_name) {
           promoLine += ' (подарок: ' + pricing.promo_gift_service_name + ')';
+          if (pricing.promo_gift_applied_to_complex) {
+            promoLine += ' · скидка на комплекс';
+          } else if (pricing.promo_gift_service_added) {
+            promoLine += ' · добавлено к записи';
+          }
         }
         details.push(promoLine);
       }
