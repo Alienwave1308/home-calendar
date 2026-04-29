@@ -269,7 +269,8 @@ async function loadActivePromoCode(masterId, normalizedCode) {
 
   try {
     const { rows } = await pool.query(
-      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.gift_service_id, p.is_active,
+      `SELECT p.id, p.master_id, p.code, p.reward_type, p.discount_percent, p.fixed_amount_rub,
+              p.gift_service_id, p.gift_complex_discount_rub, p.is_active,
               p.usage_mode, p.uses_count,
               gs.id AS gift_id, gs.master_id AS gift_master_id, gs.name AS gift_name,
               gs.duration_minutes AS gift_duration_minutes, gs.price AS gift_price,
@@ -304,6 +305,8 @@ async function loadActivePromoCode(masterId, normalizedCode) {
 
         const normalized = {
           ...row,
+          fixed_amount_rub: null,
+          gift_complex_discount_rub: null,
           usage_mode: 'always',
           uses_count: 0,
           gift_id: null,
@@ -354,53 +357,136 @@ function isComplexServiceRow(service) {
   return /комплекс/i.test(name) || /комплекс/i.test(description);
 }
 
-function selectCheapestService(services) {
-  if (!Array.isArray(services) || !services.length) return null;
-  return services.reduce((best, service) => {
-    if (!best) return service;
-    const price = Number(service && service.price ? service.price : 0);
-    const bestPrice = Number(best && best.price ? best.price : 0);
-    if (price !== bestPrice) return price < bestPrice ? service : best;
-    return Number(service && service.id ? service.id : 0) < Number(best && best.id ? best.id : 0)
-      ? service
-      : best;
-  }, null);
+function normalizeServiceTextForMatch(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^a-zа-я0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function resolvePromoGiftService(appliedPromo, selectedServices) {
-  const services = Array.isArray(selectedServices) ? selectedServices.filter(Boolean) : [];
-  const configuredGiftServiceId = Number(
-    (appliedPromo && (appliedPromo.gift_id || appliedPromo.gift_service_id)) || 0
+function stripMethodPrefix(value) {
+  const normalized = normalizeServiceTextForMatch(value);
+  return normalized.replace(/^(сахар|шугаринг|воск|wax)\s*/i, '').trim();
+}
+
+function complexContainsGiftZone(complexService, giftService) {
+  const complexText = normalizeServiceTextForMatch(
+    `${complexService && complexService.name ? complexService.name : ''} ${complexService && complexService.description ? complexService.description : ''}`
   );
+  const giftCore = stripMethodPrefix(giftService && giftService.name ? giftService.name : '');
+  if (!complexText || !giftCore) return false;
+  if (complexText.includes(giftCore)) return true;
 
-  if (configuredGiftServiceId > 0) {
-    const configuredService = services.find((service) => Number(service.id) === configuredGiftServiceId);
-    if (!configuredService) {
-      return {
-        giftService: null,
-        error: 'Для этого промокода выберите подарочную зону, указанную мастером'
-      };
-    }
-    if (isComplexServiceRow(configuredService)) {
-      return {
-        giftService: null,
-        error: 'Подарочная зона промокода должна быть зоной эпиляции'
-      };
-    }
-    return { giftService: configuredService, error: null };
-  }
+  const keywords = giftCore
+    .split(' ')
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3);
+  if (!keywords.length) return false;
+  return keywords.every((keyword) => complexText.includes(keyword));
+}
 
-  const zoneServices = services.filter((service) => !isComplexServiceRow(service));
-  if (!zoneServices.length) {
-    return {
-      giftService: null,
-      error: 'Промокод «Зона в подарок» действует только на зоны эпиляции'
-    };
-  }
+function buildPromoGiftServiceFromRow(appliedPromo) {
+  const giftId = Number((appliedPromo && (appliedPromo.gift_id || appliedPromo.gift_service_id)) || 0);
+  if (!giftId) return null;
+
   return {
-    giftService: selectCheapestService(zoneServices),
+    id: giftId,
+    master_id: Number(appliedPromo && appliedPromo.gift_master_id ? appliedPromo.gift_master_id : appliedPromo.master_id || 0),
+    name: String(appliedPromo && appliedPromo.gift_name ? appliedPromo.gift_name : ''),
+    duration_minutes: Number(appliedPromo && appliedPromo.gift_duration_minutes ? appliedPromo.gift_duration_minutes : 0),
+    price: Number(appliedPromo && appliedPromo.gift_price ? appliedPromo.gift_price : 0),
+    description: appliedPromo && appliedPromo.gift_description ? String(appliedPromo.gift_description) : '',
+    buffer_before_minutes: Number(appliedPromo && appliedPromo.gift_buffer_before_minutes ? appliedPromo.gift_buffer_before_minutes : 0),
+    buffer_after_minutes: Number(appliedPromo && appliedPromo.gift_buffer_after_minutes ? appliedPromo.gift_buffer_after_minutes : 0),
+    is_active: appliedPromo && appliedPromo.gift_is_active !== undefined ? Boolean(appliedPromo.gift_is_active) : true
+  };
+}
+
+function resolvePromoReward(appliedPromo, selectedServices) {
+  const services = Array.isArray(selectedServices) ? selectedServices.filter(Boolean) : [];
+  const rewardType = String(appliedPromo && appliedPromo.reward_type ? appliedPromo.reward_type : '');
+
+  const result = {
+    promoDiscountPercent: null,
+    promoFixedAmountRub: null,
+    promoGiftService: null,
+    promoGiftServiceAdded: false,
+    promoGiftAppliedToComplex: false,
+    promoGiftComplexDiscountRub: null,
+    promoGiftComplexServiceName: null,
+    promoDiscountAmount: 0,
+    effectiveServices: services.slice(),
     error: null
   };
+
+  if (rewardType === 'percent') {
+    result.promoDiscountPercent = Number(appliedPromo && appliedPromo.discount_percent ? appliedPromo.discount_percent : 0);
+    result.promoDiscountAmount = null;
+    return result;
+  }
+
+  if (rewardType === 'fixed_amount') {
+    result.promoFixedAmountRub = Number(appliedPromo && appliedPromo.fixed_amount_rub ? appliedPromo.fixed_amount_rub : 0);
+    if (!Number.isFinite(result.promoFixedAmountRub) || result.promoFixedAmountRub <= 0) {
+      result.error = 'Некорректная сумма фиксированного промокода';
+    }
+    return result;
+  }
+
+  if (rewardType === 'gift_service') {
+    const configuredGiftService = buildPromoGiftServiceFromRow(appliedPromo);
+    if (!configuredGiftService || !configuredGiftService.id) {
+      result.error = 'Для этого промокода мастеру нужно выбрать подарочную зону';
+      return result;
+    }
+    if (!configuredGiftService.is_active) {
+      result.error = 'Подарочная зона недоступна';
+      return result;
+    }
+    if (isComplexServiceRow(configuredGiftService)) {
+      result.error = 'Подарком может быть только зона эпиляции, а не комплекс';
+      return result;
+    }
+
+    result.promoGiftService = configuredGiftService;
+
+    const selectedGiftService = services.find((service) => Number(service.id) === Number(configuredGiftService.id));
+    if (selectedGiftService) {
+      result.promoDiscountAmount = Number(selectedGiftService.price || 0);
+      return result;
+    }
+
+    const complexService = services.find((service) => (
+      isComplexServiceRow(service) && complexContainsGiftZone(service, configuredGiftService)
+    ));
+    if (complexService) {
+      const configuredComplexDiscount = Number(
+        appliedPromo && appliedPromo.gift_complex_discount_rub !== null && appliedPromo.gift_complex_discount_rub !== undefined
+          ? appliedPromo.gift_complex_discount_rub
+          : 0
+      );
+      const normalizedComplexDiscount = Number.isFinite(configuredComplexDiscount)
+        ? Math.max(0, Math.round(configuredComplexDiscount))
+        : 0;
+      result.promoGiftAppliedToComplex = true;
+      result.promoGiftComplexServiceName = String(complexService.name || '');
+      result.promoGiftComplexDiscountRub = normalizedComplexDiscount;
+      result.promoDiscountAmount = normalizedComplexDiscount > 0
+        ? normalizedComplexDiscount
+        : Number(configuredGiftService.price || 0);
+      return result;
+    }
+
+    result.effectiveServices.push(configuredGiftService);
+    result.promoGiftServiceAdded = true;
+    result.promoDiscountAmount = Number(configuredGiftService.price || 0);
+    return result;
+  }
+
+  result.error = 'Неподдерживаемый тип промокода';
+  return result;
 }
 
 function resolveMasterTimezone(master) {
@@ -834,6 +920,17 @@ router.post('/master/:slug/pricing-preview', async (req, res) => {
     let appliedPromo = null;
     let promoGiftService = null;
     let promoDiscountPercent = null;
+    let promoFixedAmountRub = null;
+    let promoGiftServiceAdded = false;
+    let promoGiftAppliedToComplex = false;
+    let promoGiftComplexDiscountRub = null;
+    let promoGiftComplexServiceName = null;
+    let promoDiscountAmountFromReward = null;
+
+    let effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
+    if (effectiveServices.length !== normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'Не удалось собрать услуги для расчёта' });
+    }
 
     if (promoCodeInput) {
       appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
@@ -841,37 +938,37 @@ router.post('/master/:slug/pricing-preview', async (req, res) => {
         return res.status(400).json({ error: 'Промокод не найден или неактивен' });
       }
 
-      if (appliedPromo.reward_type === 'percent') {
-        promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
-      } else if (appliedPromo.reward_type === 'gift_service') {
-        const giftResolution = resolvePromoGiftService(appliedPromo, loadedServices);
-        if (giftResolution.error) {
-          return res.status(400).json({ error: giftResolution.error });
-        }
-        promoGiftService = giftResolution.giftService;
-      } else {
-        return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
+      const promoResolution = resolvePromoReward(appliedPromo, effectiveServices);
+      if (promoResolution.error) {
+        return res.status(400).json({ error: promoResolution.error });
       }
+      promoDiscountPercent = promoResolution.promoDiscountPercent;
+      promoFixedAmountRub = promoResolution.promoFixedAmountRub;
+      promoGiftService = promoResolution.promoGiftService;
+      promoGiftServiceAdded = promoResolution.promoGiftServiceAdded;
+      promoGiftAppliedToComplex = promoResolution.promoGiftAppliedToComplex;
+      promoGiftComplexDiscountRub = promoResolution.promoGiftComplexDiscountRub;
+      promoGiftComplexServiceName = promoResolution.promoGiftComplexServiceName;
+      promoDiscountAmountFromReward = promoResolution.promoDiscountAmount;
+      effectiveServices = promoResolution.effectiveServices;
     }
-
-    const effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
-    if (effectiveServices.length !== normalizedServiceIds.length) {
-      return res.status(400).json({ error: 'Не удалось собрать услуги для расчёта' });
-    }
+    const effectiveServiceIds = effectiveServices.map((service) => Number(service.id)).filter((id) => id > 0);
 
     const totalDurationMinutes = effectiveServices.reduce((sum, service) => sum + Number(service.duration_minutes || 0), 0);
     const totalBasePrice = effectiveServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
     let discountAmount = 0;
     if (promoDiscountPercent !== null) {
       discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
-    } else if (promoGiftService) {
-      discountAmount = Number(promoGiftService.price || 0);
+    } else if (promoFixedAmountRub !== null) {
+      discountAmount = promoFixedAmountRub;
+    } else if (promoDiscountAmountFromReward !== null) {
+      discountAmount = Number(promoDiscountAmountFromReward || 0);
     }
     discountAmount = Math.min(totalBasePrice, Math.max(0, discountAmount));
     const finalPrice = Math.max(0, Math.round((totalBasePrice - discountAmount) * 100) / 100);
 
     return res.json({
-      service_ids: normalizedServiceIds,
+      service_ids: effectiveServiceIds,
       total_duration_minutes: totalDurationMinutes,
       pricing: {
         base_price: totalBasePrice,
@@ -881,8 +978,12 @@ router.post('/master/:slug/pricing-preview', async (req, res) => {
         promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
         promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
         promo_discount_percent: promoDiscountPercent,
+        promo_fixed_amount_rub: promoFixedAmountRub,
+        promo_gift_complex_discount_rub: promoGiftComplexDiscountRub,
+        promo_gift_applied_to_complex: promoGiftAppliedToComplex,
+        promo_gift_complex_service_name: promoGiftComplexServiceName,
         promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
-        promo_gift_service_added: false
+        promo_gift_service_added: promoGiftServiceAdded
       }
     });
   } catch (error) {
@@ -943,6 +1044,17 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     let appliedPromo = null;
     let promoGiftService = null;
     let promoDiscountPercent = null;
+    let promoFixedAmountRub = null;
+    let promoGiftServiceAdded = false;
+    let promoGiftAppliedToComplex = false;
+    let promoGiftComplexDiscountRub = null;
+    let promoGiftComplexServiceName = null;
+    let promoDiscountAmountFromReward = null;
+
+    let effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
+    if (effectiveServices.length !== normalizedServiceIds.length) {
+      return res.status(400).json({ error: 'Не удалось собрать услуги для записи' });
+    }
 
     if (promoCodeInput) {
       appliedPromo = await loadActivePromoCode(master.id, promoCodeInput);
@@ -950,21 +1062,24 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Промокод не найден или неактивен' });
       }
 
-      if (appliedPromo.reward_type === 'percent') {
-        promoDiscountPercent = Number(appliedPromo.discount_percent || 0);
-      } else if (appliedPromo.reward_type === 'gift_service') {
-        const giftResolution = resolvePromoGiftService(appliedPromo, loadedServices);
-        if (giftResolution.error) {
-          return res.status(400).json({ error: giftResolution.error });
-        }
-        promoGiftService = giftResolution.giftService;
-      } else {
-        return res.status(400).json({ error: 'Неподдерживаемый тип промокода' });
+      const promoResolution = resolvePromoReward(appliedPromo, effectiveServices);
+      if (promoResolution.error) {
+        return res.status(400).json({ error: promoResolution.error });
       }
+      promoDiscountPercent = promoResolution.promoDiscountPercent;
+      promoFixedAmountRub = promoResolution.promoFixedAmountRub;
+      promoGiftService = promoResolution.promoGiftService;
+      promoGiftServiceAdded = promoResolution.promoGiftServiceAdded;
+      promoGiftAppliedToComplex = promoResolution.promoGiftAppliedToComplex;
+      promoGiftComplexDiscountRub = promoResolution.promoGiftComplexDiscountRub;
+      promoGiftComplexServiceName = promoResolution.promoGiftComplexServiceName;
+      promoDiscountAmountFromReward = promoResolution.promoDiscountAmount;
+      effectiveServices = promoResolution.effectiveServices;
     }
-
-    const effectiveServices = normalizedServiceIds.map((id) => servicesById.get(id)).filter(Boolean);
-    if (effectiveServices.length !== normalizedServiceIds.length) {
+    const effectiveServiceIds = effectiveServices
+      .map((service) => Number(service.id))
+      .filter((id, idx, arr) => Number.isFinite(id) && id > 0 && arr.indexOf(id) === idx);
+    if (!effectiveServiceIds.length) {
       return res.status(400).json({ error: 'Не удалось собрать услуги для записи' });
     }
 
@@ -1024,8 +1139,10 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     let discountAmount = 0;
     if (promoDiscountPercent !== null) {
       discountAmount = Math.round(totalBasePrice * promoDiscountPercent) / 100;
-    } else if (promoGiftService) {
-      discountAmount = Number(promoGiftService.price || 0);
+    } else if (promoFixedAmountRub !== null) {
+      discountAmount = promoFixedAmountRub;
+    } else if (promoDiscountAmountFromReward !== null) {
+      discountAmount = Number(promoDiscountAmountFromReward || 0);
     } else if (appliedHotWindow) {
       if (appliedHotWindow.reward_type === 'percent') {
         discountAmount = Math.round(totalBasePrice * Number(appliedHotWindow.discount_percent || 0)) / 100;
@@ -1072,8 +1189,8 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       });
     }
 
-    const primaryServiceId = normalizedServiceIds[0];
-    const extraServiceIds = normalizedServiceIds.slice(1);
+    const primaryServiceId = effectiveServiceIds[0];
+    const extraServiceIds = effectiveServiceIds.slice(1);
     const endDate = new Date(startDate.getTime() + totalDurationMinutes * 60000);
 
     const bookingStatus = isWebBooking ? 'pending_confirmation' : 'confirmed';
@@ -1083,13 +1200,14 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
     const insertSql = `INSERT INTO bookings
          (master_id, client_id, service_id, extra_service_ids, start_at, end_at, status, source, client_note,
           promo_code_id, promo_code, promo_reward_type, promo_discount_percent, promo_gift_service_id,
+          promo_fixed_amount_rub, promo_gift_complex_discount_rub,
           hot_window_id, hot_window_reward_type, hot_window_discount_percent, hot_window_gift_service_id,
           pricing_base, pricing_final, pricing_discount_amount,
           web_confirm_token, web_contact_channel)
        VALUES ($1, $2, $3, $4, $5, $6, $20, $21, $7,
-               $8, $9, $10, $11, $12,
-               $13, $14, $15, $16,
-               $17, $18, $19,
+               $8, $9, $10, $11, $12, $13, $14,
+               $15, $16, $17, $18,
+               $19, $24, $25,
                $22, $23)
        RETURNING *`;
     const insertParams = [
@@ -1105,6 +1223,8 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       appliedPromo ? String(appliedPromo.reward_type) : null,
       promoDiscountPercent,
       promoGiftService ? Number(promoGiftService.id) : null,
+      promoFixedAmountRub,
+      promoGiftComplexDiscountRub,
       appliedHotWindow ? Number(appliedHotWindow.id) : null,
       appliedHotWindow ? String(appliedHotWindow.reward_type) : null,
       appliedHotWindow && appliedHotWindow.reward_type === 'percent' ? Number(appliedHotWindow.discount_percent) : null,
@@ -1191,8 +1311,12 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
         promo_reward_type: appliedPromo ? String(appliedPromo.reward_type) : null,
         promo_usage_mode: appliedPromo ? String(appliedPromo.usage_mode || 'always') : null,
         promo_discount_percent: promoDiscountPercent,
+        promo_fixed_amount_rub: promoFixedAmountRub,
+        promo_gift_complex_discount_rub: promoGiftComplexDiscountRub,
+        promo_gift_applied_to_complex: promoGiftAppliedToComplex,
+        promo_gift_complex_service_name: promoGiftComplexServiceName,
         promo_gift_service_name: promoGiftService ? promoGiftService.name : null,
-        promo_gift_service_added: false,
+        promo_gift_service_added: promoGiftServiceAdded,
         hot_window_id: appliedHotWindow ? Number(appliedHotWindow.id) : null,
         hot_window_reward_type: appliedHotWindow ? String(appliedHotWindow.reward_type) : null,
         hot_window_discount_percent: appliedHotWindow && appliedHotWindow.reward_type === 'percent' ? Number(appliedHotWindow.discount_percent) : null,

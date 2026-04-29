@@ -576,37 +576,71 @@ describe('Master API', () => {
       expect(res.body.error).toBe('discount_percent must be integer between 1 and 100');
     });
 
-    it('should create gift-service promo code', async () => {
+    it('should create fixed-amount promo code', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
-        .mockResolvedValueOnce({ rows: [{ id: 11, code: 'GIFTLEG', reward_type: 'gift_service', gift_service_id: null, usage_mode: 'always', uses_count: 0, is_active: true }] });
+        .mockResolvedValueOnce({
+          rows: [{ id: 13, code: 'SAVE500', reward_type: 'fixed_amount', fixed_amount_rub: 500, usage_mode: 'always', uses_count: 0, is_active: true }]
+        });
 
       const res = await request(app)
         .post('/api/master/promo-codes')
         .set('Authorization', authHeader)
-        .send({ code: 'giftleg', reward_type: 'gift_service' })
+        .send({ code: 'save500', reward_type: 'fixed_amount', fixed_amount_rub: 500 })
+        .expect(201);
+
+      expect(res.body.code).toBe('SAVE500');
+      expect(res.body.reward_type).toBe('fixed_amount');
+      expect(res.body.fixed_amount_rub).toBe(500);
+    });
+
+    it('should create gift-service promo code', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 101, master_id: 1, name: 'Сахар: Бёдра', description: '', is_active: true }] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 11,
+            code: 'GIFTLEG',
+            reward_type: 'gift_service',
+            gift_service_id: 101,
+            gift_complex_discount_rub: 500,
+            usage_mode: 'always',
+            uses_count: 0,
+            is_active: true
+          }]
+        });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'giftleg', reward_type: 'gift_service', gift_service_id: 101, gift_complex_discount_rub: 500 })
         .expect(201);
 
       expect(res.body.code).toBe('GIFTLEG');
       expect(res.body.reward_type).toBe('gift_service');
-      expect(res.body.gift_service_id).toBeNull();
+      expect(res.body.gift_service_id).toBe(101);
+      expect(res.body.gift_complex_discount_rub).toBe(500);
     });
 
     it('should create gift-service promo code on legacy schema without is_active/usage_mode columns', async () => {
       const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockResolvedValueOnce({ rows: [{ id: 101, master_id: 1, name: 'Сахар: Бёдра', description: '', is_active: true }] })
         .mockRejectedValueOnce(missingColumnError)
-        .mockResolvedValueOnce({ rows: [{ id: 21, code: 'LEGACYGIFT', reward_type: 'gift_service', gift_service_id: null, is_active: true }] });
+        .mockResolvedValueOnce({
+          rows: [{ id: 21, code: 'LEGACYGIFT', reward_type: 'gift_service', gift_service_id: 101, gift_complex_discount_rub: 300, is_active: true }]
+        });
 
       const res = await request(app)
         .post('/api/master/promo-codes')
         .set('Authorization', authHeader)
-        .send({ code: 'legacygift', reward_type: 'gift_service' })
+        .send({ code: 'legacygift', reward_type: 'gift_service', gift_service_id: 101, gift_complex_discount_rub: 300 })
         .expect(201);
 
       expect(res.body.code).toBe('LEGACYGIFT');
-      expect(res.body.gift_service_id).toBeNull();
+      expect(res.body.gift_service_id).toBe(101);
       expect(res.body.usage_mode).toBe('always');
       expect(res.body.uses_count).toBe(0);
     });

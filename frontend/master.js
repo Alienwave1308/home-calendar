@@ -271,12 +271,15 @@
     const knownErrors = {
       'code must be 3-64 chars': 'Промокод должен содержать от 3 до 64 символов',
       'code may contain only A-Z, 0-9, _ and -': 'Промокод может содержать только латинские буквы A-Z, цифры, "_" и "-"',
-      'reward_type must be percent or gift_service': 'Выберите корректный тип промокода',
+      'reward_type must be percent, fixed_amount or gift_service': 'Выберите корректный тип промокода',
       'usage_mode must be always or single_use': 'Выберите корректный режим использования промокода',
-      'discount_percent must be integer between 1 and 90': 'Скидка должна быть целым числом от 1 до 100',
+      'discount_percent must be integer between 1 and 90': 'Скидка должна быть целым числом от 1 до 90',
       'discount_percent must be integer between 1 and 100': 'Скидка должна быть целым числом от 1 до 100',
+      'fixed_amount_rub must be integer between 1 and 1000000': 'Скидка в рублях должна быть целым числом от 1 до 1 000 000',
       'gift_service_id must be a positive integer': 'Выберите подарочную зону',
+      'gift_complex_discount_rub must be integer between 0 and 1000000': 'Скидка на комплекс должна быть от 0 до 1 000 000 ₽',
       'gift service is not available': 'Подарочная зона недоступна',
+      'Для этого промокода мастеру нужно выбрать подарочную зону': 'Для этого промокода выберите подарочную зону',
       'gift service must be an epilation zone, not a complex': 'Подарком может быть только зона эпиляции, а не комплекс',
       'promo code already exists': 'Промокод уже существует'
     };
@@ -775,6 +778,8 @@
     if (b.promo_code) {
       if (b.promo_reward_type === 'percent' && b.promo_discount_percent) {
         discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' −' + b.promo_discount_percent + '%</span>';
+      } else if (b.promo_reward_type === 'fixed_amount' && b.promo_fixed_amount_rub) {
+        discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' −' + Number(b.promo_fixed_amount_rub) + ' ₽</span>';
       } else if (b.promo_reward_type === 'gift_service') {
         discountBadge = '<span class="booking-discount-badge promo">🎟 ' + escapeHtml(b.promo_code) + ' (подарок)</span>';
       }
@@ -1552,6 +1557,16 @@
 
   // === SETTINGS ===
 
+  async function ensureServicesCache() {
+    if (Array.isArray(servicesCache) && servicesCache.length) return;
+    try {
+      const services = await apiFetch('/services');
+      servicesCache = Array.isArray(services) ? services : [];
+    } catch {
+      servicesCache = [];
+    }
+  }
+
   async function loadSettings() {
     let appleSettings = null;
     try {
@@ -1631,6 +1646,7 @@
     }
 
     renderAppleCalendarSettings(appleSettings);
+    await ensureServicesCache();
     await loadAvailabilitySettings();
     await loadHotWindows();
     await loadPromoCodes();
@@ -1752,13 +1768,48 @@
     }
   }
 
+  function isComplexServiceItem(service) {
+    const name = String(service && service.name ? service.name : '');
+    const description = String(service && service.description ? service.description : '');
+    return /комплекс/i.test(name) || /комплекс/i.test(description);
+  }
+
+  function getZoneServices() {
+    return servicesCache.filter(function (service) {
+      return service && service.is_active && !isComplexServiceItem(service);
+    });
+  }
+
+  function populatePromoGiftServiceSelect() {
+    const giftEl = $('promoGiftServiceId');
+    if (!giftEl) return;
+
+    const zones = getZoneServices();
+    giftEl.innerHTML = zones.length
+      ? zones.map(function (service) {
+        return '<option value="' + service.id + '">' + escapeHtml(service.name) + ' (' + Number(service.price) + ' ₽)</option>';
+      }).join('')
+      : '<option value="">Нет доступных зон</option>';
+  }
+
   function onPromoRewardTypeChange() {
     const typeEl = $('promoRewardType');
     const discountEl = $('promoDiscountPercent');
-    if (!typeEl || !discountEl) return;
+    const fixedEl = $('promoFixedAmountRub');
+    const giftEl = $('promoGiftServiceId');
+    const giftComplexEl = $('promoGiftComplexDiscountRub');
+    if (!typeEl) return;
 
     const isPercent = typeEl.value === 'percent';
-    discountEl.style.display = isPercent ? '' : 'none';
+    const isFixed = typeEl.value === 'fixed_amount';
+    const isGift = typeEl.value === 'gift_service';
+
+    if (discountEl) discountEl.style.display = isPercent ? '' : 'none';
+    if (fixedEl) fixedEl.style.display = isFixed ? '' : 'none';
+    if (giftEl) giftEl.style.display = isGift ? '' : 'none';
+    if (giftComplexEl) giftComplexEl.style.display = isGift ? '' : 'none';
+
+    if (isGift) populatePromoGiftServiceSelect();
   }
 
   function renderPromoCodes() {
@@ -1771,12 +1822,22 @@
     }
 
     listEl.innerHTML = promoCodesCache.map(function (promo) {
-      const reward = promo.reward_type === 'percent'
-        ? 'Скидка ' + Number(promo.discount_percent || 0) + '%'
-        : 'Подарок: ' + escapeHtml(promo.gift_service_name || 'Зона в подарок');
+      let reward = 'Промо';
+      if (promo.reward_type === 'percent') {
+        reward = 'Скидка ' + Number(promo.discount_percent || 0) + '%';
+      } else if (promo.reward_type === 'fixed_amount') {
+        reward = 'Скидка ' + Number(promo.fixed_amount_rub || 0) + ' ₽';
+      } else if (promo.reward_type === 'gift_service') {
+        reward = 'Подарок: ' + escapeHtml(promo.gift_service_name || 'Зона в подарок');
+        const complexDiscount = Number(promo.gift_complex_discount_rub || 0);
+        if (complexDiscount > 0) {
+          reward += ' · Комплекс: −' + complexDiscount + ' ₽';
+        }
+      }
       const usageMode = String(promo.usage_mode || 'always');
       const usageLabel = usageMode === 'single_use' ? 'Одноразовый' : 'Постоянный';
-      const actualUses = Number(promo.actual_uses_count != null ? promo.actual_uses_count : promo.uses_count || 0);
+      const hasActualUses = promo.actual_uses_count !== null && promo.actual_uses_count !== undefined;
+      const actualUses = Number(hasActualUses ? promo.actual_uses_count : promo.uses_count || 0);
       const usageState = usageMode === 'single_use'
         ? (actualUses > 0 ? 'использован' : 'не использован')
         : ('применён ' + actualUses + ' ' + (actualUses === 1 ? 'раз' : actualUses >= 2 && actualUses <= 4 ? 'раза' : 'раз'));
@@ -1807,6 +1868,7 @@
       const promoCodes = await apiFetch('/promo-codes');
       promoCodesCache = Array.isArray(promoCodes) ? promoCodes : [];
       renderPromoCodes();
+      populatePromoGiftServiceSelect();
       onPromoRewardTypeChange();
     } catch (err) {
       promoCodesCache = [];
@@ -1821,6 +1883,9 @@
       const typeEl = $('promoRewardType');
       const usageModeEl = $('promoUsageMode');
       const discountEl = $('promoDiscountPercent');
+      const fixedEl = $('promoFixedAmountRub');
+      const giftEl = $('promoGiftServiceId');
+      const giftComplexEl = $('promoGiftComplexDiscountRub');
       if (!codeEl || !typeEl || !usageModeEl || !discountEl) return;
 
       const code = String(codeEl.value || '').trim().toUpperCase();
@@ -1839,6 +1904,26 @@
           return;
         }
         payload.discount_percent = discount;
+      } else if (rewardType === 'fixed_amount') {
+        const fixedAmount = Number(fixedEl && fixedEl.value);
+        if (!Number.isInteger(fixedAmount) || fixedAmount < 1 || fixedAmount > 1000000) {
+          showToast('Скидка в рублях должна быть целым числом от 1 до 1 000 000');
+          return;
+        }
+        payload.fixed_amount_rub = fixedAmount;
+      } else if (rewardType === 'gift_service') {
+        const giftServiceId = Number(giftEl && giftEl.value);
+        if (!Number.isInteger(giftServiceId) || giftServiceId <= 0) {
+          showToast('Выберите подарочную зону');
+          return;
+        }
+        const complexDiscount = Number(giftComplexEl && giftComplexEl.value);
+        if (!Number.isInteger(complexDiscount) || complexDiscount < 0 || complexDiscount > 1000000) {
+          showToast('Скидка на комплекс должна быть от 0 до 1 000 000 ₽');
+          return;
+        }
+        payload.gift_service_id = giftServiceId;
+        payload.gift_complex_discount_rub = complexDiscount;
       }
 
       await apiMethod('POST', '/promo-codes', payload);
@@ -1888,9 +1973,7 @@
   function populateHwGiftServiceSelect() {
     const giftEl = $('hwGiftServiceId');
     if (!giftEl) return;
-    const zones = servicesCache.filter(function (s) {
-      return s.is_active && !/комплекс/i.test(String(s.name || '')) && !/комплекс/i.test(String(s.description || ''));
-    });
+    const zones = getZoneServices();
     giftEl.innerHTML = zones.length
       ? zones.map(function (s) { return '<option value="' + s.id + '">' + escapeHtml(s.name) + ' (' + Number(s.price) + ' ₽)</option>'; }).join('')
       : '<option value="">Нет доступных зон</option>';

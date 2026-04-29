@@ -257,7 +257,9 @@ async function ensureRuntimeSchemaCompatibility() {
 
   for (const [columnName, definition] of [
     ['usage_mode', `VARCHAR(20) NOT NULL DEFAULT 'always'`],
-    ['uses_count', 'INTEGER NOT NULL DEFAULT 0']
+    ['uses_count', 'INTEGER NOT NULL DEFAULT 0'],
+    ['fixed_amount_rub', 'INTEGER'],
+    ['gift_complex_discount_rub', 'INTEGER']
   ]) {
     try {
       await ensureColumn('master_promo_codes', columnName, definition);
@@ -287,6 +289,52 @@ async function ensureRuntimeSchemaCompatibility() {
   }
 
   try {
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = current_schema()
+            AND table_name = 'master_promo_codes'
+        ) THEN
+          IF EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'master_promo_codes_reward_check'
+              AND conrelid = 'master_promo_codes'::regclass
+          ) THEN
+            ALTER TABLE master_promo_codes
+              DROP CONSTRAINT master_promo_codes_reward_check;
+          END IF;
+
+          ALTER TABLE master_promo_codes
+            ADD CONSTRAINT master_promo_codes_reward_check
+            CHECK (
+              (reward_type = 'percent'
+                AND discount_percent BETWEEN 1 AND 100
+                AND fixed_amount_rub IS NULL
+                AND gift_complex_discount_rub IS NULL)
+              OR
+              (reward_type = 'gift_service'
+                AND discount_percent IS NULL
+                AND fixed_amount_rub IS NULL
+                AND (gift_complex_discount_rub IS NULL OR gift_complex_discount_rub >= 0))
+              OR
+              (reward_type = 'fixed_amount'
+                AND fixed_amount_rub >= 1
+                AND discount_percent IS NULL
+                AND gift_service_id IS NULL
+                AND gift_complex_discount_rub IS NULL)
+            );
+        END IF;
+      END $$;
+    `);
+  } catch (error) {
+    console.error('Schema compatibility: failed to ensure promo reward constraint:', error);
+  }
+
+  try {
     await pool.query(
       'CREATE UNIQUE INDEX IF NOT EXISTS master_promo_codes_master_code_unique ON master_promo_codes(master_id, code)'
     );
@@ -305,6 +353,8 @@ async function ensureRuntimeSchemaCompatibility() {
     ['promo_code', 'VARCHAR(64)'],
     ['promo_reward_type', 'VARCHAR(20)'],
     ['promo_discount_percent', 'INTEGER'],
+    ['promo_fixed_amount_rub', 'INTEGER'],
+    ['promo_gift_complex_discount_rub', 'INTEGER'],
     ['promo_gift_service_id', 'INTEGER REFERENCES services(id) ON DELETE SET NULL'],
     ['pricing_base', 'NUMERIC(10, 2)'],
     ['pricing_final', 'NUMERIC(10, 2)'],
