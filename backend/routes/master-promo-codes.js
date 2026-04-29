@@ -173,29 +173,11 @@ router.post('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
 
   let result;
   try {
-    result = await pool.query(
-      `INSERT INTO master_promo_codes
-         (master_id, code, reward_type, discount_percent, fixed_amount_rub, gift_service_id, gift_complex_discount_rub, usage_mode, uses_count, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, true)
-       RETURNING *`,
-      [
-        req.master.id,
-        rawCode,
-        rewardType,
-        discountPercent,
-        fixedAmountRub,
-        giftServiceId,
-        giftComplexDiscountRub,
-        usageMode
-      ]
-    );
-  } catch (insertError) {
-    if (insertError.code !== '42703') throw insertError;
     try {
       result = await pool.query(
         `INSERT INTO master_promo_codes
-           (master_id, code, reward_type, discount_percent, fixed_amount_rub, gift_service_id, gift_complex_discount_rub, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+           (master_id, code, reward_type, discount_percent, fixed_amount_rub, gift_service_id, gift_complex_discount_rub, usage_mode, uses_count, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, true)
          RETURNING *`,
         [
           req.master.id,
@@ -204,36 +186,68 @@ router.post('/promo-codes', loadMaster, asyncRoute(async (req, res) => {
           discountPercent,
           fixedAmountRub,
           giftServiceId,
-          giftComplexDiscountRub
+          giftComplexDiscountRub,
+          usageMode
         ]
       );
-    } catch (legacyInsertError) {
-      if (legacyInsertError.code !== '42703') throw legacyInsertError;
-      result = await pool.query(
-        `INSERT INTO master_promo_codes
-           (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
-         VALUES ($1, $2, $3, $4, $5, true)
-         RETURNING *`,
-        [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
-      );
-    }
-    if (result.rows[0]) {
-      if (result.rows[0].fixed_amount_rub === undefined) result.rows[0].fixed_amount_rub = fixedAmountRub;
-      if (result.rows[0].gift_complex_discount_rub === undefined) {
-        result.rows[0].gift_complex_discount_rub = giftComplexDiscountRub;
+    } catch (insertError) {
+      if (insertError.code !== '42703') throw insertError;
+      try {
+        result = await pool.query(
+          `INSERT INTO master_promo_codes
+             (master_id, code, reward_type, discount_percent, fixed_amount_rub, gift_service_id, gift_complex_discount_rub, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+           RETURNING *`,
+          [
+            req.master.id,
+            rawCode,
+            rewardType,
+            discountPercent,
+            fixedAmountRub,
+            giftServiceId,
+            giftComplexDiscountRub
+          ]
+        );
+      } catch (legacyInsertError) {
+        if (legacyInsertError.code !== '42703') throw legacyInsertError;
+        result = await pool.query(
+          `INSERT INTO master_promo_codes
+             (master_id, code, reward_type, discount_percent, gift_service_id, is_active)
+           VALUES ($1, $2, $3, $4, $5, true)
+           RETURNING *`,
+          [req.master.id, rawCode, rewardType, discountPercent, giftServiceId]
+        );
       }
-      result.rows[0].usage_mode = 'always';
-      result.rows[0].uses_count = 0;
+      if (result.rows[0]) {
+        if (result.rows[0].fixed_amount_rub === undefined) result.rows[0].fixed_amount_rub = fixedAmountRub;
+        if (result.rows[0].gift_complex_discount_rub === undefined) {
+          result.rows[0].gift_complex_discount_rub = giftComplexDiscountRub;
+        }
+        result.rows[0].usage_mode = 'always';
+        result.rows[0].uses_count = 0;
+      }
     }
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Промокод уже существует' });
+    }
+    if (error.code === '23514') {
+      if (rewardType === 'fixed_amount') {
+        return res.status(400).json({
+          error: 'Скидка в рублях пока недоступна: требуется обновление схемы промокодов на сервере'
+        });
+      }
+      return res.status(400).json({ error: 'Некорректные параметры промокода' });
+    }
+    console.error('Error creating promo code:', error);
+    return res.status(500).json({ error: 'Server error' });
   }
 
   if (!result || !result.rows[0]) {
-    throw new Error('Insert returned no rows');
+    console.error('Error creating promo code: insert returned no rows');
+    return res.status(500).json({ error: 'Server error' });
   }
-  if (result.rows[0].code === '23505') {
-    return res.status(409).json({ error: 'promo code already exists' });
-  }
-  res.status(201).json(result.rows[0]);
+  return res.status(201).json(result.rows[0]);
 }));
 
 // PATCH /api/master/promo-codes/:id
