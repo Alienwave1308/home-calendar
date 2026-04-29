@@ -594,6 +594,39 @@ describe('Master API', () => {
       expect(res.body.fixed_amount_rub).toBe(500);
     });
 
+    it('should return 409 when promo code already exists', async () => {
+      const duplicateError = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(duplicateError);
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'sale', reward_type: 'percent', discount_percent: 10 })
+        .expect(409);
+
+      expect(res.body.error).toBe('Промокод уже существует');
+    });
+
+    it('should return clear error when fixed-amount promo is created on legacy promo schema', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      const legacyConstraintError = Object.assign(new Error('check constraint violation'), { code: '23514' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockRejectedValueOnce(missingColumnError)
+        .mockRejectedValueOnce(legacyConstraintError);
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'save500', reward_type: 'fixed_amount', fixed_amount_rub: 500 })
+        .expect(400);
+
+      expect(res.body.error).toContain('Скидка в рублях');
+    });
+
     it('should create gift-service promo code', async () => {
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
