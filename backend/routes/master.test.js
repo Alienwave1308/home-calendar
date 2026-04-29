@@ -609,14 +609,41 @@ describe('Master API', () => {
       expect(res.body.error).toBe('Промокод уже существует');
     });
 
-    it('should return clear error when fixed-amount promo is created on legacy promo schema', async () => {
+    it('should auto-repair legacy promo schema and create fixed-amount promo code', async () => {
       const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
       const legacyConstraintError = Object.assign(new Error('check constraint violation'), { code: '23514' });
       pool.query
         .mockResolvedValueOnce({ rows: [masterRow] })
         .mockRejectedValueOnce(missingColumnError)
         .mockRejectedValueOnce(missingColumnError)
-        .mockRejectedValueOnce(legacyConstraintError);
+        .mockRejectedValueOnce(legacyConstraintError)
+        .mockResolvedValueOnce({ rows: [] }) // ALTER TABLE ... fixed_amount_rub
+        .mockResolvedValueOnce({ rows: [] }) // ALTER TABLE ... gift_complex_discount_rub
+        .mockResolvedValueOnce({ rows: [] }) // DO $$ ... reward_check
+        .mockResolvedValueOnce({
+          rows: [{ id: 14, code: 'SAVE500', reward_type: 'fixed_amount', fixed_amount_rub: 500, usage_mode: 'always', uses_count: 0, is_active: true }]
+        });
+
+      const res = await request(app)
+        .post('/api/master/promo-codes')
+        .set('Authorization', authHeader)
+        .send({ code: 'save500', reward_type: 'fixed_amount', fixed_amount_rub: 500 })
+        .expect(201);
+
+      expect(res.body.code).toBe('SAVE500');
+      expect(res.body.fixed_amount_rub).toBe(500);
+    });
+
+    it('should return clear error when fixed-amount schema repair fails', async () => {
+      const missingColumnError = Object.assign(new Error('column does not exist'), { code: '42703' });
+      const legacyConstraintError = Object.assign(new Error('check constraint violation'), { code: '23514' });
+      const repairFailedError = Object.assign(new Error('permission denied for table master_promo_codes'), { code: '42501' });
+      pool.query
+        .mockResolvedValueOnce({ rows: [masterRow] })
+        .mockRejectedValueOnce(missingColumnError)
+        .mockRejectedValueOnce(missingColumnError)
+        .mockRejectedValueOnce(legacyConstraintError)
+        .mockRejectedValueOnce(repairFailedError);
 
       const res = await request(app)
         .post('/api/master/promo-codes')
