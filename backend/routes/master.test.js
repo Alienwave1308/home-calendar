@@ -632,6 +632,12 @@ describe('Master API', () => {
 
       expect(res.body.code).toBe('SAVE500');
       expect(res.body.fixed_amount_rub).toBe(500);
+      const repairSql = pool.query.mock.calls
+        .map(([query]) => String(query))
+        .find((query) => query.includes('master_promo_codes_reward_check'));
+      expect(repairSql).toContain("WHERE reward_type = 'fixed_amount'");
+      expect(repairSql).toContain("WHERE reward_type = 'gift_service'");
+      expect(repairSql).toContain('COALESCE(fixed_amount_rub, discount_percent)');
     });
 
     it('should return clear error when fixed-amount schema repair fails', async () => {
