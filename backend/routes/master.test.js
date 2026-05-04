@@ -619,6 +619,7 @@ describe('Master API', () => {
         .mockRejectedValueOnce(legacyConstraintError)
         .mockResolvedValueOnce({ rows: [] }) // ALTER TABLE ... fixed_amount_rub
         .mockResolvedValueOnce({ rows: [] }) // ALTER TABLE ... gift_complex_discount_rub
+        .mockResolvedValueOnce({ rows: [] }) // UPDATE master_promo_codes normalization
         .mockResolvedValueOnce({ rows: [] }) // DO $$ ... reward_check
         .mockResolvedValueOnce({
           rows: [{ id: 14, code: 'SAVE500', reward_type: 'fixed_amount', fixed_amount_rub: 500, usage_mode: 'always', uses_count: 0, is_active: true }]

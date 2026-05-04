@@ -52,6 +52,27 @@ async function ensurePromoSchemaSupportsFixedAmount() {
   `);
 
   await pool.query(`
+    UPDATE master_promo_codes
+    SET
+      fixed_amount_rub = CASE
+        WHEN reward_type = 'fixed_amount' THEN fixed_amount_rub
+        ELSE NULL
+      END,
+      discount_percent = CASE
+        WHEN reward_type = 'percent' THEN discount_percent
+        ELSE NULL
+      END,
+      gift_service_id = CASE
+        WHEN reward_type = 'gift_service' THEN gift_service_id
+        ELSE NULL
+      END,
+      gift_complex_discount_rub = CASE
+        WHEN reward_type = 'gift_service' THEN gift_complex_discount_rub
+        ELSE NULL
+      END
+  `);
+
+  await pool.query(`
     DO $$
     BEGIN
       IF EXISTS (
@@ -88,7 +109,8 @@ async function ensurePromoSchemaSupportsFixedAmount() {
               AND discount_percent IS NULL
               AND gift_service_id IS NULL
               AND gift_complex_discount_rub IS NULL)
-          );
+          )
+          NOT VALID;
       END IF;
     END $$;
   `);
