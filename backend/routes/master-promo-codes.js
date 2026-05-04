@@ -74,6 +74,7 @@ async function ensurePromoSchemaSupportsFixedAmount() {
 
   await pool.query(`
     DO $$
+    DECLARE promo_check_name text;
     BEGIN
       IF EXISTS (
         SELECT 1
@@ -81,15 +82,15 @@ async function ensurePromoSchemaSupportsFixedAmount() {
         WHERE table_schema = current_schema()
           AND table_name = 'master_promo_codes'
       ) THEN
-        IF EXISTS (
-          SELECT 1
+        FOR promo_check_name IN
+          SELECT conname
           FROM pg_constraint
-          WHERE conname = 'master_promo_codes_reward_check'
-            AND conrelid = 'master_promo_codes'::regclass
-        ) THEN
-          ALTER TABLE master_promo_codes
-            DROP CONSTRAINT master_promo_codes_reward_check;
-        END IF;
+          WHERE conrelid = 'master_promo_codes'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) ILIKE '%reward_type%'
+        LOOP
+          EXECUTE format('ALTER TABLE master_promo_codes DROP CONSTRAINT %I', promo_check_name);
+        END LOOP;
 
         ALTER TABLE master_promo_codes
           ADD CONSTRAINT master_promo_codes_reward_check
