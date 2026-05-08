@@ -7,8 +7,30 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search || '');
+      var isVkMiniApp = params.has('vk_user_id');
+      window.__HC_IS_VK_MINIAPP__ = isVkMiniApp;
+      if (!isVkMiniApp) {
+        document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\\/script>');
+      }
+    })();
+  </script>
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+  <script>
+    (function () {
+      if (!window.__HC_IS_VK_MINIAPP__) return;
+      try {
+        if (window.vkBridge && typeof window.vkBridge.send === 'function') {
+          window.vkBridge.send('VKWebAppInit');
+          window.__HC_VK_INIT_CALLED__ = true;
+        }
+      } catch (error) {
+        void error;
+      }
+    })();
+  </script>
   <title>RoVa Epil — Запись</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
