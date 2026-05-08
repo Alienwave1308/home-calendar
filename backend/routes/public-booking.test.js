@@ -590,6 +590,14 @@ describe('Public Booking API', () => {
     expect(insertCall[1][2]).toBe(11);
     // extra_service_ids = [12]
     expect(JSON.parse(insertCall[1][3])).toEqual([12]);
+    // status/source/pricing params should match their columns in INSERT
+    expect(insertCall[1][6]).toBe('confirmed');
+    expect(insertCall[1][7]).toBe('telegram_link');
+    expect(insertCall[1][20]).toBe(1700);
+    expect(insertCall[1][21]).toBe(1700);
+    expect(insertCall[1][22]).toBe(0);
+    expect(insertCall[1][23]).toBeNull();
+    expect(insertCall[1][24]).toBeNull();
 
     // Pricing: base = 900+800=1700, promo not applied
     expect(res.body.pricing.base_price).toBe(1700);
@@ -1006,6 +1014,13 @@ describe('Public Booking API', () => {
       .set('Authorization', authHeader)
       .send({ service_id: 11, start_at: startAt, web_contact_channel: 'vk' })
       .expect(201);
+
+    const insertCall = pool.query.mock.calls[6];
+    expect(insertCall[0]).toContain('INSERT INTO bookings');
+    expect(insertCall[1][6]).toBe('pending_confirmation');
+    expect(insertCall[1][7]).toBe('web');
+    expect(insertCall[1][23]).toEqual(expect.any(String));
+    expect(insertCall[1][24]).toBe('vk');
 
     expect(res.body.status).toBe('pending_confirmation');
     expect(res.body.web_contact_channel).toBe('vk');

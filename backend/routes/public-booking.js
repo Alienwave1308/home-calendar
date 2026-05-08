@@ -1204,11 +1204,11 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
           hot_window_id, hot_window_reward_type, hot_window_discount_percent, hot_window_gift_service_id,
           pricing_base, pricing_final, pricing_discount_amount,
           web_confirm_token, web_contact_channel)
-       VALUES ($1, $2, $3, $4, $5, $6, $20, $21, $7,
-               $8, $9, $10, $11, $12, $13, $14,
-               $15, $16, $17, $18,
-               $19, $24, $25,
-               $22, $23)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+               $10, $11, $12, $13, $14, $15, $16,
+               $17, $18, $19, $20,
+               $21, $22, $23,
+               $24, $25)
        RETURNING *`;
     const insertParams = [
       master.id,
@@ -1217,6 +1217,8 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       JSON.stringify(extraServiceIds),
       startDate.toISOString(),
       endDate.toISOString(),
+      bookingStatus,
+      bookingSource,
       client_note || null,
       appliedPromo ? Number(appliedPromo.id) : null,
       appliedPromo ? String(appliedPromo.code) : null,
@@ -1232,8 +1234,6 @@ router.post('/master/:slug/book', authenticateToken, async (req, res) => {
       totalBasePrice,
       finalPrice,
       discountAmount,
-      bookingStatus,
-      bookingSource,
       webConfirmToken,
       webContactChannel
     ];
