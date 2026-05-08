@@ -95,7 +95,10 @@
 
   if (hasVkSession) {
     try {
-      window.vkBridge.send('VKWebAppInit');
+      if (!window.__HC_VK_INIT_CALLED__) {
+        window.vkBridge.send('VKWebAppInit');
+        window.__HC_VK_INIT_CALLED__ = true;
+      }
       void loadVkLaunchParams();
     } catch (error) {
       void error;
