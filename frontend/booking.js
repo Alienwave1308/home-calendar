@@ -401,6 +401,16 @@
     const token = localStorage.getItem('token');
     if (!token) return false;
 
+    const payload = parseJwtPayload(token);
+    if (payload && payload.exp) {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      if (payload.exp <= nowSeconds + 60) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('bookingAuthSession');
+        return false;
+      }
+    }
+
     const currentSessionKey = getCurrentAuthSessionKey();
     if (!currentSessionKey) return true;
     return localStorage.getItem('bookingAuthSession') === currentSessionKey;
