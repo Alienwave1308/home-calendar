@@ -92,6 +92,30 @@ async function ensurePromoSchemaSupportsFixedAmount() {
           EXECUTE format('ALTER TABLE master_promo_codes DROP CONSTRAINT %I', promo_check_name);
         END LOOP;
 
+        UPDATE master_promo_codes
+        SET
+          fixed_amount_rub = COALESCE(fixed_amount_rub, discount_percent),
+          discount_percent = NULL,
+          gift_service_id = NULL,
+          gift_complex_discount_rub = NULL
+        WHERE reward_type = 'fixed_amount'
+          AND fixed_amount_rub IS NULL
+          AND discount_percent IS NOT NULL;
+
+        UPDATE master_promo_codes
+        SET
+          gift_complex_discount_rub = COALESCE(gift_complex_discount_rub, GREATEST(discount_percent, 0)),
+          discount_percent = NULL,
+          fixed_amount_rub = NULL
+        WHERE reward_type = 'gift_service'
+          AND discount_percent IS NOT NULL;
+
+        UPDATE master_promo_codes
+        SET
+          fixed_amount_rub = NULL,
+          gift_complex_discount_rub = NULL
+        WHERE reward_type = 'percent';
+
         ALTER TABLE master_promo_codes
           ADD CONSTRAINT master_promo_codes_reward_check
           CHECK (
